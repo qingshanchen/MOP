@@ -2,6 +2,7 @@
 static char help[] = "A vorticity-divergence based Shallow Water Solver";
 
 #include <petscksp.h>
+#include <netcdf.h>
 
 /*
     User-defined context that contains all the data structures used
@@ -53,6 +54,31 @@ typedef struct {
 } Mesh;
 
 
+typedef struct {
+  //  const char      *grid_file_name = "grid.nc";
+
+} Parameter;
+
+
+/* Handle errors by printing an error message and exiting with a
+ * non-zero status. */
+#define ERRCODE 2
+#define ERR(e) {printf("Error: %s\n", nc_strerror(e)); exit(ERRCODE);}
+
+
+int read_grid(Parameter c, Mesh g){
+  int          ncid, dimid, varid, retval;
+
+  //  if ((retval = nc_open(*(c->grid_file_name), NC_NOWRITE, &ncid)))
+  if ((retval = nc_open("grid.nc", NC_NOWRITE, &ncid)))
+    ERR(retval);
+
+  if ((retval = nc_close(ncid)))
+    ERR(retval);
+
+  return 0;
+}
+
 
 #undef __FUNCT__
 #define __FUNCT__ "main"
@@ -62,10 +88,15 @@ int main(int argc,char **args)
   PetscInt       m = 6,n = 7,t,tmax = 2,i,Ii,j,N;
   PetscScalar    *userx,*rho,*solution,*userb,hx,hy,x,y;
   PetscReal      enorm;
+  Parameter      c;
+  Mesh           g;
+  
   /*
      Initialize the PETSc libraries
   */
   PetscInitialize(&argc,&args,(char*)0,help);
 
+  ierr = read_grid(c, g);
+  
   return 0;
 }
