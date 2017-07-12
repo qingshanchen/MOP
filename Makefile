@@ -1,6 +1,7 @@
 PETSC_DIR = /home/qsc/mylib/petsc-3.7.6
-#PETSC_ARCH = /home/qsc/mylib/petsc-3.7.6/arch-linux2-c-opt
-PETSC_ARCH = /home/qsc/mylib/petsc-3.7.6/arch-linux2-c-debug
+
+PETSC_ARCH = /home/qsc/mylib/petsc-3.7.6/arch-linux2-c-opt
+#PETSC_ARCH = /home/qsc/mylib/petsc-3.7.6/arch-linux2-c-debug
 
 
 MPICC = ${PETSC_ARCH}/bin/mpicc

@@ -60,45 +60,25 @@ typedef struct {
 
 
 typedef struct {
-    char      *grid_file_name;
+    char      *grid_file_name;    
 
   double    dt;
   
 } Parameter;
 
-int moc_initialize_parameters( Parameter *c){
-    c->grid_file_name = "grid.nc";
+int moc_initialize_parameters(Parameter *cp ){
     
+    cp->grid_file_name = "grid.nc";
+    cp->dt = 172.8;
 
-  c->dt = 172.8;
-  
-  //printf("In moc_initialize_parameters\n");
-  //printf("grid_file_name = %s\n", c->grid_file_name);
-   //printf("grid_file_name = %x", c->grid_file_name);
-  //printf("\n");
-
-  return 0;
+    return 0;
 }
       
 
-int read_grid(Parameter *c, Mesh *g){
+int read_grid(Parameter *cptr, Mesh *gptr){
   int          ncid, dimid, varid, retval;
 
-  //char           grid_file_name[] = c->grid_file_name;
-  double         dt = c->dt;
-
-  printf("Inside read_grid");
-  printf("\n");
-  printf("grid_file_name");
-  printf("\n");
-  printf("%s\n", c->grid_file_name);
-  printf("dt = %f\n", dt);
-  /* 
-  printf(c->grid_file_name);
-  printf("\n");*/
-
-  //if ((retval = nc_open(c->grid_file_name, NC_NOWRITE, &ncid)))
-  if ((retval = nc_open("grid.nc", NC_NOWRITE, &ncid)))
+  if ((retval = nc_open(cptr->grid_file_name, NC_NOWRITE, &ncid)))
     ERR(retval);
 
   if ((retval = nc_close(ncid)))
@@ -116,22 +96,17 @@ int main(int argc,char **args)
   PetscInt       m = 6,n = 7,t,tmax = 2,i,Ii,j,N;
   PetscScalar    *userx,*rho,*solution,*userb,hx,hy,x,y;
   PetscReal      enorm;
-  Parameter      *c;
-  Mesh           *g;
+  Parameter      c;
+  Mesh           g;
   
   /*
      Initialize the PETSc libraries
   */
   PetscInitialize(&argc,&args,(char*)0,help);
 
-  moc_initialize_parameters(c);
-  printf("In main\n");
-  printf("grid_file_name = %s\n", c->grid_file_name);
-  printf("grid_file_name = %x\n", c->grid_file_name);
-  printf("dt = %f", c->dt);
-  printf("\n");
+  moc_initialize_parameters(&c);
   
-  ierr = read_grid(c, g);
+  ierr = read_grid(&c, &g);
   
   return 0;
 }
