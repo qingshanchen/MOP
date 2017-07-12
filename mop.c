@@ -4,6 +4,11 @@ static char help[] = "A vorticity-divergence based Shallow Water Solver";
 #include <petscksp.h>
 #include <netcdf.h>
 
+/* Handle errors by printing an error message and exiting with a
+ * non-zero status. */
+#define ERRCODE 2
+#define ERR(e) {printf("Error: %s\n", nc_strerror(e)); exit(ERRCODE);}
+
 /*
     User-defined context that contains all the data structures used
     in the linear solution process.
@@ -55,21 +60,44 @@ typedef struct {
 
 
 typedef struct {
-  //  const char      *grid_file_name = "grid.nc";
+    char      *grid_file_name;
 
+  double    dt;
+  
 } Parameter;
 
+int moc_initialize_parameters( Parameter *c){
+    c->grid_file_name = "grid.nc";
+    
 
-/* Handle errors by printing an error message and exiting with a
- * non-zero status. */
-#define ERRCODE 2
-#define ERR(e) {printf("Error: %s\n", nc_strerror(e)); exit(ERRCODE);}
+  c->dt = 172.8;
+  
+  //printf("In moc_initialize_parameters\n");
+  //printf("grid_file_name = %s\n", c->grid_file_name);
+   //printf("grid_file_name = %x", c->grid_file_name);
+  //printf("\n");
 
+  return 0;
+}
+      
 
-int read_grid(Parameter c, Mesh g){
+int read_grid(Parameter *c, Mesh *g){
   int          ncid, dimid, varid, retval;
 
-  //  if ((retval = nc_open(*(c->grid_file_name), NC_NOWRITE, &ncid)))
+  //char           grid_file_name[] = c->grid_file_name;
+  double         dt = c->dt;
+
+  printf("Inside read_grid");
+  printf("\n");
+  printf("grid_file_name");
+  printf("\n");
+  printf("%s\n", c->grid_file_name);
+  printf("dt = %f\n", dt);
+  /* 
+  printf(c->grid_file_name);
+  printf("\n");*/
+
+  //if ((retval = nc_open(c->grid_file_name, NC_NOWRITE, &ncid)))
   if ((retval = nc_open("grid.nc", NC_NOWRITE, &ncid)))
     ERR(retval);
 
@@ -88,14 +116,21 @@ int main(int argc,char **args)
   PetscInt       m = 6,n = 7,t,tmax = 2,i,Ii,j,N;
   PetscScalar    *userx,*rho,*solution,*userb,hx,hy,x,y;
   PetscReal      enorm;
-  Parameter      c;
-  Mesh           g;
+  Parameter      *c;
+  Mesh           *g;
   
   /*
      Initialize the PETSc libraries
   */
   PetscInitialize(&argc,&args,(char*)0,help);
 
+  moc_initialize_parameters(c);
+  printf("In main\n");
+  printf("grid_file_name = %s\n", c->grid_file_name);
+  printf("grid_file_name = %x\n", c->grid_file_name);
+  printf("dt = %f", c->dt);
+  printf("\n");
+  
   ierr = read_grid(c, g);
   
   return 0;
