@@ -12,7 +12,7 @@ CPPFLAGS         =
 FPPFLAGS         =
 
 
-CCINCLUDES = -I${PETSC_DIR}/include -I${PETSC_ARCH}/include
+CCINCLUDES = -I${PETSC_DIR}/include -I${PETSC_ARCH}/include -I./
 LIBS = -Wl,-rpath,${PETSC_ARCH}/lib -L${PETSC_ARCH}/lib -Wl,-rpath,/usr/lib/x86_64-linux-gnu -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/gcc/x86_64-linux-gnu/6 -L/usr/lib/gcc/x86_64-linux-gnu/6 -lpetsc -llapack -lblas  -lX11 -lpthread -lm -lquadmath -lmpichcxx -lstdc++ -lm -lmpich -lgcc_s -ldl -lnetcdf
 
 default: mop

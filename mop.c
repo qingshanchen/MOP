@@ -3,6 +3,7 @@ static char help[] = "A vorticity-divergence based Shallow Water Solver";
 
 #include <petscksp.h>
 #include <netcdf.h>
+#include <utils.h>
 
 /* Handle errors by printing an error message and exiting with a
  * non-zero status. */
@@ -62,25 +63,26 @@ typedef struct {
 typedef struct {
     char      *grid_file_name;    
 
-  double    dt;
+    double    dt;
   
 } Parameter;
 
-int moc_initialize_parameters(Parameter *cp ){
+int moc_initialize_parameters(Parameter *c_ptr ){
     
-    cp->grid_file_name = "grid.nc";
-    cp->dt = 172.8;
+    c_ptr->grid_file_name = "grid.nc";
+    c_ptr->dt = 172.8;
 
     return 0;
 }
       
 
-int read_grid(Parameter *cptr, Mesh *gptr){
+int initialize_grid(Parameter *c_ptr, Mesh *gptr){
   int          ncid, dimid, varid, retval;
+  int          nCells, nEdges, nVertices;
 
-  if ((retval = nc_open(cptr->grid_file_name, NC_NOWRITE, &ncid)))
+  if ((retval = nc_open(c_ptr->grid_file_name, NC_NOWRITE, &ncid)))
     ERR(retval);
-
+  
   if ((retval = nc_close(ncid)))
     ERR(retval);
 
@@ -106,7 +108,7 @@ int main(int argc,char **args)
 
   moc_initialize_parameters(&c);
   
-  ierr = read_grid(&c, &g);
+  ierr = initialize_grid(&c, &g);
   
   return 0;
 }
