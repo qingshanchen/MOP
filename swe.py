@@ -159,8 +159,6 @@ class grid_data:
 
         self.lu_D2 = splu(self.D2)
 
-        raise ValueError
-    
         # Make a copy of grid file
         os.system('cp %s %s' % (netcdf_file, c.output_file))
 
@@ -206,30 +204,6 @@ class state_data:
         #
         self.time = 0.0
 
-        ### Compute the upward or downward shifting factor by solving an elliptic
-        ### problem with the rhs equal to 1.
-        # Set the homogeneious boundary conditon for psi_cell
-        self.psi_cell[g.cellBoundary[:]-1] = 0.0
-
-        # Compute the right-hand side
-        nCellsInterior = np.size(g.cellInterior)
-        b = np.zeros(nCellsInterior)
-        b[:] = 1.0
-
-        # Enforcing the boundary condition
-        b -= g.D1_bdry*self.psi_cell[g.cellBoundary[:]-1]
-
-        # Solve the linear system
-        x = g.lu.solve(b)
-
-        # Recover psi from x
-        self.psi_cell[g.cellInterior[:]-1] = x[:].copy()
-
-        # Shift psi so that area-weighted average of psi is zero (to preserve volume)
-        psi_avg = np.sum(self.psi_cell * g.areaCell) / np.sum(g.areaCell)
-
-        # Compute the shifting factor
-        self.shifting_factor = 1 + c.fsc * psi_avg
 
     def start_from_function(self, g, c):
 
@@ -669,109 +643,19 @@ def timestepping_backwardEuler(s, s_pre, g, c):
 
     s.pv_edge[:] = cmp.compute_pv_edge( \
          g.cellsOnEdge, g.boundaryCellMark, s.pv_cell)
-    #s.pv_edge[:] = cmp.compute_pv_edge_apvm( \
-    #     g.cellsOnEdge, g.boundaryCellMark, g.dcEdge, c.dt, s.pv_cell, s.u, c.apvm_factor)
-    #s.pv_edge[:] = cmp.compute_pv_edge_upwind(g.cellsOnEdge, s.pv_cell, s.u)
 
-
-def timestepping_steady(s, s_pre, g, c):
-
-    dt = c.dt
-
-    ## Time keeping
-    s.time += dt
-
-    ## Solve an elliptic BVP for psi
-#    b = 1. / c.H * s.curlWind_cell[g.cellInterior[:] - 1]
-#    x = g.lu_B.solve(b)
-#    s.psi_cell[g.cellInterior[:]-1] = x[:].copy()
-#    s.psi_cell[g.cellBoundary[:]-1] = 0.
-
-    ## Solve an biharmonic BVP for psi
-    b = 1. / c.H * s.curlWind_cell[g.cellInner[:] - 1]
-    x = g.lu_B2.solve(b)
-    s.psi_cell[g.cellInner[:]-1] = x[:].copy()
-    s.psi_cell[g.cellOuter[:]-1] = 0.
-    
-    s.vorticity_cell = cmp.discrete_laplace_cell(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, \
-                                                 s.psi_cell)
-    s.vorticity_cell *= c.gravity / c.f0
-
-    # Compute pv_cell
-    s.compute_pv_cell(c, g)
-
-    # Average psi_cell to psi_vertex
-    s.psi_vertex = cmp.cell2vertex( \
-        g.cellsOnVertex, g.kiteAreasOnVertex, \
-        g.areaTriangle, g.verticesOnEdge, s.psi_cell)
-
-    s.u[:] = cmp.compute_u(g.verticesOnEdge, g.cellsOnEdge, g.dvEdge, \
-                    s.psi_vertex, s.psi_cell, c.gravity/c.f0)
-
-    # To test matrix g.Dx_augmented
-    #Dx_psi_cell = g.Dx * x * c.beta * c.gravity / c.f0
-#    Dx_psi_cell = g.Dx_augmented * s.psi_cell * c.beta * c.gravity / c.f0
-#    s.pv_cell[g.cellInterior[:]-1] = Dx_psi_cell.copy()
-#    s.pv_cell[g.cellBoundary[:]-1] = 0.
-#    a = g.Dx * s.psi_cell[g.cellInterior[:]-1] + g.Dx_bdry * s.psi_cell[g.cellBoundary[:]-1]
-#    b = g.Dx_augmented * s.psi_cell
-#    print("max in a-b = %e" % np.max(np.abs(a-b)))
-#    if np.max(np.abs(a-b)) > 1e-5:
-#        raise ValueError
-
-#    D1_psi_cell = g.D1 * x * c.bottomDrag * c.gravity / c.f0
-#    s.vorticity_cell[g.cellInterior[:]-1] = D1_psi_cell.copy()
-#    s.vorticity_cell[g.cellBoundary[:]-1] = 0.
-    
 
 def run_tests(g, c, s):
 
-    if False:    # Test matrix A and discrete_laplace
-        psi_cell_true = np.random.rand(g.nCells)
-
-        psi_cell_true[g.cellBoundary[:]-1] = 0.0
-
-        vorticity_cell_1 = cmp.discrete_laplace_cell(g.cellsOnEdge, \
-            g.dcEdge, g.dvEdge, g.areaCell, psi_cell_true)
-        vorticity_cell_1 *= c.gravity/c.f0
-
-        #Compute pv_cell (without beta term and bottom topography)
-        pv_cell_1 = vorticity_cell_1 - c.fsc*psi_cell_true
-
-        pv_cell_2 = np.zeros(g.nCells)
-        pv_cell_2[g.cellInterior[:]-1] = g.A_augmented * psi_cell_true
-        
-        # Compute the errors
-        l8 = np.max(np.abs(pv_cell_1[g.cellInterior[:]-1] - pv_cell_2[g.cellInterior[:]-1])) / np.max(np.abs(pv_cell_1[g.cellInterior[:]-1]))
-        l2 = np.sum(np.abs(pv_cell_1[g.cellInterior[:]-1] - pv_cell_2[g.cellInterior[:]-1])**2 * g.areaCell[g.cellInterior[:]-1])
-        l2 /=  np.sum(np.abs(pv_cell_1[g.cellInterior[:]-1])**2 * g.areaCell[g.cellInterior[:]])
-        l2 = np.sqrt(l2)
-        print "Errors for linear solver"
-        print "L infinity error = ", l8
-        print "L^2 error        = ", l2
-
-        # Examine cell 174 (zero based)
-        print("pv_cell_1[174] = %e" % pv_cell_1[174])
-        print("pv_cell_2[174] = %e" % pv_cell_2[174])
-        edges = g.edgesOnCell[174,:6]
-        coefs = g.dvEdge[edges-1] / g.dcEdge[edges-1]
-        cells = g.cellsOnCell[174,:6]
-        print("pv_cell[174]= %e" % (c.gravity/c.f0 * (np.sum(psi_cell_true[cells-1] * coefs) - psi_cell_true[174]*np.sum(coefs))/g.areaCell[174] - c.fsc*psi_cell_true[174]))
-
-
-    if False:   # Test the linear solver
+    if True:   # Test the linear solver the Lapace equation on the interior cells with homogeneous Dirichlet BC's
         psi_cell_true = np.random.rand(g.nCells)
         psi_cell_true[g.cellBoundary[:]-1] = 0.0
 
-        vorticity_cell_1 = cmp.discrete_laplace_cell(g.cellsOnEdge, \
+        vorticity_cell = cmp.discrete_laplace_cell(g.cellsOnEdge, \
             g.dcEdge, g.dvEdge, g.areaCell, psi_cell_true)
-        vorticity_cell_1 *= c.gravity/c.f0
-
-        #Compute pv_cell (without beta term and bottom topography)
-        pv_cell = vorticity_cell_1 - c.fsc*psi_cell_true
 
         #compte psi_cell using g.A and linear solver
-        x = g.lu.solve(pv_cell[g.cellInterior[:]-1])
+        x = g.lu_D1.solve(vorticity_cell[g.cellInterior[:]-1])
         psi_cell = np.zeros(g.nCells)
         psi_cell[g.cellInterior[:]-1] = x[:]
 
@@ -784,123 +668,31 @@ def run_tests(g, c, s):
         print "L infinity error = ", l8
         print "L^2 error        = ", l2        
         
-    if False:   # Test compute_psi_cell
-        print("Test compute_psi_cell")
-#        latmin = np.min(g.latCell[:]); latmax = np.max(g.latCell[:])
-#        lonmin = np.min(g.lonCell[:]); lonmax = np.max(g.lonCell[:])
-
-#        latmid = 0.5*(latmin+latmax)
-#        latwidth = latmax - latmin
-
-#        lonmid = 0.5*(lonmin+lonmax)
-#        lonwidth = lonmax - lonmin
-
-#        pi = np.pi; sin = np.sin; exp = np.exp
-#        r = c.earth_radius
-
-        #
-#        d = np.sqrt(32*(g.latCell[:] - latmid)**2/latwidth**2 + 4*(g.lonCell[:]-(-.85))**2/.36**2)
-#        psi_cell_true = 2*np.exp(-d**2) * 0.5*(1-np.tanh(20*(d-1.5)))
-#        psi_cell_true[:] -= np.sum(psi_cell_true * g.areaCell) / np.sum(g.areaCell)
-
+    if True:   # Test the linear solver the Lapace equation on the whole domain with homogeneous Neumann BC's
         psi_cell_true = np.random.rand(g.nCells)
-        psi_cell_true[g.cellBoundary[:]-1] = 0.0
-        psi_cell_true[:] -= np.sum(psi_cell_true * g.areaCell) / np.sum(g.areaCell)
+        psi_cell_true[0] = 0.
         
-        # Compute vorticity_cell
-        vorticity_cell_1 = cmp.discrete_laplace_cell(g.cellsOnEdge, \
+        vorticity_cell = cmp.discrete_laplace_cell(g.cellsOnEdge, \
             g.dcEdge, g.dvEdge, g.areaCell, psi_cell_true)
-        vorticity_cell_1 *= c.gravity/c.f0
 
-        # Compute pv_cell
-        pv_cell = vorticity_cell_1 + g.betaY - c.fsc*psi_cell_true + c.btc*g.bottomTopographyCell
+        # Artificially set vorticity_cell[0] to 0
+        vorticity_cell[0] = 0.
 
-        # Test compute_psi_cell
-        s.pv_cell[:] = pv_cell[:]
-        s.compute_psi_cell(g, c)
-        l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
-        l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
+        #compte psi_cell using g.A and linear solver
+        psi_cell = g.lu_D2.solve(vorticity_cell[:])
+
+        # Compute the errors
+        l8 = np.max(np.abs(psi_cell_true[:] - psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
+        l2 = np.sum(np.abs(psi_cell_true[:] - psi_cell[:])**2 * g.areaCell[:])
         l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
         l2 = np.sqrt(l2)
-        print "Errors for compute_psi_cell"
+        print "Errors for linear solver"
         print "L infinity error = ", l8
-        print "L^2 error        = ", l2
-        if l2 > 1.e-7:
-            raise ValueError("L2 error is too big.")
-
-        psi_vertex = cmp.cell2vertex( g.cellsOnVertex, g.kiteAreasOnVertex,
-                                      g.areaTriangle, g.verticesOnEdge, s.psi_cell)
-        u = cmp.compute_u(g.verticesOnEdge, g.cellsOnEdge, \
-                                      g.dvEdge, psi_vertex, s.psi_cell, c.gravity/c.f0)
-        energy = 0.5*np.sum(g.dvEdge[:] * g.dcEdge[:] * u**2)
-        print("After re-calculating psi_cell from pv_cell, energy = %e" % energy)
-
-    if False:   # Test compute_psi_cell_del2
-        print("Test compute_psi_del2")
-        psi_cell_true = np.random.rand(g.nCells)
-        psi_cell_true[g.cellOuter[:]-1] = 0.0
-        psi_cell_true[:] -= np.sum(psi_cell_true * g.areaCell) / np.sum(g.areaCell)
-
-        # Compute vorticity_cell
-        vorticity_cell_1 = cmp.discrete_laplace_cell(g.cellsOnEdge, \
-            g.dcEdge, g.dvEdge, g.areaCell, psi_cell_true)
-        vorticity_cell_1 *= c.gravity/c.f0
-
-        # Compute pv_cell
-        pv_cell = vorticity_cell_1 + g.betaY - c.fsc*psi_cell_true + c.btc*g.bottomTopographyCell
-
-        # Test compute_psi_cell
-        s.pv_cell[:] = pv_cell[:]
-        s.compute_psi_cell_del2(g, c)
-        l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
-        l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
-        l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
-        l2 = np.sqrt(l2)
-        print "Errors for compute_psi_cell"
-        print "L infinity error = ", l8
-        print "L^2 error        = ", l2
-        if l2 > 1.e-7:
-            raise ValueError("L2 error is too big.")
-
-    if True:
+        print "L^2 error        = ", l2        
         
-        print("Test matrix C and its solver.")
-        psi_cell_true = np.random.rand(g.nCells)
-        psi_cell_true[g.cellOuter[:]-1] = 0.0
-
-        # Compute the right-hand side
-        # Compute vorticity_cell
-        vorticity_cell_1 = cmp.discrete_laplace_cell(g.cellsOnEdge, \
-            g.dcEdge, g.dvEdge, g.areaCell, psi_cell_true)
-        vorticity_cell_1 *= c.gravity/c.f0
-        b = (1. + c.bottomDrag*c.dt)*vorticity_cell_1
-
-        b -= c.delVisc * c.dt * cmp.discrete_laplace_cell(g.cellsOnEdge, \
-             g.dcEdge, g.dvEdge, g.areaCell, vorticity_cell_1)
-
-        b -= c.fsc * psi_cell_true
-
-        b = b[g.cellInner[:]-1]
-        x = g.lu_C.solve(b)
-        s.psi_cell[g.cellInner[:]-1] = x[:].copy()
-        s.psi_cell[g.cellOuter[:]-1] = 0.
-        
-        l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
-        l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
-        l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
-        l2 = np.sqrt(l2)
-        print "Errors for compute_psi_cell"
-        print "L infinity error = ", l8
-        print "L^2 error        = ", l2
 
         
 def main( ):
-
-    # -----------------------------------------------------------
-    # Setting parameters
-    # -----------------------------------------------------------
-#    nTimeSteps = 360*10; plot_interval = 900
-#    save_interval = 1*30
 
 
     # -----------------------------------------------------------
@@ -913,6 +705,8 @@ def main( ):
     s_pre = state_data(g, c)
     s_intm = state_data(g, c)
 
+    run_tests(g, c, s)
+    raise ValueError
 
     s.initialization(g,c)
         
@@ -923,11 +717,10 @@ def main( ):
     enstrophy[0] = 0.5 * np.sum(g.areaCell[:] \
                 * s.pv_cell[:]**2)
 
+
     print("Running test case \#%d" % c.test_case)
     print "Energy, enstrophy %e, %e" % (energy[0], enstrophy[0])
 
-    #run_tests(g, c, s)
-    #raise ValueError
 
     s.save(c, g, 0)
 
