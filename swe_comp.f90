@@ -259,46 +259,44 @@ subroutine cell2vertex(nVertices, nCells, nEdges, vertexDegree, &
 end subroutine cell2vertex
 
 
-! Compute the normal velocity component from psi_vertex
-subroutine compute_u(nEdges, nVertices, nCells, verticesOnEdge, cellsOnEdge, dvEdge, psi_vertex, psi_cell, gOverf0, u)
+! Compute the normal velocity component from psi_vertex and phi_cell
+subroutine compute_u(nEdges, nVertices, nCells, verticesOnEdge, cellsOnEdge, dcEdge, dvEdge, phi_cell, psi_vertex, u)
   integer, intent(in) :: nEdges, nVertices, nCells
   integer, intent(in) :: verticesOnEdge(0:nEdges-1, 0:1), cellsOnEdge(0:nEdges-1, 0:1)
-  real*8, intent(in)  :: dvEdge(0:nEdges-1), psi_vertex(0:nVertices-1), psi_cell(0:nCells-1), gOverf0
-  real*8, intent(out) :: u(0:nEdges-1)
+  double precision, intent(in)  :: dcEdge(0:nEdges-1), dvEdge(0:nEdges-1), psi_vertex(0:nVertices-1), phi_cell(0:nCells-1)
+  double precision, intent(out) :: u(0:nEdges-1)
 
   integer :: iEdge, vertex0, vertex1, cell0, cell1
-  double precision :: psi_boundary
 
   do iEdge = 0, nEdges-1
         vertex0 = verticesOnEdge(iEdge,0) - 1
         vertex1 = verticesOnEdge(iEdge,1) - 1
+        cell0 = cellsOnEdge(iEdge,0) - 1
+        cell1 = cellsOnEdge(iEdge,1) - 1
+        
+        u(iEdge) = (phi_cell(cell1) - phi_cell(cell0)) / dcEdge(iEdge)
+        
         if (vertex0 >= 0 .AND. vertex1 >= 0) then
            ! For interior edges
-           u(iEdge) = -gOverf0 * (psi_vertex(vertex1) - psi_vertex(vertex0)) / dvEdge(iEdge)           
+           u(iEdge) = u(iEdge) - (psi_vertex(vertex1) - psi_vertex(vertex0)) / dvEdge(iEdge)           
 
         else if (vertex0 < 0 .AND. vertex1 >= 0) then
            ! For partial edges on the boundary
-           cell0 = cellsOnEdge(iEdge,0) - 1
-           cell1 = cellsOnEdge(iEdge,1) - 1
-           psi_boundary = 0.5 * (psi_cell(cell0) + psi_cell(cell1))
-
+        
            ! No-slip boundary condition, suitable when lateral diffusion is included.
            !u(iEdge) = 0.
 
            ! Constant value of zero for the stream function on the boundary
-           u(iEdge) = - gOverf0 * (psi_vertex(vertex1) - psi_boundary )/dvEdge(iEdge)
+           u(iEdge) = u(iEdge) - (psi_vertex(vertex1) - 0. )/dvEdge(iEdge)
            
         else if (vertex0 >= 0 .AND. vertex1 < 0) then
            ! For partial edges on the boundary
-           cell0 = cellsOnEdge(iEdge,0) - 1
-           cell1 = cellsOnEdge(iEdge,1) - 1
-           psi_boundary = 0.5 * (psi_cell(cell0) + psi_cell(cell1))
 
            ! No-slip boundary condition, suitable when lateral diffusion is included.
            !u(iEdge) = 0.
 
            ! Constant value of zero for the stream function on the boundary
-           u(iEdge) = -gOverf0 * (psi_boundary - psi_vertex(vertex0)) / dvEdge(iEdge)
+           u(iEdge) = u(iEdge) - (0. - psi_vertex(vertex0)) / dvEdge(iEdge)
            
         else
            ! Error
@@ -311,53 +309,48 @@ subroutine compute_u(nEdges, nVertices, nCells, verticesOnEdge, cellsOnEdge, dvE
 end subroutine
 
 
-! Compute the tangential velocity component from psi_cell
-subroutine compute_v(nEdges, nCells, boundaryEdge, cellsOnEdge, dcEdge, psi_cell, gOverf0, v)
-  integer, intent(in) :: nEdges, nCells
-  integer, intent(in) :: boundaryEdge(0:nEdges-1), cellsOnEdge(0:nEdges-1, 0:1)
-  real*8, intent(in)  :: dcEdge(0:nEdges-1), psi_cell(0:nCells-1), gOverf0
-  real*8, intent(out) :: v(0:nEdges-1)
+! Compute the tangential velocity component v from psi_cell and phi_vertex
+subroutine compute_v(nEdges, nVertices, nCells, verticesOnEdge, cellsOnEdge, dcEdge, dvEdge, phi_vertex, psi_cell, v)
+  integer, intent(in) :: nEdges, nVertices, nCells
+  integer, intent(in) :: verticesOnEdge(0:nEdges-1, 0:1), cellsOnEdge(0:nEdges-1, 0:1)
+  double precision, intent(in)  :: dcEdge(0:nEdges-1), dvEdge(0:nEdges-1), psi_cell(0:nVertices-1), phi_vertex(0:nCells-1)
+  double precision, intent(out) :: v(0:nEdges-1)
 
-  integer :: iEdge, iCell1, iCell2
-
-  do iEdge = 0, nEdges-1
-        iCell1 = cellsOnEdge(iEdge,0) - 1
-        iCell2 = cellsOnEdge(iEdge,1) - 1
-        v(iEdge) = gOverf0 * (psi_cell(iCell2) - psi_cell(iCell1))/dcEdge(iEdge)
-  end do
-
-end subroutine
-
-
-! Compute pv_edge from pv_cell (for now)
-subroutine compute_pv_edge(nEdges, nCells, cellsOnEdge, cellBoundaryMark, pv_cell, pv_edge)
-  integer, intent(in) :: nEdges, nCells
-  integer, intent(in) :: cellsOnEdge(0:nEdges-1, 0:1), cellBoundaryMark(0:nCells-1)
-  real*8, intent(in)  :: pv_cell(0:nCells-1)
-  real*8, intent(out) :: pv_edge(0:nEdges-1)
-
-  integer :: iEdge, iCell1, iCell2
+  integer :: iEdge, vertex0, vertex1, cell0, cell1
 
   do iEdge = 0, nEdges-1
-        iCell1 = cellsOnEdge(iEdge,0) - 1
-        iCell2 = cellsOnEdge(iEdge,1) - 1
+        vertex0 = verticesOnEdge(iEdge,0) - 1
+        vertex1 = verticesOnEdge(iEdge,1) - 1
+        cell0 = cellsOnEdge(iEdge,0) - 1
+        cell1 = cellsOnEdge(iEdge,1) - 1
+        
+        v(iEdge) = (psi_cell(cell1) - psi_cell(cell0)) / dcEdge(iEdge)
+        
+        if (vertex0 >= 0 .AND. vertex1 >= 0) then
+           ! For interior edges
+           v(iEdge) = v(iEdge) + (phi_vertex(vertex1) - phi_vertex(vertex0)) / dvEdge(iEdge)           
 
-!        if (cellBoundaryMark(iCell1) .EQ. 0 .AND. cellBoundaryMark(iCell2) .EQ. 0) then
-           pv_edge(iEdge) = 0.5*(pv_cell(iCell1) + pv_cell(iCell2))
-!        else if (cellBoundaryMark(iCell1) .GT. 0 .AND. cellBoundaryMark(iCell2) .EQ. 0) then
-!           pv_edge(iEdge) = pv_cell(iCell2)
-!        else if (cellBoundaryMark(iCell1) .EQ. 0 .AND. cellBoundaryMark(iCell2) .GT. 0) then
-!           pv_edge(iEdge) = pv_cell(iCell1)
-!        else
-!           pv_edge(iEdge) = 0.5*(pv_cell(iCell1) + pv_cell(iCell2))
-!        end if
+        else if (vertex0 < 0 .AND. vertex1 >= 0) then
+           ! For partial edges on the boundary, homogeneous Neumann for phi
+           v(iEdge) = v(iEdge) + 0.
+           
+        else if (vertex0 >= 0 .AND. vertex1 < 0) then
+           ! For partial edges on the boundary, homogeneous Neumann for phi
+           v(iEdge) = v(iEdge) + 0.
+           
+        else
+           ! Error
+           write(*,*) "Error in compute_v. Exit"
+           stop
+           
+        end if
   end do
 
-end subroutine
+end subroutine compute_v
 
 
-! Compute pv_edge from pv_cell (for now)
-subroutine compute_scalar_edge(nEdges, nCells, cellsOnEdge, cellBoundaryMark, scalar_cell, scalar_edge)
+! Compute scalar_edge from scalar_cell (for now)
+subroutine cell2edge(nEdges, nCells, cellsOnEdge, cellBoundaryMark, scalar_cell, scalar_edge)
   integer, intent(in) :: nEdges, nCells
   integer, intent(in) :: cellsOnEdge(0:nEdges-1, 0:1), cellBoundaryMark(0:nCells-1)
   real*8, intent(in)  :: scalar_cell(0:nCells-1)
@@ -443,12 +436,12 @@ end subroutine discrete_grad_n
 
 
 subroutine discrete_grad_t(nEdges, nVertices, &
-     scalar_vertex, verticesOnEdge, dvEdgeInterior, &
+     scalar_vertex, verticesOnEdge, dvEdge, &
      grad_t)
   
   integer, intent(in) :: nEdges, nVertices
   integer, intent(in) :: verticesOnEdge(0:nEdges-1, 0:1)
-  real*8, intent(in)  :: dvEdgeInterior(0:nEdges-1)
+  real*8, intent(in)  :: dvEdge(0:nEdges-1)
   real*8, intent(in)  :: scalar_vertex(0:nVertices-1)
   real*8, intent(out) :: grad_t(0:nEdges-1)
 
@@ -459,11 +452,11 @@ subroutine discrete_grad_t(nEdges, nVertices, &
         vertex0 = verticesOnEdge(iEdge,0) - 1
         vertex1 = verticesOnEdge(iEdge,1) - 1
         if (vertex0 .GE. 0 .and. vertex1 .GE. 0) then
-           grad_t(iEdge) = (scalar_vertex(vertex1) - scalar_vertex(vertex0))/dvEdgeInterior(iEdge)
+           grad_t(iEdge) = (scalar_vertex(vertex1) - scalar_vertex(vertex0))/dvEdge(iEdge)
         else if (vertex0 .GE. 0) then
-           grad_t(iEdge) =  - scalar_vertex(vertex0)/dvEdgeInterior(iEdge)
+           grad_t(iEdge) =  - scalar_vertex(vertex0)/dvEdge(iEdge)
         else if (vertex1 .GE. 0) then
-           grad_t(iEdge) =  scalar_vertex(vertex1)/dvEdgeInterior(iEdge)
+           grad_t(iEdge) =  scalar_vertex(vertex1)/dvEdge(iEdge)
         else
            write(*,*) "Vertex indices in verticesOnEdge are wrong in discrete_grad_t. Exit."
            stop
@@ -472,12 +465,13 @@ subroutine discrete_grad_t(nEdges, nVertices, &
 
 end subroutine discrete_grad_t
 
-
-subroutine discrete_div_n(nEdges, nCells, grad_n, cellsOnEdge, &
+! Given a discrete vector field vector_n, compute its discrete divergence.
+! The orientation on the edge is assumed to be from cell0 (first cell) to cell1 (second cell)
+subroutine discrete_div(nEdges, nCells, vector_n, cellsOnEdge, &
      dvEdgeInterior, areaCell, divergence_n)
   integer, intent(in) :: nEdges, nCells
   integer, intent(in) :: cellsOnEdge(0:nEdges-1, 0:1)
-  real*8, intent(in)  :: grad_n(0:nEdges-1), dvEdgeInterior(0:nEdges-1), &
+  real*8, intent(in)  :: vector_n(0:nEdges-1), dvEdgeInterior(0:nEdges-1), &
        areaCell(0:nCells-1)
   real*8, intent(out) :: divergence_n(0:nCells-1)
 
@@ -489,68 +483,46 @@ subroutine discrete_div_n(nEdges, nCells, grad_n, cellsOnEdge, &
         cell0 = cellsOnEdge(iEdge,0) - 1
         cell1 = cellsOnEdge(iEdge,1) - 1
 
-        divergence_n(cell0) = divergence_n(cell0) + grad_n(iEdge) * dvEdgeInterior(iEdge)
-        divergence_n(cell1) = divergence_n(cell1) - grad_n(iEdge) * dvEdgeInterior(iEdge)
+        divergence_n(cell0) = divergence_n(cell0) + vector_n(iEdge) * dvEdgeInterior(iEdge)
+        divergence_n(cell1) = divergence_n(cell1) - vector_n(iEdge) * dvEdgeInterior(iEdge)
   end do
 
   do iCell = 0, nCells-1
      divergence_n(iCell) = divergence_n(iCell)/areaCell(iCell)
   end do
   
-end subroutine discrete_div_n
+end subroutine discrete_div
 
-subroutine discrete_div_t(nEdges, nVertices, &
-                          grad_t, verticesOnEdge, dcEdge, areaTriangle, &
-                          divergence_t)
-  integer, intent(in) :: nEdges, nVertices
-  integer, intent(in) :: verticesOnEdge(0:nEdges-1, 0:1)
-  real*8, intent(in)  :: grad_t(0:nEdges-1), dcEdge(0:nEdges-1), areaTriangle(0:nVertices-1)
-  real*8, intent(out) :: divergence_t(0:nVertices-1)
 
-  integer :: iEdge, vertex0, vertex1, iVertex
+! Given a discrete vector field vector_t, compute its discrete divergence.
+! The orientation on the edge is such that the first cell (cell0) appears on the left of the edge
+subroutine discrete_curl(nEdges, nCells, vector_t, cellsOnEdge, &
+     dvEdge, areaCell, curl)
+  integer, intent(in) :: nEdges, nCells
+  integer, intent(in) :: cellsOnEdge(0:nEdges-1, 0:1)
+  real*8, intent(in)  :: vector_t(0:nEdges-1), dvEdge(0:nEdges-1), &
+       areaCell(0:nCells-1)
+  real*8, intent(out) :: curl(0:nCells-1)
 
-  divergence_t(:) = 0.0
+  integer :: iEdge, cell0, cell1, iCell
+
+  curl(:) = 0.0
 
   do iEdge = 0, nEdges-1
-        vertex0 = verticesOnEdge(iEdge,0) - 1
-        vertex1 = verticesOnEdge(iEdge,1) - 1
+        cell0 = cellsOnEdge(iEdge,0) - 1
+        cell1 = cellsOnEdge(iEdge,1) - 1
 
-        if (vertex0 >= 0) then
-            divergence_t(vertex0) = divergence_t(vertex0) + grad_t(iEdge) * dcEdge(iEdge)
-         endif
+        curl(cell0) = curl(cell0) + vector_t(iEdge) * dvEdge(iEdge)
+        curl(cell1) = curl(cell1) - vector_t(iEdge) * dvEdge(iEdge)
 
-         if (vertex1 >= 0) then
-            divergence_t(vertex1) = divergence_t(vertex1) - grad_t(iEdge) * dcEdge(iEdge)
-         endif
   end do
 
-  do iVertex = 0, nVertices-1
-     divergence_t(iVertex) = divergence_t(iVertex)/areaTriangle(iVertex)
+  do iCell = 0, nCells-1
+     curl(iCell) = curl(iCell)/areaCell(iCell)
   end do
   
-end subroutine
+end subroutine discrete_curl
 
-
-subroutine discrete_laplace_vertex(nEdges, nVertices,  &
-     verticesOnEdge, dcEdge, dvEdge, areaTriangle, scalar_vertex, &
-          laplace_vertex)
-  
-  integer, intent(in) :: nEdges, nVertices
-  integer, intent(in) :: verticesOnEdge(0:nEdges-1, 0:1)
-  real*8, intent(in)  :: dcEdge(0:nEdges-1), dvEdge(0:nEdges-1), &
-       areaTriangle(0:nVertices-1), scalar_vertex(0:nVertices-1)
-  real*8, intent(out) :: laplace_vertex(0:nVertices-1)
-
-  real*8              :: grad_t(0:nEdges-1)
-
-  call discrete_grad_t(nEdges, nVertices, &
-     scalar_vertex, verticesOnEdge, dvEdge, &
-     grad_t)
-
-   call discrete_div_t(nEdges, nVertices, &
-                       grad_t, verticesOnEdge, dcEdge, areaTriangle, &
-                       laplace_vertex)
-end subroutine discrete_laplace_vertex
 
 
 subroutine discrete_laplace_cell(nEdges, nCells,  &
@@ -569,7 +541,7 @@ subroutine discrete_laplace_cell(nEdges, nCells,  &
      scalar_cell, cellsOnEdge, dcEdge, &
      grad_n)
 
-   call discrete_div_n(nEdges, nCells, &
+   call discrete_div(nEdges, nCells, &
                        grad_n, cellsOnEdge, dvEdge, areaCell, &
                        laplace_cell)
 end subroutine discrete_laplace_cell
@@ -668,74 +640,6 @@ subroutine separate_boundary_interior_inner_cells(nCells, maxEdges, &
   end do
 
 end subroutine separate_boundary_interior_inner_cells
-
-subroutine compute_sparse_matrix_entries_for_hex(nCells, nEdges, &
-     boundaryEdge, cellsOnEdge, boundaryCell, cellRankInterior, &
-     dvEdge, dcEdge, areaCell, gOverf0, Cori, nEntries, rows, &
-     cols, valEntries)
-
-  integer, intent(in)    :: nCells, nEdges
-  integer, intent(in)    :: boundaryEdge(0:nEdges-1), &
-       cellsOnEdge(0:nEdges-1,0:1), boundaryCell(0:nCells-1), &
-       cellRankInterior(0:nCells-1)
-  real*8, intent(in)     :: dvEdge(0:nEdges-1), dcEdge(0:nEdges-1), &
-       areaCell(0:nCells-1), Cori, gOverf0
-  integer, intent(out)   :: rows(0:4*nEdges+nCells-1), cols(0:4*nEdges+nCells-1), &
-       nEntries
-  real*8, intent(out)    :: valEntries(0:4*nEdges+nCells-1)
-
-  integer   :: iEdge, iCell1, iCell2, iEntry, iCellInterior
-
-  iEntry = 0
-
-  do iEdge = 0, nEdges-1
-     if (boundaryEdge(iEdge) .EQ. 0) then
-        iCell1 = cellsOnEdge(iEdge,0) - 1
-        iCell2 = cellsOnEdge(iEdge,1) - 1
-
-        if (boundaryCell(iCell1) .EQ. 0) then
-           iCellInterior = cellRankInterior(iCell1) - 1
-           rows(iEntry) = iCellInterior
-           cols(iEntry) = iCell1
-           valEntries(iEntry) = -gOverf0*dvEdge(iEdge)/dcEdge(iEdge)/areaCell(iCell1) 
-           iEntry = iEntry + 1
-
-           rows(iEntry) = iCellInterior
-           cols(iEntry) = iCell2
-           valEntries(iEntry) = gOverf0*dvEdge(iEdge)/dcEdge(iEdge)/areaCell(iCell1)
-           iEntry = iEntry + 1
-        end if
-        
-
-        if (boundaryCell(iCell2) .EQ. 0) then
-           iCellInterior = cellRankInterior(iCell2) - 1              
-           rows(iEntry) = iCellInterior
-           cols(iEntry) = iCell1
-           valEntries(iEntry) = gOverf0*dvEdge(iEdge)/dcEdge(iEdge)/areaCell(iCell2)
-           iEntry = iEntry + 1
-
-           rows(iEntry) = iCellInterior
-           cols(iEntry) = iCell2
-           valEntries(iEntry) = -gOverf0*dvEdge(iEdge)/dcEdge(iEdge)/areaCell(iCell2)! - Cori
-           iEntry = iEntry + 1
-        end if
-     end if
-  end do
-
-  do iCell1 = 0, nCells - 1
-     if (boundaryCell(iCell1) .EQ. 0) then
-        iCellInterior = cellRankInterior(iCell1) - 1
-        rows(iEntry) = iCellInterior
-        cols(iEntry) = iCell1
-        valEntries(iEntry) = -Cori
-        iEntry = iEntry + 1
-     end if
-  end do
-     
-  
-  nEntries = iEntry
-  
-end subroutine compute_sparse_matrix_entries_for_hex
 
 
 subroutine construct_discrete_laplace_interior(nCells, nEdges, &
@@ -849,11 +753,4 @@ subroutine construct_discrete_laplace_neumann(nCells, nEdges, &
 end subroutine construct_discrete_laplace_neumann
 
 
-
-
 end module
-
-      
-      
-
-  
