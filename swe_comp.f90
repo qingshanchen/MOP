@@ -260,7 +260,7 @@ end subroutine cell2vertex
 
 
 ! Compute the normal velocity component from psi_vertex and phi_cell
-subroutine compute_u(nEdges, nVertices, nCells, verticesOnEdge, cellsOnEdge, dcEdge, dvEdge, phi_cell, psi_vertex, u)
+subroutine compute_normal_velocity(nEdges, nVertices, nCells, verticesOnEdge, cellsOnEdge, dcEdge, dvEdge, phi_cell, psi_vertex, u)
   integer, intent(in) :: nEdges, nVertices, nCells
   integer, intent(in) :: verticesOnEdge(0:nEdges-1, 0:1), cellsOnEdge(0:nEdges-1, 0:1)
   double precision, intent(in)  :: dcEdge(0:nEdges-1), dvEdge(0:nEdges-1), psi_vertex(0:nVertices-1), phi_cell(0:nCells-1)
@@ -306,11 +306,11 @@ subroutine compute_u(nEdges, nVertices, nCells, verticesOnEdge, cellsOnEdge, dcE
         end if
   end do
 
-end subroutine
+end subroutine compute_normal_velocity
 
 
 ! Compute the tangential velocity component v from psi_cell and phi_vertex
-subroutine compute_v(nEdges, nVertices, nCells, verticesOnEdge, cellsOnEdge, dcEdge, dvEdge, phi_vertex, psi_cell, v)
+subroutine compute_tangential_velocity(nEdges, nVertices, nCells, verticesOnEdge, cellsOnEdge, dcEdge, dvEdge, phi_vertex, psi_cell, v)
   integer, intent(in) :: nEdges, nVertices, nCells
   integer, intent(in) :: verticesOnEdge(0:nEdges-1, 0:1), cellsOnEdge(0:nEdges-1, 0:1)
   double precision, intent(in)  :: dcEdge(0:nEdges-1), dvEdge(0:nEdges-1), psi_cell(0:nVertices-1), phi_vertex(0:nCells-1)
@@ -346,13 +346,13 @@ subroutine compute_v(nEdges, nVertices, nCells, verticesOnEdge, cellsOnEdge, dcE
         end if
   end do
 
-end subroutine compute_v
+end subroutine compute_tangential_velocity
 
 
 ! Compute scalar_edge from scalar_cell (for now)
-subroutine cell2edge(nEdges, nCells, cellsOnEdge, cellBoundaryMark, scalar_cell, scalar_edge)
+subroutine cell2edge(nEdges, nCells, cellsOnEdge, scalar_cell, scalar_edge)
   integer, intent(in) :: nEdges, nCells
-  integer, intent(in) :: cellsOnEdge(0:nEdges-1, 0:1), cellBoundaryMark(0:nCells-1)
+  integer, intent(in) :: cellsOnEdge(0:nEdges-1, 0:1)
   real*8, intent(in)  :: scalar_cell(0:nCells-1)
   real*8, intent(out) :: scalar_edge(0:nEdges-1)
 

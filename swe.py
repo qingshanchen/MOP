@@ -24,7 +24,6 @@ class parameters:
         self.restart = False
         self.restart_file = 'restart.nc'
 
-        self.free_surface = True
         self.bottom_topography = True
         
         self.dt = 10800
@@ -35,13 +34,8 @@ class parameters:
 
         # Size of the phyiscal domain
         self.earth_radius = 6371000.0
-        self.L = 1000000.0
-        self.D = np.sqrt(3.)/2*self.L
-        self.H = 4000.
 
         self.gravity = 9.81
-        self.f0 = 7.2722e-5
-        self.beta = 1.4e-11
 
         # Forcing
         self.tau0 = 1.e-4  #(m^2 s^-2, McWilliams et al 1981)
@@ -52,7 +46,6 @@ class parameters:
 
         self.nTimeSteps = np.ceil(1.*86400*360/self.dt*self.nYears).astype('int')
         self.save_interval = np.ceil(1.*86400/self.dt*self.save_inter_days).astype('int')
-        
         
 
 class grid_data:
@@ -94,12 +87,6 @@ class grid_data:
         self.fEdge = grid.variables['fEdge'][:]
         self.fCell = grid.variables['fCell'][:]; #self.fCell[:] = c.f0
 
-        self.betaY = self.fCell - c.f0
-        
-        if c.free_surface:
-            c.fsc = c.f0 / c.H
-        else:
-            c.fsc = 0.0
 
         if c.bottom_topography:
             c.btc = c.f0 / c.H
@@ -177,15 +164,22 @@ class state_data:
     def __init__(self, g, c):
 
         # Prognostic variables
-        self.pv_cell = np.zeros(g.nCells)
-        self.pv_vertex = np.zeros(g.nVertices)
+        self.thickness = np.zeros(g.nCells)
+        self.vorticity = self.thickness.copy()
+        self.divergence = self.thickness.copy()
 
         # Diagnostic variables
-        self.u = np.zeros(g.nEdges)
-        self.pv_edge = np.zeros(g.nEdges)
         self.psi_cell = np.zeros(g.nCells)
         self.psi_vertex = np.zeros(g.nVertices)
-        self.vorticity_cell = np.zeros(g.nCells)
+        self.phi_cell = np.zeros(g.nCells)
+        self.phi_vertex = np.zeros(g.nVertices)
+        self.nVelocity = np.zeros(g.nEdges)
+        self.tVelocity = np.zeros(g.nEdges)
+        self.pv_cell = np.zeros(g.nCells)
+        self.pv_edge = np.zeros(g.nEdges)
+        self.thickness_edge = np.zeros(g.nEdges)
+        self.eta_cell = np.zeros(g.nCells)
+        self.eta_edge = np.zeros(g.nEdges)
         self.kinetic_energy = np.zeros(g.nCells)
 
         # Forcing
@@ -197,9 +191,6 @@ class state_data:
         self.tend_pv_cell = np.zeros(g.nCells)
         self.tend_eta_cell = np.zeros(g.nCells)
         self.tend_vorticity_cell = np.zeros(g.nCells)
-        self.vorticity_edge = np.zeros(g.nEdges)
-        self.eta_cell = np.zeros(g.nCells)
-        self.eta_edge = np.zeros(g.nEdges)
 
         #
         self.time = 0.0
@@ -232,89 +223,6 @@ class state_data:
             self.curlWind_cell[:] = -c.tau0 * np.pi/(latwidth*r) * \
                                     np.sin(np.pi*(g.latCell[:]-latmin) / latwidth)
 
-            
-        elif c.test_case == 2:
-            # fluid at rest, and pv equals the planetary vorticity
-            self.pv_cell = g.betaY[:]
-            self.compute_psi_cell(g, c)
-            self.psi_vertex[:] = cmp.cell2vertex( \
-                g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, \
-                g.verticesOnEdge, self.psi_cell)
-
-            # Initialize wind
-            # wind = tau0 * cos(2*pi*(y-ymid)/L)  (see Greatbatch and Nag)  
-            self.curlWind_cell[:] = 0.0
-
-            # Eliminate bottom drag
-            c.bottomDrag = 0.
-
-            # Eliminate lateral diffusion
-            c.delVisc = 0.
-
-        elif c.test_case == 3:
-            # Test case with a homongenized PV field, zero wind and zero bottom drag.
-            # There is no diffusion either
-            
-            self.pv_cell = np.zeros(g.nCells)
-            self.pv_cell[:] = 0.
-            self.compute_psi_cell(g, c)
-            self.psi_vertex[:] = cmp.cell2vertex( \
-                g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, \
-                g.verticesOnEdge, self.psi_cell)
-
-            # Initialize wind
-            # wind = tau0 * cos(2*pi*(y-ymid)/L)  (see Greatbatch and Nag)  
-            self.curlWind_cell[:] = 0.0
-
-            # Eliminate bottom drag
-            c.bottomDrag = 0.
-
-            # Eliminate lateral diffusion
-            c.delVisc = 0.
-
-        elif c.test_case == 4:
-            # One gyre with no forcing and drag
-            d = np.sqrt(32*(g.latCell[:] - latmid)**2/latwidth**2 + 4*(g.lonCell[:]-(-.85))**2/.36**2)
-            self.psi_cell[:] = 2*np.exp(-d**2) * 0.5*(1-np.tanh(20*(d-1.5)))
-            self.psi_cell[:] -= np.sum(self.psi_cell * g.areaCell) / np.sum(g.areaCell)
-            self.psi_vertex[:] = cmp.cell2vertex( \
-                g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, \
-                g.verticesOnEdge, self.psi_cell)
-
-            # Compute pv_cell
-            vorticity_cell = cmp.discrete_laplace_cell( \
-                 g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, \
-                 self.psi_cell)
-            vorticity_cell *= c.gravity / c.f0
-            self.pv_cell = vorticity_cell
-            self.pv_cell += g.betaY
-            self.pv_cell -=  c.fsc*self.psi_cell
-            self.pv_cell += c.btc*g.bottomTopographyCell
-            
-            #self.compute_pv_cell(c, g)
-            
-            # Initialize wind
-            self.curlWind_cell[:] = 0.
-
-            # Eliminate bottom drag
-            c.bottomDrag = 0.
-
-            # Eliminate lateral diffusion
-            c.delVisc = 0.
-            
-        elif c.test_case == 9:
-            #Double gyre
-            self.psi_vertex[:] = 0.0
-            self.psi_cell = cmp.update_psi_cell(g.boundaryVertex[:,0], \
-                                g.cellsOnVertex, g.kiteAreasOnVertex, \
-                                g.areaCell, self.psi_vertex)
-
-            # Initialize wind
-            # wind = tau0 * cos(2*pi*(y-ymid)/L)  (see Greatbatch and Nag)  
-            self.curlWind_cell[:] = 4*c.tau0 * np.pi/(latwidth*r) * \
-                                    np.sin(4*np.pi*(g.latCell[:]-latmid) / latwidth)
-            self.curlWind_cell = np.where(g.latCell > latmid + latwidth/4, 0., self.curlWind_cell[:])
-            self.curlWind_cell = np.where(g.latCell < latmid - latwidth/4, 0., self.curlWind_cell[:])
                                                 
         # Set time to zero
         self.time = 0.0
@@ -391,107 +299,66 @@ class state_data:
     def compute_diagnostics(self, g, c):
         # Compute diagnostic variables from pv_cell
 
+        # Compute psi_cell from vorticity
         self.compute_psi_cell(g, c)
 
-        #self.compute_vorticity_cell(g, c)
-        # No-slip, mirroring BC
-        self.vorticity_cell = cmp.discrete_laplace_cell(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, \
-                                                 self.psi_cell)
-        self.vorticity_cell *= c.gravity / c.f0
+        # Compute phi_cell from divergence
+        self.compute_phi_cell(g, c)
 
-        # If lateral diffusion is absent, enforce the free-slip BC's
-        if c.delVisc < np.finfo('float32').tiny:
-            self.vorticity_cell[g.cellBoundary[:]-1] = 0.
+        # Compute the absolute vorticity
+        self.eta_cell = self.vorticity + g.fCell
 
-        # Update pv_cell on the boundary
-        bcs = g.cellBoundary[:]-1
-        self.pv_cell[bcs] = self.vorticity_cell[bcs] + g.betaY[bcs] - c.fsc*self.psi_cell[bcs] + c.btc * g.bottomTopographyCell[bcs]
-        
-        # Average psi_cell to psi_vertex
-        self.psi_vertex = cmp.cell2vertex( \
-            g.cellsOnVertex, g.kiteAreasOnVertex, \
-            g.areaTriangle, g.verticesOnEdge, self.psi_cell)
+        # Compute the potential vorticity
+        self.pv_cell = self.eta_cell / self.thickness
 
-        self.u[:] = cmp.compute_u(g.verticesOnEdge, g.cellsOnEdge, g.dvEdge, \
-                        self.psi_vertex, self.psi_cell, c.gravity/c.f0)
+        # Map from cell to vertex
+        self.psi_vertex = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.psi_cell)
+        self.phi_vertex = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.phi_cell)
 
-        self.pv_edge[:] = cmp.compute_pv_edge( \
-            g.cellsOnEdge, g.boundaryCellMark, self.pv_cell)
-#        self.pv_edge[:] = cmp.compute_pv_edge_apvm( \
-#             g.cellsOnEdge, g.boundaryCellMark, g.dcEdge, c.dt, self.pv_cell, self.u, c.apvm_factor)
+        # compute the normal and tangential velocity components
+        self.nVelocity = cmp.comute_normal_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_cell, self.psi_vertex)
+        self.tVelocity = cmp.comute_tangential_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_vertex, self.psi_cell)
 
-        
-    def compute_vorticity_cell(self, g, c):
-        self.vorticity_cell[:] = self.pv_cell[:] - g.betaY[:]
-        self.vorticity_cell[:] += c.fsc * self.psi_cell[:]
-        self.vorticity_cell[:] -= c.btc * g.bottomTopographyCell[:]
+        # Map from cell to edge
+        self.pv_edge[:] = cmp.cell2edge(g.cellsOnEdge, self.pv_cell)
+        self.thickness_edge[:] = cmp.cell2edge(g.cellsOnEdge, self.thickness)
+
+        # Compute absolute vorticity on edge
+        self.eta_edge[:] = self.pv_edge[:] * self.thickness_edge[:]
+
+        # Compute kinetic energy
+        self.compute_kinetic_energy(g, c)
 
 
     def compute_psi_cell(self, g, c):
         # To compute the psi_cell using the elliptic equation on the
         # interior cells
 
-        # Set the homogeneious boundary conditon for psi_cell
-        self.psi_cell[g.cellBoundary[:]-1] = 0.0
-
-        ## Compute the right-hand side
-        nCellsInterior = np.size(g.cellInterior)
-        b = np.zeros(nCellsInterior)
-        b[:] = self.pv_cell[g.cellInterior[:]-1]
-
-        # Subtract bottom topography
-        b -= c.btc * g.bottomTopographyCell[g.cellInterior[:]-1]
-
-        # Subtract planetary vorticity
-        b -= g.betaY[g.cellInterior[:]-1] 
-
-        # Enforcing the boundary condition
-        b -= g.D1_bdry*self.psi_cell[g.cellBoundary[:]-1]
-
-        # Solve the linear system
-        x = g.lu.solve(b)
-
-        # Recover psi from x
-        self.psi_cell[g.cellInterior[:]-1] = x[:].copy()
-
-        # Compute the constant boundary value for psi satsifying the constraint that
-        # integral(psi) over Omega is zero.
-        psi_avg = np.sum(self.psi_cell * g.areaCell) / np.sum(g.areaCell)
-        const_bdry_valu = -psi_avg / self.shifting_factor
-
-        # Add the shifting to the right-hand side
-        b += c.fsc * const_bdry_valu
-
-        # Solve the boundary value again
-        x = g.lu.solve(b)
-
-        # Recover psi from x
-        self.psi_cell[g.cellInterior[:]-1] = x[:].copy()
-
-        # Add the shifting to psi
-        self.psi_cell += const_bdry_valu
-
-        if self.psi_cell.max( ) != self.psi_cell.max( ):
-            raise ValueError("Exceptions detected in compute_psi_cell")
+        self.psi_cell[:] = 0.
+        x = g.lu_D1.solve(self.vorticity[g.cellInterior[:]-1])
+        self.psi_cell[g.cellInterior[:]-1] = x[:]
 
         return 0
 
     
-    def compute_pv_cell(self, c, g):
-        self.pv_cell[:] = self.vorticity_cell[:] +  g.betaY[:]
-        self.pv_cell[:] -= c.fsc* self.psi_cell
-        self.pv_cell[:] += c.btc * g.bottomTopographyCell[:]
+    def compute_phi_cell(self, g, c):
+        # To compute the phi_cell from divergence
 
+        self.divergence[0] = 0.
+        self.phi_cell[:] = g.lu_D2.solve(self.divergence[:])
+
+        return 0
+    
 
     def compute_kinetic_energy(self, c, g):
 
-        kenergy_edge = 0.5 * 0.5*(self.u * self.u ) * g.dvEdge * g.dcEdge
+        kenergy_edge = 0.5 * 0.5 * (self.nVelocity * self.nVelocity + self.tVelocity * self.tVelocity ) * g.dvEdge * g.dcEdge
         self.kinetic_energy[:] = 0.
         for iEdge in xrange(g.nEdges):
             cell0 = g.cellsOnEdge[iEdge, 0]-1
             cell1 = g.cellsOnEdge[iEdge, 1]-1
-            self.kinetic_energy[cell0] += kenergy_edge[iEdge]
-            self.kinetic_energy[cell1] += kenergy_edge[iEdge]
+            self.kinetic_energy[cell0] += 0.5 * kenergy_edge[iEdge]
+            self.kinetic_energy[cell1] += 0.5 * kenergy_edge[iEdge]
 
         self.kinetic_energy /= g.areaCell
 
