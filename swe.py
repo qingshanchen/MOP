@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import time
 from swe_comp import swe_comp as cmp
 import os
+from copy import deepcopy as deepcopy 
 
 #cmp = swe_comp.swe_comp
 max_int = np.iinfo('int32').max
@@ -88,20 +89,13 @@ class grid_data:
         self.fCell = grid.variables['fCell'][:]; #self.fCell[:] = c.f0
 
 
-        if c.bottom_topography:
-            c.btc = c.f0 / c.H
-        else:
-            c.btc = 0.0
-        
         self.boundaryEdgeMark = grid.variables['boundaryEdgeMark'][:] 
         self.boundaryCellMark = grid.variables['boundaryCellMark'][:] 
 
         # Create new grid_data variables
         self.bottomTopographyCell = np.zeros(self.nCells)
         self.bottomTopographyVertex = np.zeros(self.nVertices)
-        self.bottomTopographyEdge = cmp.compute_scalar_edge(self.cellsOnEdge, self.boundaryCellMark, self.bottomTopographyCell)
 
-        
         grid.close()
 
         
@@ -334,18 +328,27 @@ class state_data:
         # To compute the psi_cell using the elliptic equation on the
         # interior cells
 
-        self.psi_cell[:] = 0.
-        x = g.lu_D1.solve(self.vorticity[g.cellInterior[:]-1])
-        self.psi_cell[g.cellInterior[:]-1] = x[:]
-
+        if np.max(g.boundaryCellMark[:]) > 0:
+            # A bounded domain
+            self.psi_cell[:] = 0.
+            x = g.lu_D1.solve(self.vorticity[g.cellInterior[:]-1])
+            self.psi_cell[g.cellInterior[:]-1] = x[:]
+            
+        else:
+            # A global domain with no boundary
+            b = np.zeros(g.nCells)
+            b[1:] = s.vorticity[1:]
+            self.psi_cell[:] = g.lu_D2.solve(b)
+            
         return 0
 
     
     def compute_phi_cell(self, g, c):
         # To compute the phi_cell from divergence
 
-        self.divergence[0] = 0.
-        self.phi_cell[:] = g.lu_D2.solve(self.divergence[:])
+        b = np.zeros(g.nCells)
+        b[1:] = self.divergence[1:]
+        self.phi_cell[:] = g.lu_D2.solve( b )
 
         return 0
     
@@ -384,43 +387,42 @@ class state_data:
         out.close( )
         
 
-def timestepping_rk4_z_hex(s, s_pre, s_intm, g, c):
+def timestepping_rk4_z_hex(s, g, c):
 
     coef = np.array([0., .5, .5, 1.])
     accum = np.array([1./6, 1./3, 1./3, 1./6])
 
     dt = c.dt
 
-    s_pre.pv_cell[:] = s.pv_cell[:]
-    s_intm.pv_cell[:] = s.pv_cell[:]
-    s_intm.pv_edge[:] = s.pv_edge[:]
-    s_intm.vorticity_cell[:] = s.vorticity_cell[:]
-    s_intm.u[:] = s.u[:]
-    s_pre.psi_cell[:] = s.psi_cell[:]
-    s_pre.psi_vertex[:] = s.psi_vertex[:]
+    s_pre = deepcopy(s)
+    s_intm = deepcopy(s)
 
     # Update the time stamp first
     s.time += dt
 
     for i in xrange(4):
 
-        ## Advance the vorticity equation
-        # Compute tend_pv_cell 
-        s.tend_pv_cell[:] = \
-          cmp.compute_tend_pv_cell( \
-            g.boundaryEdgeMark[:], g.cellsOnEdge[:,:], s_intm.pv_edge, \
-            s_intm.vorticity_cell, s_intm.u, g.dcEdge, g.dvEdge, g.areaCell, \
-                      s.curlWind_cell, c.bottomDrag, c.delVisc, c.H)
+        # Compute the tendencies
+        thicknessTransport = s_intm.thickness_edge[:] * s_intm.nVelocity[:]
+        tend_thickness = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, thicknessTransport)
+        absVorTransport = s_intm.eta_edge[:] * s_intm.nVelocity[:]
+        tend_vorticity = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorTransport)
+        absVorCirc = s_intm.eta_edge[:] * s_intm.tVelocity[:]
+        geoPotent = g.gravity * s_intm.thickness[:]  + s_intm.kinetic_energy[:]
+        tend_divergence = cmp.discrete_curl(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorCirc) - \
+                          cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, geoPotent)
 
-        # Accumulating the change in pv_cell and pv_vertex fields
-        s.pv_cell[:] += s.tend_pv_cell[:]*accum[i]*dt
 
-        if s.pv_cell[g.cellInterior[:]-1].max( ) != s.pv_cell[g.cellInterior[:]-1].max():
-            raise ValueError("Exceptions detected in pv_cell")
+        # Accumulating the change in s
+        s.thickness[:] += tend_thickness[:]*accum[i]*dt
+        s.vorticity[:] += tend_vorticity[:]*accum[i]*dt
+        s.divergence[:] += tend_divergence[:]*accum[i]*dt
 
         if i < 3:
             # Advance pv_cell_intm 
-            s_intm.pv_cell[:] = s_pre.pv_cell[:] + coef[i+1]*dt*s.tend_pv_cell[:]
+            s_intm.thickness[:] = s_pre.thickness[:] + coef[i+1]*dt*tend_thickness[:]
+            s_intm.vorticity[:] = s_pre.vorticity[:] + coef[i+1]*dt*tend_vorticity[:]
+            s_intm.divergence[:] = s_pre.divergence[:] + coef[i+1]*dt*tend_divergence[:]
 
             s_intm.compute_diagnostics(g, c)
 
@@ -569,8 +571,8 @@ def main( ):
     c = parameters()
     g = grid_data('grid.nc', c)
     s = state_data(g, c)
-    s_pre = state_data(g, c)
-    s_intm = state_data(g, c)
+    s_pre = deepcopy(s)
+    s_intm = deepcopy(s)
 
     run_tests(g, c, s)
     raise ValueError

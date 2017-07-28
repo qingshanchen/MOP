@@ -467,11 +467,12 @@ end subroutine discrete_grad_t
 
 ! Given a discrete vector field vector_n, compute its discrete divergence.
 ! The orientation on the edge is assumed to be from cell0 (first cell) to cell1 (second cell)
-subroutine discrete_div(nEdges, nCells, vector_n, cellsOnEdge, &
-     dvEdgeInterior, areaCell, divergence_n)
+subroutine discrete_div(nEdges, nCells, &
+  cellsOnEdge, dvEdge, areaCell, vector_n, &
+       divergence_n)
   integer, intent(in) :: nEdges, nCells
   integer, intent(in) :: cellsOnEdge(0:nEdges-1, 0:1)
-  real*8, intent(in)  :: vector_n(0:nEdges-1), dvEdgeInterior(0:nEdges-1), &
+  real*8, intent(in)  :: vector_n(0:nEdges-1), dvEdge(0:nEdges-1), &
        areaCell(0:nCells-1)
   real*8, intent(out) :: divergence_n(0:nCells-1)
 
@@ -483,8 +484,8 @@ subroutine discrete_div(nEdges, nCells, vector_n, cellsOnEdge, &
         cell0 = cellsOnEdge(iEdge,0) - 1
         cell1 = cellsOnEdge(iEdge,1) - 1
 
-        divergence_n(cell0) = divergence_n(cell0) + vector_n(iEdge) * dvEdgeInterior(iEdge)
-        divergence_n(cell1) = divergence_n(cell1) - vector_n(iEdge) * dvEdgeInterior(iEdge)
+        divergence_n(cell0) = divergence_n(cell0) + vector_n(iEdge) * dvEdge(iEdge)
+        divergence_n(cell1) = divergence_n(cell1) - vector_n(iEdge) * dvEdge(iEdge)
   end do
 
   do iCell = 0, nCells-1
@@ -496,8 +497,9 @@ end subroutine discrete_div
 
 ! Given a discrete vector field vector_t, compute its discrete divergence.
 ! The orientation on the edge is such that the first cell (cell0) appears on the left of the edge
-subroutine discrete_curl(nEdges, nCells, vector_t, cellsOnEdge, &
-     dvEdge, areaCell, curl)
+subroutine discrete_curl(nEdges, nCells,  &
+     cellsOnEdge, dvEdge, areaCell, vector_t, &
+     curl)
   integer, intent(in) :: nEdges, nCells
   integer, intent(in) :: cellsOnEdge(0:nEdges-1, 0:1)
   real*8, intent(in)  :: vector_t(0:nEdges-1), dvEdge(0:nEdges-1), &
@@ -525,7 +527,7 @@ end subroutine discrete_curl
 
 
 
-subroutine discrete_laplace_cell(nEdges, nCells,  &
+subroutine discrete_laplace(nEdges, nCells,  &
      cellsOnEdge, dcEdge, dvEdge, areaCell, scalar_cell, &
           laplace_cell)
   
@@ -544,7 +546,7 @@ subroutine discrete_laplace_cell(nEdges, nCells,  &
    call discrete_div(nEdges, nCells, &
                        grad_n, cellsOnEdge, dvEdge, areaCell, &
                        laplace_cell)
-end subroutine discrete_laplace_cell
+end subroutine discrete_laplace
   
 
 subroutine separate_boundary_interior_cells(nCells, nCellsInterior, nCellsBoundary, max_int, boundaryCell,  &
