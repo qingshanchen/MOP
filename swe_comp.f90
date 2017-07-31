@@ -544,7 +544,7 @@ subroutine discrete_laplace(nEdges, nCells,  &
      grad_n)
 
    call discrete_div(nEdges, nCells, &
-                       grad_n, cellsOnEdge, dvEdge, areaCell, &
+                       cellsOnEdge, dvEdge, areaCell, grad_n, &
                        laplace_cell)
 end subroutine discrete_laplace
   

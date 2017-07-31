@@ -17,7 +17,7 @@ class parameters:
 
     def __init__(self):
 
-        self.test_case = 1
+        self.test_case = 2
 
         # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
         self.timestepping = 'RK4'
@@ -27,7 +27,7 @@ class parameters:
 
         self.bottom_topography = True
         
-        self.dt = 10800
+        self.dt = 172.8
         self.nYears = 10
         self.save_inter_days = 5
         
@@ -35,6 +35,7 @@ class parameters:
 
         # Size of the phyiscal domain
         self.earth_radius = 6371000.0
+        self.Omega0 = 7.292e-5
 
         self.gravity = 9.81
 
@@ -47,6 +48,8 @@ class parameters:
 
         self.nTimeSteps = np.ceil(1.*86400*360/self.dt*self.nYears).astype('int')
         self.save_interval = np.ceil(1.*86400/self.dt*self.save_inter_days).astype('int')
+
+        self.on_a_global_sphere = True
         
 
 class grid_data:
@@ -86,11 +89,21 @@ class grid_data:
         self.kiteAreasOnVertex = grid.variables['kiteAreasOnVertex'][:]
 
         self.fEdge = grid.variables['fEdge'][:]
-        self.fCell = grid.variables['fCell'][:]; #self.fCell[:] = c.f0
+        self.fCell = 2 * 7.292e-5 * np.sin(self.latCell[:])
+        #self.fCell = grid.variables['fCell'][:]
 
 
-        self.boundaryEdgeMark = grid.variables['boundaryEdgeMark'][:] 
-        self.boundaryCellMark = grid.variables['boundaryCellMark'][:] 
+        if c.on_a_global_sphere:
+            self.boundaryEdgeMark = np.zeros(self.nEdges).astype('int32')
+            self.boundaryEdgeMark[:] = 0
+        else:
+            self.boundaryEdgeMark = grid.variables['boundaryEdgeMark'][:]
+
+        if c.on_a_global_sphere:
+            self.boundaryCellMark = np.zeros(self.nCells).astype('int32')
+            self.boundaryCellMark[:] = 0
+        else:
+            self.boundaryCellMark = grid.variables['boundaryCellMark'][:] 
 
         # Create new grid_data variables
         self.bottomTopographyCell = np.zeros(self.nCells)
@@ -98,35 +111,35 @@ class grid_data:
 
         grid.close()
 
-        
-        # Collect non-boundary (interior) cells and put into a vector,
-        # and boundary cells into a separate vector
-        nCellsBoundary = np.sum(self.boundaryCellMark[:]>0)
-        nCellsInterior = self.nCells - nCellsBoundary
-        self.cellInterior, self.cellBoundary, self.cellRankInterior, \
-            cellInner_tmp, cellOuter_tmp, self.cellRankInner, \
-            nCellsInner, nCellsOuter = \
-            cmp.separate_boundary_interior_inner_cells(nCellsInterior,  \
-            nCellsBoundary, max_int, self.boundaryCellMark, self.cellsOnCell, self.nEdgesOnCell)
-        self.cellInner = cellInner_tmp[:nCellsInner]
-        self.cellOuter = cellOuter_tmp[:nCellsOuter]
+        if not c.on_a_global_sphere:
+            # Collect non-boundary (interior) cells and put into a vector,
+            # and boundary cells into a separate vector
+            nCellsBoundary = np.sum(self.boundaryCellMark[:]>0)
+            nCellsInterior = self.nCells - nCellsBoundary
+            self.cellInterior, self.cellBoundary, self.cellRankInterior, \
+                cellInner_tmp, cellOuter_tmp, self.cellRankInner, \
+                nCellsInner, nCellsOuter = \
+                cmp.separate_boundary_interior_inner_cells(nCellsInterior,  \
+                nCellsBoundary, max_int, self.boundaryCellMark, self.cellsOnCell, self.nEdgesOnCell)
+            self.cellInner = cellInner_tmp[:nCellsInner]
+            self.cellOuter = cellOuter_tmp[:nCellsOuter]
 
-        # Construct matrix for discrete Laplacian on interior cells
-        nEntries, rows, cols, valEntries = \
-          cmp.construct_discrete_laplace_interior(self.boundaryEdgeMark[:], \
-                    self.cellsOnEdge, self.boundaryCellMark, \
-                    self.cellRankInterior, self.dvEdge, self.dcEdge, \
-                    self.areaCell)
-        D1_augmented_coo = coo_matrix((valEntries[:nEntries], (rows[:nEntries], \
-                               cols[:nEntries])), shape=(nCellsInterior, self.nCells))
-        # Convert to csc sparse format
-        self.D1_augmented = D1_augmented_coo.tocsc( )
+            # Construct matrix for discrete Laplacian on interior cells
+            nEntries, rows, cols, valEntries = \
+              cmp.construct_discrete_laplace_interior(self.boundaryEdgeMark[:], \
+                        self.cellsOnEdge, self.boundaryCellMark, \
+                        self.cellRankInterior, self.dvEdge, self.dcEdge, \
+                        self.areaCell)
+            D1_augmented_coo = coo_matrix((valEntries[:nEntries], (rows[:nEntries], \
+                                   cols[:nEntries])), shape=(nCellsInterior, self.nCells))
+            # Convert to csc sparse format
+            self.D1_augmented = D1_augmented_coo.tocsc( )
 
-        # Construct a square matrix corresponding to the interior primary cells.
-        self.D1 = self.D1_augmented[:, self.cellInterior[:]-1]
-        self.D1_bdry = self.D1_augmented[:, self.cellBoundary[:]-1]
+            # Construct a square matrix corresponding to the interior primary cells.
+            self.D1 = self.D1_augmented[:, self.cellInterior[:]-1]
+            self.D1_bdry = self.D1_augmented[:, self.cellBoundary[:]-1]
 
-        self.lu_D1 = splu(self.D1)
+            self.lu_D1 = splu(self.D1)
 
         # Construct matrix for discrete Laplacian on all cells, corresponding to the
         # Poisson problem with Neumann BC's
@@ -204,18 +217,22 @@ class state_data:
         pi = np.pi; sin = np.sin; exp = np.exp
         r = c.earth_radius
 
-        if c.test_case == 1:
-            # Single-gyre
-            self.psi_cell[:] = 0.0
-            self.psi_vertex[:] = 0.0
-            #self.compute_pv_cell(c, g)
-            self.pv_cell[:] = g.betaY[:] + c.btc * g.bottomTopographyCell[:]
-            self.eta_cell[:] = 0.
-            
-            # Initialize wind
-            # wind = -tau0 * cos(pi*(y-ymid)/L)  (see Greatbatch and Nag)  
-            self.curlWind_cell[:] = -c.tau0 * np.pi/(latwidth*r) * \
-                                    np.sin(np.pi*(g.latCell[:]-latmin) / latwidth)
+        if c.test_case == 2:
+            a = c.earth_radius
+            gh0 = 2.94e4
+            u0 = 2*np.pi*a / (12*86400)
+            gh = np.sin(g.latCell[:])**2
+            gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
+            self.thickness[:] = gh / c.gravity
+
+            self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
+
+            self.divergence[:] = 0.
+
+            self.compute_diagnostics(g, c)
+
+        else:
+            raise ValueError("Invaid choice for the test case.")
 
                                                 
         # Set time to zero
@@ -264,7 +281,7 @@ class state_data:
         # Open the output file and create new state variables
         out = nc.Dataset(c.output_file, 'a', format='NETCDF3_64BIT')
         out.createVariable('xtime', 'f8', ('Time',))
-        out.createVariable('u', 'f8', ('Time', 'nEdges', 'nVertLevels'))
+        #out.createVariable('u', 'f8', ('Time', 'nEdges', 'nVertLevels'))
         out.createVariable('pv_cell', 'f8', ('Time', 'nCells', 'nVertLevels'))
         out.createVariable('pv_vertex', 'f8', ('Time', 'nVertices', 'nVertLevels'))
         out.createVariable('vorticity_cell', 'f8', ('Time', 'nCells', 'nVertLevels'))
@@ -278,14 +295,12 @@ class state_data:
         out.test_case = "%d" % (c.test_case)
         out.timestepping = "%s" % (c.timestepping)
         out.restart = "%s" % (c.restart)
-        out.free_surface = "%s" % (c.free_surface) 
         out.bottom_topography = "%s" % (c.bottom_topography) 
         out.dt = "%f" % (c.dt)
         out.delVisc = "%e" % (c.delVisc)
         out.bottomDrag = "%e" % (c.bottomDrag)
         out.on_sphere = "True"
         out.radius = "%e" % (c.earth_radius)
-        out.f0 = "%e" % (c.f0)
         
         out.close( )
 
@@ -310,8 +325,8 @@ class state_data:
         self.phi_vertex = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.phi_cell)
 
         # compute the normal and tangential velocity components
-        self.nVelocity = cmp.comute_normal_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_cell, self.psi_vertex)
-        self.tVelocity = cmp.comute_tangential_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_vertex, self.psi_cell)
+        self.nVelocity = cmp.compute_normal_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_cell, self.psi_vertex)
+        self.tVelocity = cmp.compute_tangential_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_vertex, self.psi_cell)
 
         # Map from cell to edge
         self.pv_edge[:] = cmp.cell2edge(g.cellsOnEdge, self.pv_cell)
@@ -328,7 +343,7 @@ class state_data:
         # To compute the psi_cell using the elliptic equation on the
         # interior cells
 
-        if np.max(g.boundaryCellMark[:]) > 0:
+        if not c.on_a_global_sphere or np.max(g.boundaryCellMark[:]) > 0:
             # A bounded domain
             self.psi_cell[:] = 0.
             x = g.lu_D1.solve(self.vorticity[g.cellInterior[:]-1])
@@ -337,7 +352,7 @@ class state_data:
         else:
             # A global domain with no boundary
             b = np.zeros(g.nCells)
-            b[1:] = s.vorticity[1:]
+            b[1:] = self.vorticity[1:]
             self.psi_cell[:] = g.lu_D2.solve(b)
             
         return 0
@@ -353,7 +368,7 @@ class state_data:
         return 0
     
 
-    def compute_kinetic_energy(self, c, g):
+    def compute_kinetic_energy(self, g, c):
 
         kenergy_edge = 0.5 * 0.5 * (self.nVelocity * self.nVelocity + self.tVelocity * self.tVelocity ) * g.dvEdge * g.dcEdge
         self.kinetic_energy[:] = 0.
@@ -371,17 +386,16 @@ class state_data:
         out = nc.Dataset(c.output_file, 'a', format='NETCDF3_64BIT')
         
         out.variables['xtime'][k] = self.time
-        out.variables['u'][k,:,0] = self.u[:]
+        out.variables['u'][k,:,0] = self.nVelocity[:]
         out.variables['pv_cell'][k,:,0] = self.pv_cell[:]
-        out.variables['pv_vertex'][k,:,0] = self.pv_vertex[:]
         out.variables['psi_cell'][k,:,0] = self.psi_cell[:]
         out.variables['psi_vertex'][k,:,0] = self.psi_vertex[:]
-        out.variables['vorticity_cell'][k,:,0] = self.vorticity_cell[:]
+        out.variables['vorticity_cell'][k,:,0] = self.vorticity[:]
 
         if k==0:
             out.variables['curlWind_cell'][:] = self.curlWind_cell[:]
 
-        self.compute_kinetic_energy(c, g)
+        self.compute_kinetic_energy(g, c)
         out.variables['kinetic_energy'][k,:,0]= self.kinetic_energy[:]
         
         out.close( )
@@ -408,7 +422,7 @@ def timestepping_rk4_z_hex(s, g, c):
         absVorTransport = s_intm.eta_edge[:] * s_intm.nVelocity[:]
         tend_vorticity = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorTransport)
         absVorCirc = s_intm.eta_edge[:] * s_intm.tVelocity[:]
-        geoPotent = g.gravity * s_intm.thickness[:]  + s_intm.kinetic_energy[:]
+        geoPotent = c.gravity * (s_intm.thickness[:] + g.bottomTopographyCell[:])  + s_intm.kinetic_energy[:]
         tend_divergence = cmp.discrete_curl(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorCirc) - \
                           cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, geoPotent)
 
@@ -429,94 +443,9 @@ def timestepping_rk4_z_hex(s, g, c):
     s.compute_diagnostics(g, c)
 
 
-def timestepping_euler(s, s_pre, g, c):
-
-    delVisc = c.delVisc
-    del2Visc = c.del2Visc
-    dt = c.dt
-
-    s_pre.pv_cell[:] = s.pv_cell[:]
-    s_pre.pv_edge[:] = s.pv_edge[:]
-    s_pre.vorticity_cell[:] = s.vorticity_cell[:]
-    s_pre.u[:] = s.u[:]
-    s_pre.psi_cell[:] = s.psi_cell[:]
-    s_pre.psi_vertex[:] = s.psi_vertex[:]
-
-    # Update the stime stamp first
-    s.time += dt
-
-    s.tend_pv_cell[:] = cmp.compute_tend_pv_cell( \
-        g.boundaryEdgeMark[:], g.cellsOnEdge[:,:], s_pre.pv_edge, \
-        s_pre.vorticity_cell, s_pre.u, g.dcEdge, g.dvEdge, g.areaCell, \
-                s.curlWind_cell, c.bottomDrag, c.delVisc, del2Visc, c.H)
-
-    # Accumulating the change in pv_cell and pv_vertex fields
-    s.pv_cell[:] += s.tend_pv_cell[:]*dt
-
-    # Update the diagnostic variables
-    s.compute_diagnostics(g, c)
-
-    
-def timestepping_backwardEuler(s, s_pre, g, c):
-
-    delVisc = c.delVisc
-    dt = c.dt
-
-    ## Time keeping
-    s.time += dt
-
-    s_pre.vorticity_cell[:] = s.vorticity_cell[:]
-    s_pre.pv_cell[:] = s.pv_cell[:]
-    s_pre.psi_cell[:] = s.psi_cell[:]
-    s_pre.pv_edge[:] = s.pv_edge[:]
-    s_pre.u[:] = s.u[:]
-
-    # Compute the right-hand side
-    b = c.dt / c.H * s.curlWind_cell[g.cellInner[:] - 1]
-
-    pv_fluxes_cell = cmp.compute_pv_fluxes_cell(g.cellsOnEdge, s_pre.pv_edge, \
-                                                s_pre.u, g.dvEdge, g.areaCell)
-    b -= c.dt * pv_fluxes_cell[g.cellInner[:]-1]
-    b += s_pre.vorticity_cell[g.cellInner[:]-1]
-    b -= c.fsc * s_pre.psi_cell[g.cellInner[:]-1]
-
-    x = g.lu_C.solve(b)
-
-    ## Recover psi from x
-    s.psi_cell[g.cellInner[:]-1] = x[:].copy()
-
-    ## Enforce homogeneous Dirichlet and Neumann BCs
-    s.psi_cell[g.cellOuter[:]-1] = 0.
-
-    # Compute the constant boundary value for psi
-    psi_avg = np.sum(s.psi_cell * g.areaCell) / np.sum(g.areaCell)
-
-    # Subtract the constant value from psi so that it has an average value of zero
-    #s.psi_cell -= psi_avg
-
-    # Compute vorticity_cell from psi_cell
-    s.vorticity_cell = cmp.discrete_laplace_cell(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, \
-                                                 s.psi_cell)
-    s.vorticity_cell *= c.gravity / c.f0
-
-    # Compute pv_cell
-    s.compute_pv_cell(c, g)
-
-    # Average psi_cell to psi_vertex
-    s.psi_vertex = cmp.cell2vertex( \
-        g.cellsOnVertex, g.kiteAreasOnVertex, \
-        g.areaTriangle, g.verticesOnEdge, s.psi_cell)
-
-    s.u[:] = cmp.compute_u(g.verticesOnEdge, g.cellsOnEdge, g.dvEdge, \
-                    s.psi_vertex, s.psi_cell, c.gravity/c.f0)
-
-    s.pv_edge[:] = cmp.compute_pv_edge( \
-         g.cellsOnEdge, g.boundaryCellMark, s.pv_cell)
-
-
 def run_tests(g, c, s):
 
-    if True:   # Test the linear solver the Lapace equation on the interior cells with homogeneous Dirichlet BC's
+    if False:   # Test the linear solver the Lapace equation on the interior cells with homogeneous Dirichlet BC's
         psi_cell_true = np.random.rand(g.nCells)
         psi_cell_true[g.cellBoundary[:]-1] = 0.0
 
@@ -537,7 +466,11 @@ def run_tests(g, c, s):
         print "L infinity error = ", l8
         print "L^2 error        = ", l2        
         
-    if True:   # Test the linear solver the Lapace equation on the whole domain with homogeneous Neumann BC's
+    if True:
+        # Test the linear solver the Lapace equation on the whole domain
+        # The solution is set to zero at cell 0, or on a bounded domain with
+        # homogeneous Neumann BC's
+
         psi_cell_true = np.random.rand(g.nCells)
         psi_cell_true[0] = 0.
         
@@ -558,7 +491,6 @@ def run_tests(g, c, s):
         print "Errors for linear solver"
         print "L infinity error = ", l8
         print "L^2 error        = ", l2        
-        
 
         
 def main( ):
@@ -571,18 +503,17 @@ def main( ):
     c = parameters()
     g = grid_data('grid.nc', c)
     s = state_data(g, c)
-    s_pre = deepcopy(s)
-    s_intm = deepcopy(s)
+    #s_pre = deepcopy(s)
+    #s_intm = deepcopy(s)
 
-    run_tests(g, c, s)
-    raise ValueError
+    #run_tests(g, c, s)
+    #raise ValueError
 
-    s.initialization(g,c)
+    s.initialization(g, c)
         
     # Compute energy and enstrophy
     energy = np.zeros(c.nTimeSteps+1)
     enstrophy = np.zeros(c.nTimeSteps+1)
-    energy[0] = 0.5*np.sum(g.dvEdge[:]*g.dcEdge[:]*(s.u[:]**2))
     enstrophy[0] = 0.5 * np.sum(g.areaCell[:] \
                 * s.pv_cell[:]**2)
 
@@ -600,25 +531,16 @@ def main( ):
 
         print "Doing step %d " % iStep
 
-        if c.timestepping == 'E':
-            timestepping_euler(s, s_pre, g, c)
-        elif c.timestepping == 'BE':
-            timestepping_backwardEuler(s, s_pre, g, c)
-        elif c.timestepping == 'RK4':
-            timestepping_rk4_z_hex(s, s_pre, s_intm, g, c)
-        elif c.timestepping == 'steady':
-            timestepping_steady(s, s_pre, g, c)
+        if c.timestepping == 'RK4':
+            timestepping_rk4_z_hex(s, g, c)
         else:
             raise ValueError("Invalid value for timestepping")
 
-        #timestepping_rk4_eta(s, s_pre, s_intm, g, c)
-
         # Compute energy and enstrophy
-        energy[iStep+1] = 0.5*np.sum(g.dvEdge[:]*g.dcEdge[:]*(s.u[:]**2))
         enstrophy[iStep+1] = 0.5 * np.sum(g.areaCell[:] \
                     * s.pv_cell[:]**2)
 
-        print "Energy, enstrophy %e, %e" % (energy[iStep+1], enstrophy[iStep+1])
+        print "Kinetic energy, enstrophy %e, %e" % (s.kinetic_energy[iStep+1], enstrophy[iStep+1])
 
         if energy[iStep+1] != energy[iStep+1]:
             print "Exceptions detected in energy. Stop now"
