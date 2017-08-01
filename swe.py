@@ -73,6 +73,8 @@ class grid_data:
         self.yEdge = grid.variables['yEdge'][:]
         self.latCell = grid.variables['latCell'][:]
         self.lonCell = grid.variables['lonCell'][:]
+        self.latEdge = grid.variables['latEdge'][:]
+        self.lonEdge = grid.variables['lonEdge'][:]
         self.latVertex = grid.variables['latVertex'][:]
         self.cellsOnEdge = grid.variables['cellsOnEdge'][:]
         self.nEdgesOnCell = grid.variables['nEdgesOnCell'][:]
@@ -105,6 +107,25 @@ class grid_data:
         else:
             self.boundaryCellMark = grid.variables['boundaryCellMark'][:] 
 
+        radius = np.sqrt(self.xCell**2 + self.yCell**2 + self.zCell**2)
+        if np.max(np.abs(radius - 1.)/1.) < 0.01:
+            # To scale the coordinates
+            self.xCell *= c.earth_radius
+            self.yCell *= c.earth_radius
+            self.zCell *= c.earth_radius
+            #self.xEdge *= c.earth_radius
+            #self.yEdge *= c.earth_radius
+            #self.zEdge *= c.earth_radius
+            self.dvEdge *= c.earth_radius
+            self.dcEdge *= c.earth_radius
+            self.areaCell *= c.earth_radius**2
+            self.areaTriangle *= c.earth_radius**2
+            self.kiteAreasOnVertex *= c.earth_radius**2
+        elif np.max(np.abs(radius-c.earth_radius)/c.earth_radius) < 0.01:
+            pass
+        else:
+            raise ValueError("Unknown domain raius.")
+            
         # Create new grid_data variables
         self.bottomTopographyCell = np.zeros(self.nCells)
         self.bottomTopographyVertex = np.zeros(self.nVertices)
@@ -230,6 +251,17 @@ class state_data:
             self.divergence[:] = 0.
 
             self.compute_diagnostics(g, c)
+
+            # To check that vorticity and
+            #psi_true = -a * u0 * np.sin(g.latCell)
+            #psi_true -= psi_true[0]
+            #u_true = u0 * np.cos(g.latEdge)
+            #print("Max in psi: %e" % np.max(self.psi_cell))
+            #print("Max in nVelocity: %e" % np.max(self.nVelocity))
+            #print("Error in psi: %e" % (np.max(np.abs(self.psi_cell - psi_true)) / np.max(np.abs(psi_true)),) )
+            #print("Error in u: %e" % (np.max(np.abs(self.nVelocity - u_true)) / np.max(np.abs(u_true)),) )
+            #raise ValueError
+
 
         else:
             raise ValueError("Invaid choice for the test case.")
@@ -519,7 +551,7 @@ def main( ):
 
 
     print("Running test case \#%d" % c.test_case)
-    print "Energy, enstrophy %e, %e" % (energy[0], enstrophy[0])
+    print "Energy, enstrophy %e, %e" % (np.sum(g.areaCell*s.kinetic_energy[:]), enstrophy[0])
 
 
     s.save(c, g, 0)
@@ -540,7 +572,7 @@ def main( ):
         enstrophy[iStep+1] = 0.5 * np.sum(g.areaCell[:] \
                     * s.pv_cell[:]**2)
 
-        print "Kinetic energy, enstrophy %e, %e" % (s.kinetic_energy[iStep+1], enstrophy[iStep+1])
+        print "Kinetic energy, enstrophy %e, %e" % (np.sum(s.kinetic_energy[:]*g.areaCell[:]), enstrophy[iStep+1])
 
         if energy[iStep+1] != energy[iStep+1]:
             print "Exceptions detected in energy. Stop now"
