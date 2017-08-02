@@ -28,10 +28,10 @@ class parameters:
         self.bottom_topography = True
         
         self.dt = 172.8
-        self.nYears = 10
-        self.save_inter_days = 5
+        self.nYears = 0.01389
+        self.save_inter_days = 1
         
-        self.delVisc = 100.
+        self.delVisc = 0.
 
         # Size of the phyiscal domain
         self.earth_radius = 6371000.0
@@ -535,24 +535,35 @@ def main( ):
     c = parameters()
     g = grid_data('grid.nc', c)
     s = state_data(g, c)
-    #s_pre = deepcopy(s)
-    #s_intm = deepcopy(s)
 
     #run_tests(g, c, s)
     #raise ValueError
 
     s.initialization(g, c)
+
+    s_init = deepcopy(s)
+    h0 = np.mean(s_init.thickness[:])
         
     # Compute energy and enstrophy
-    energy = np.zeros(c.nTimeSteps+1)
-    enstrophy = np.zeros(c.nTimeSteps+1)
-    enstrophy[0] = 0.5 * np.sum(g.areaCell[:] \
-                * s.pv_cell[:]**2)
+    kenergy = np.zeros(c.nTimeSteps+1)
+    penergy = np.zeros(c.nTimeSteps+1)
+    total_energy = np.zeros(c.nTimeSteps+1)
+    mass = np.zeros(c.nTimeSteps+1)
+    penstrophy = np.zeros(c.nTimeSteps+1)
+
+    kenergy[0] = np.sum(s.kinetic_energy[:]*g.areaCell[:])
+    penergy[0] = 0.5*c.gravity* np.sum((s.thickness[:]-h0)**2 * g.areaCell[:])
+    total_energy[0] = kenergy[0] + penergy[0]
+    mass[0] = np.sum(s.thickness[:] * g.areaCell[:])
+    penstrophy[0] = 0.5 * np.sum(g.areaCell[:] * s.pv_cell[:]**2)
 
 
     print("Running test case \#%d" % c.test_case)
-    print "Energy, enstrophy %e, %e" % (np.sum(g.areaCell*s.kinetic_energy[:]), enstrophy[0])
+    print("K-nergy, p-energy, t-energy, p-enstrophy, mass: %e, %e, %e, %e, %e" % (kenergy[0], penergy[0], total_energy[0], penstrophy[0], mass[0]))
 
+    error1 = np.zeros((c.nTimeSteps+1, 3)); error1[0,:] = 0.
+    error2 = np.zeros((c.nTimeSteps+1, 3)); error2[0,:] = 0.
+    errorInf = np.zeros((c.nTimeSteps+1, 3)); errorInf[0,:] = 0.
 
     s.save(c, g, 0)
 
@@ -569,32 +580,81 @@ def main( ):
             raise ValueError("Invalid value for timestepping")
 
         # Compute energy and enstrophy
-        enstrophy[iStep+1] = 0.5 * np.sum(g.areaCell[:] \
-                    * s.pv_cell[:]**2)
+        kenergy[iStep+1] = np.sum(s.kinetic_energy[:]*g.areaCell[:])
+        penergy[iStep+1] = 0.5*c.gravity* np.sum((s.thickness[:]-h0)**2 * g.areaCell[:])
+        total_energy[iStep+1] = kenergy[iStep+1] + penergy[iStep+1]
+        mass[iStep+1] = np.sum(s.thickness[:] * g.areaCell[:])
+        penstrophy[iStep+1] = 0.5 * np.sum(g.areaCell[:] * s.pv_cell[:]**2)
+        print("K-nergy, p-energy, t-energy, p-enstrophy, mass: %e, %e, %e, %e, %e" % \
+              (kenergy[iStep+1], penergy[iStep+1], total_energy[iStep+1], penstrophy[iStep+1], mass[iStep+1]))
 
-        print "Kinetic energy, enstrophy %e, %e" % (np.sum(s.kinetic_energy[:]*g.areaCell[:]), enstrophy[iStep+1])
-
-        if energy[iStep+1] != energy[iStep+1]:
+        if kenergy[iStep+1] != kenergy[iStep+1]:
             print "Exceptions detected in energy. Stop now"
             raise ValueError 
         
         if np.mod(iStep+1, c.save_interval) == 0:
             k = (iStep+1) / c.save_interval
             s.save(c,g,k)
-            
+
+        if c.test_case == 2:
+            # For test case #2, compute the errors
+            error1[iStep+1, 0] = np.sum(np.abs(s.thickness[:] - s_init.thickness[:])*g.areaCell[:]) / np.sum(np.abs(s_init.thickness[:])*g.areaCell[:])
+            error1[iStep+1, 1] = np.sum(np.abs(s.vorticity[:] - s_init.vorticity[:])*g.areaCell[:]) / np.sum(np.abs(s_init.vorticity[:])*g.areaCell[:])
+            error1[iStep+1, 2] = np.max(np.abs(s.divergence[:] - s_init.divergence[:])) 
+
+            error2[iStep+1, 0] = np.sqrt(np.sum((s.thickness[:] - s_init.thickness[:])**2*g.areaCell[:]))
+            error2[iStep+1,0] /= np.sqrt(np.sum((s_init.thickness[:])**2*g.areaCell[:]))
+            error2[iStep+1, 1] = np.sqrt(np.sum((s.vorticity[:] - s_init.vorticity[:])**2*g.areaCell[:]))
+            error2[iStep+1,1] /= np.sqrt(np.sum((s_init.vorticity[:])**2*g.areaCell[:]))
+            error2[iStep+1, 2] = np.max(np.abs(s.divergence[:] - s_init.divergence[:])) 
+
+            errorInf[iStep+1, 0] = np.max(np.abs(s.thickness[:] - s_init.thickness[:])) / np.max(np.abs(s_init.thickness[:]))
+            errorInf[iStep+1, 1] = np.max(np.abs(s.vorticity[:] - s_init.vorticity[:])) / np.max(np.abs(s_init.vorticity[:]))
+            errorInf[iStep+1, 2] = np.max(np.abs(s.divergence[:] - s_init.divergence[:])) 
+
+    days = c.dt * np.arange(c.nTimeSteps+1) / 86400.
     t1 = time.clock( )
     t1a = time.time( )
     plt.close('all')
     plt.figure(0)
-    plt.plot(energy)
+    plt.plot(days, kenergy, '--', label="Kinetic energy", hold=True)
+    plt.plot(days, penergy, '-.', label="Potential energy")
+    plt.plot(days, total_energy, '-', label="Total energy")
+    plt.xlabel('Time (days)')
+    plt.ylabel('Energy')
+    plt.legend(loc=1)
     plt.savefig('energy.png', format='PNG')
+
     plt.figure(1)
-    plt.plot(enstrophy)
+    plt.plot(days, penstrophy)
+    plt.xlabel('Time (days)')
+    plt.ylabel('Enstrophy')
     plt.savefig('enstrophy.png', format='PNG')
+
+    if c.test_case == 2:
+        plt.figure(2); 
+        plt.plot(days, error1[:,0], '--', label=r'$L^1$ norm', hold=True)
+        plt.plot(days, error2[:,0], '-', label=r'$L^2$ norm')
+        plt.plot(days, errorInf[:,0], '-.', label=r'$L^\infty$ norm')
+        plt.legend(loc=1)
+        plt.xlabel('Time (days)')
+        plt.ylabel('Relative error')
+        plt.savefig('error-h.pdf', format='PDF')
+
+        plt.figure(3); 
+        plt.plot(days, error1[:,1], '--', label=r'$L^1$ norm', hold=True)
+        plt.plot(days, error2[:,1], '-', label=r'$L^2$ norm')
+        plt.plot(days, errorInf[:,1], '-.', label=r'$L^\infty$ norm')
+        plt.legend(loc=1)
+        plt.xlabel('Time (days)')
+        plt.ylabel('Relative error')
+        plt.savefig('error-vorticity.pdf', format='PDF')
+    
 
     print 'CPU time used: %f seconds' % (t1-t0)
     print 'Walltime used: %f seconds' % (t1a-t0a)
 
+        
 if __name__ == '__main__':
     main( )
 
