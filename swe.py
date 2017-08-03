@@ -27,7 +27,7 @@ class parameters:
 
         self.bottom_topography = True
         
-        self.dt = 172.8
+        self.dt = 172.8*8
         self.nYears = 0.01389
         self.save_inter_days = 1
         
@@ -616,21 +616,41 @@ def main( ):
     t1 = time.clock( )
     t1a = time.time( )
     plt.close('all')
+
     plt.figure(0)
     plt.plot(days, kenergy, '--', label="Kinetic energy", hold=True)
-    plt.plot(days, penergy, '-.', label="Potential energy")
+#    plt.plot(days, penergy, '-.', label="Potential energy")
+#    plt.plot(days, total_energy, '-', label="Total energy")
+    plt.xlabel('Time (days)')
+    plt.ylabel('Energy')
+    plt.ylim(2.5e17, 2.6e17)
+    plt.legend(loc=1)
+    plt.savefig('energy.pdf', format='PDF')
+
+    plt.figure(6)
+#    plt.plot(days, kenergy, '--', label="Kinetic energy", hold=True)
+    plt.plot(days, penergy, '-.', label="Potential energy", hold=True)
     plt.plot(days, total_energy, '-', label="Total energy")
     plt.xlabel('Time (days)')
     plt.ylabel('Energy')
+    plt.ylim(8.0e20,8.15e20)
     plt.legend(loc=1)
-    plt.savefig('energy.png', format='PNG')
-
+    plt.savefig('total-energy.pdf', format='PDF')
+    
     plt.figure(1)
     plt.plot(days, penstrophy)
     plt.xlabel('Time (days)')
     plt.ylabel('Enstrophy')
-    plt.savefig('enstrophy.png', format='PNG')
+    plt.ylim(0.74, 0.78)
+    plt.savefig('enstrophy.pdf', format='PDF')
 
+    plt.figure(5)
+    plt.plot(days, mass)
+    plt.xlabel('Time (days)')
+    plt.ylabel('Mass')
+    plt.ylim(1.175e18, 1.225e18)
+    plt.savefig('mass.pdf', format='PDF')
+    
     if c.test_case == 2:
         plt.figure(2); 
         plt.plot(days, error1[:,0], '--', label=r'$L^1$ norm', hold=True)
@@ -649,7 +669,19 @@ def main( ):
         plt.xlabel('Time (days)')
         plt.ylabel('Relative error')
         plt.savefig('error-vorticity.pdf', format='PDF')
-    
+
+        plt.figure(4); 
+        plt.plot(days, error1[:,2], '--', label=r'$L^1$ norm', hold=True)
+        plt.plot(days, error2[:,2], '-', label=r'$L^2$ norm')
+        plt.plot(days, errorInf[:,2], '-.', label=r'$L^\infty$ norm')
+        plt.legend(loc=1)
+        plt.xlabel('Time (days)')
+        plt.ylabel('Absolute error')
+        plt.savefig('error-divergence.pdf', format='PDF')
+
+        print("Final l2 errors for thickness, vorticity, and divergence:")
+        print("                    %e,        %e,     %e" % (error2[-1,0], error2[-1,1], error2[-1,2]))
+        
 
     print 'CPU time used: %f seconds' % (t1-t0)
     print 'Walltime used: %f seconds' % (t1a-t0a)
