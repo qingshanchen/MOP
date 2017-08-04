@@ -28,7 +28,7 @@ class parameters:
         self.bottom_topography = True
         
         self.dt = 172.8*8
-        self.nYears = 0.01389
+        self.nYears = 0.014
         self.save_inter_days = 1
         
         self.delVisc = 0.
@@ -71,6 +71,10 @@ class grid_data:
         self.zCell = grid.variables['zCell'][:]
         self.xEdge = grid.variables['xEdge'][:]
         self.yEdge = grid.variables['yEdge'][:]
+        self.zEdge = grid.variables['zEdge'][:]
+        self.xVertex = grid.variables['xVertex'][:]
+        self.yVertex = grid.variables['yVertex'][:]
+        self.zVertex = grid.variables['zVertex'][:]
         self.latCell = grid.variables['latCell'][:]
         self.lonCell = grid.variables['lonCell'][:]
         self.latEdge = grid.variables['latEdge'][:]
@@ -98,13 +102,10 @@ class grid_data:
         if c.on_a_global_sphere:
             self.boundaryEdgeMark = np.zeros(self.nEdges).astype('int32')
             self.boundaryEdgeMark[:] = 0
-        else:
-            self.boundaryEdgeMark = grid.variables['boundaryEdgeMark'][:]
-
-        if c.on_a_global_sphere:
             self.boundaryCellMark = np.zeros(self.nCells).astype('int32')
             self.boundaryCellMark[:] = 0
         else:
+            self.boundaryEdgeMark = grid.variables['boundaryEdgeMark'][:]
             self.boundaryCellMark = grid.variables['boundaryCellMark'][:] 
 
         radius = np.sqrt(self.xCell**2 + self.yCell**2 + self.zCell**2)
@@ -113,9 +114,12 @@ class grid_data:
             self.xCell *= c.earth_radius
             self.yCell *= c.earth_radius
             self.zCell *= c.earth_radius
-            #self.xEdge *= c.earth_radius
-            #self.yEdge *= c.earth_radius
-            #self.zEdge *= c.earth_radius
+            self.xEdge *= c.earth_radius
+            self.yEdge *= c.earth_radius
+            self.zEdge *= c.earth_radius
+            self.xVertex *= c.earth_radius
+            self.yVertex *= c.earth_radius
+            self.zVertex *= c.earth_radius
             self.dvEdge *= c.earth_radius
             self.dcEdge *= c.earth_radius
             self.areaCell *= c.earth_radius**2
@@ -179,6 +183,15 @@ class grid_data:
 
         # Open the output file to save scaled grid data
         out = nc.Dataset(c.output_file, 'a', format='NETCDF4_CLASSIC')
+        out.variables['xCell'][:] = self.xCell[:]
+        out.variables['yCell'][:] = self.yCell[:]
+        out.variables['zCell'][:] = self.zCell[:]
+        out.variables['xEdge'][:] = self.xEdge[:]
+        out.variables['yEdge'][:] = self.yEdge[:]
+        out.variables['zEdge'][:] = self.zEdge[:]
+        out.variables['xVertex'][:] = self.xVertex[:]
+        out.variables['yVertex'][:] = self.yVertex[:]
+        out.variables['zVertex'][:] = self.zVertex[:]
         out.variables['dvEdge'][:] = self.dvEdge[:]
         out.variables['dcEdge'][:] = self.dcEdge[:]
         out.variables['areaCell'][:] = self.areaCell[:]
@@ -313,13 +326,11 @@ class state_data:
         # Open the output file and create new state variables
         out = nc.Dataset(c.output_file, 'a', format='NETCDF3_64BIT')
         out.createVariable('xtime', 'f8', ('Time',))
-        #out.createVariable('u', 'f8', ('Time', 'nEdges', 'nVertLevels'))
-        out.createVariable('pv_cell', 'f8', ('Time', 'nCells', 'nVertLevels'))
-        out.createVariable('pv_vertex', 'f8', ('Time', 'nVertices', 'nVertLevels'))
+        out.createVariable('thickness', 'f8', ('Time', 'nCells', 'nVertLevels'))
         out.createVariable('vorticity_cell', 'f8', ('Time', 'nCells', 'nVertLevels'))
-        out.createVariable('vorticity_vertex', 'f8', ('Time', 'nVertices', 'nVertLevels'))
-        out.createVariable('psi_cell', 'f8', ('Time', 'nCells', 'nVertLevels'))
-        out.createVariable('psi_vertex', 'f8', ('Time', 'nVertices', 'nVertLevels'))
+        out.createVariable('divergence', 'f8', ('Time', 'nCells', 'nVertLevels'))
+        out.createVariable('nVelocity', 'f8', ('Time', 'nEdges', 'nVertLevels'))
+        out.createVariable('tVelocity', 'f8', ('Time', 'nEdges', 'nVertLevels'))
         out.createVariable('kinetic_energy', 'f8', ('Time', 'nCells', 'nVertLevels'))
         out.createVariable('curlWind_cell', 'f8', ('nCells',))
 
@@ -418,11 +429,11 @@ class state_data:
         out = nc.Dataset(c.output_file, 'a', format='NETCDF3_64BIT')
         
         out.variables['xtime'][k] = self.time
-        out.variables['u'][k,:,0] = self.nVelocity[:]
-        out.variables['pv_cell'][k,:,0] = self.pv_cell[:]
-        out.variables['psi_cell'][k,:,0] = self.psi_cell[:]
-        out.variables['psi_vertex'][k,:,0] = self.psi_vertex[:]
+        out.variables['thickness'][k,:,0] = self.thickness[:]
         out.variables['vorticity_cell'][k,:,0] = self.vorticity[:]
+        out.variables['divergence'][k,:,0] = self.divergence[:]
+        out.variables['nVelocity'][k,:,0] = self.nVelocity[:]
+        out.variables['tVelocity'][k,:,0] = self.tVelocity[:]
 
         if k==0:
             out.variables['curlWind_cell'][:] = self.curlWind_cell[:]
