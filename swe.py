@@ -49,7 +49,7 @@ class parameters:
         self.nTimeSteps = np.ceil(1.*86400*360/self.dt*self.nYears).astype('int')
         self.save_interval = np.ceil(1.*86400/self.dt*self.save_inter_days).astype('int')
 
-        self.on_a_global_sphere = True
+        self.on_a_global_sphere = False
         
 
 class grid_data:
@@ -178,6 +178,33 @@ class grid_data:
 
         self.lu_D2 = splu(self.D2)
 
+        if not c.on_a_global_sphere:
+            # Construct matrix for discrete Laplacian on the triangles, corresponding to
+            # the homogeneous Dirichlet boundary conditions
+            nEntries, rows, cols, valEntries = \
+              cmp.construct_discrete_laplace_triangle(self.boundaryEdgeMark[:], \
+                            self.verticesOnEdge, self.dvEdge, self.dcEdge, self.areaTriangle)
+            E1_coo = coo_matrix((valEntries[:nEntries], (rows[:nEntries], \
+                                   cols[:nEntries])), shape=(self.nVertices, self.nVertices))
+            # Convert to csc sparse format
+            self.E1 = E1_coo.tocsc( )
+
+            self.lu_E1 = splu(self.E1)
+
+        # Construct matrix for discrete Laplacian on the triangles, corresponding to the
+        # Poisson problem with Neumann BC's
+        nEntries, rows, cols, valEntries = \
+          cmp.construct_discrete_laplace_triangle_neumann(self.boundaryEdgeMark, self.verticesOnEdge, \
+                      self.dvEdge, self.dcEdge, self.areaTriangle)
+        E2_coo = coo_matrix((valEntries[:nEntries], (rows[:nEntries], \
+                               cols[:nEntries])), shape=(self.nVertices, self.nVertices))
+        # Convert to csc sparse format
+        self.E2 = E2_coo.tocsc( )
+
+        self.lu_E2 = splu(self.E2)
+
+        #raise ValueError("Abort for testing")
+    
         # Make a copy of grid file
         os.system('cp %s %s' % (netcdf_file, c.output_file))
 
@@ -260,19 +287,54 @@ class state_data:
             self.thickness[:] = gh / c.gravity
 
             self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
-
             self.divergence[:] = 0.
-
             self.compute_diagnostics(g, c)
 
             # To check that vorticity and
             #psi_true = -a * u0 * np.sin(g.latCell)
+            #psi_vertex_true = -a * u0 * np.sin(g.latVertex)
+            #psi_vertex_true -= psi_true[0]
             #psi_true -= psi_true[0]
             #u_true = u0 * np.cos(g.latEdge)
-            #print("Max in psi: %e" % np.max(self.psi_cell))
+            
             #print("Max in nVelocity: %e" % np.max(self.nVelocity))
+            #print("Max in u_true: %e" % np.max(u_true))
+            #edgeInd = np.argmax(self.nVelocity)
+            #cell0 = g.cellsOnEdge[edgeInd, 0] - 1
+            #cell1 = g.cellsOnEdge[edgeInd, 1] - 1
+            #vertex0 = g.verticesOnEdge[edgeInd,0] - 1
+            #vertex1 = g.verticesOnEdge[edgeInd,1] - 1
+            #nVector = np.array([g.xCell[cell1] - g.xCell[cell0], g.yCell[cell1] - g.yCell[cell0], g.zCell[cell1] - g.zCell[cell0]])
+            #nVector /= np.sqrt(np.sum(nVector**2))
+            #hVector = np.array([-g.yEdge[edgeInd], g.xEdge[edgeInd], 0])
+            #hVector /= np.sqrt(np.sum(hVector**2))
+            #print("latEdge[%d] = %e" % (edgeInd, g.latEdge[edgeInd])) 
+            #print("lonEdge[%d] = %e" % (edgeInd, g.lonEdge[edgeInd])) 
+            #print("Actual horizontal velocity at edge %d: %e" % (edgeInd, u_true[edgeInd]))
+            #print("Actual normal velocity component: %e" % (u_true[edgeInd]*np.dot(nVector, hVector)))
+            #print("Approximate normal velocity component: %e" % (self.nVelocity[edgeInd],))
+            #print("Actual psi at vertex %d: %e" % (vertex0, -a*u0*np.sin(g.latVertex[vertex0]) + a*u0*np.sin(g.latCell[0])))
+            #print("Approximate psi at vertex %d: %e" % (vertex0, self.psi_vertex[vertex0]))
+            #print("Actual psi at vertex %d: %e" % (vertex1, -a*u0*np.sin(g.latVertex[vertex1]) + a*u0*np.sin(g.latCell[0])))
+            #print("Approximate psi at vertex %d: %e" % (vertex1, self.psi_vertex[vertex1]))
+            #print("dvEdge[%d] = %e" % (edgeInd, g.dvEdge[edgeInd]))
+            #print("")
+            
+
+            #print("Max in tVelocity: %e" % np.max(self.tVelocity))
+            #print("Max in u_true: %e" % np.max(u_true))
+            #print("")
+            
+            #print("Max in psi: %e" % np.max(self.psi_cell))
+            #print("Max in psi_vertex: %e" % np.max(self.psi_vertex))
             #print("Error in psi: %e" % (np.max(np.abs(self.psi_cell - psi_true)) / np.max(np.abs(psi_true)),) )
-            #print("Error in u: %e" % (np.max(np.abs(self.nVelocity - u_true)) / np.max(np.abs(u_true)),) )
+            #print("Error in psi_vertex: %e" % (np.max(np.abs(self.psi_vertex - psi_vertex_true)) / np.max(np.abs(psi_vertex_true)),) )
+            #print("")
+
+            #print("Max in phi: %e" % np.max(self.phi_cell))
+            #print("Max in phi_vertex: %e" % np.max(self.phi_vertex))
+            #print("")
+            
             #raise ValueError
 
 
@@ -509,9 +571,10 @@ def run_tests(g, c, s):
         print "L infinity error = ", l8
         print "L^2 error        = ", l2        
         
-    if True:
+    if False:
         # Test the linear solver the Lapace equation on the whole domain
-        # The solution is set to zero at cell 0, or on a bounded domain with
+        # The solution is set to zero at cell 0.
+        # Also test the linear solver for the Poisson equaiton  on a bounded domain with
         # homogeneous Neumann BC's
 
         psi_cell_true = np.random.rand(g.nCells)
@@ -535,6 +598,47 @@ def run_tests(g, c, s):
         print "L infinity error = ", l8
         print "L^2 error        = ", l2        
 
+    if False:   # Test the linear solver for the Poisson equation on the triangles with homogeneous Dirichlet BC's
+        psi_vertex_true = np.random.rand(g.nVertices)
+
+        vorticity_vertex = cmp.discrete_laplace_vertex(g.verticesOnEdge,  \
+                         g.dcEdge, g.dvEdge, g.areaTriangle, psi_vertex_true, 0)
+
+        #compte psi_vertex using linear solver
+        psi_vertex = g.lu_E1.solve(vorticity_vertex)
+
+        # Compute the errors
+        l8 = np.max(np.abs(psi_vertex_true[:] - psi_vertex[:])) / np.max(np.abs(psi_vertex_true[:]))
+        l2 = np.sum(np.abs(psi_vertex_true[:] - psi_vertex[:])**2 * g.areaTriangle[:])
+        l2 /=  np.sum(np.abs(psi_vertex_true[:])**2 * g.areaTriangle[:])
+        l2 = np.sqrt(l2)
+        print "Errors for the solver for the Poisson with Neumann BC's"
+        print "L infinity error = ", l8
+        print "L^2 error        = ", l2        
+
+    if True:
+        # Test the linear solver for the Poisson equation on the triangles with homogeneous Neumann BC's
+        # It also test the solver for the Poisson equation on the entire globe, with a zero value on triangle #0.
+        psi_vertex_true = np.random.rand(g.nVertices)
+        psi_vertex_true[0] = 0.
+
+        vorticity_vertex = cmp.discrete_laplace_vertex(g.verticesOnEdge,  \
+                            g.dcEdge, g.dvEdge, g.areaTriangle, psi_vertex_true, 1)
+
+        b = vorticity_vertex[:]
+        b[0] = 0.
+
+        #compte psi_vertex using linear solver
+        psi_vertex = g.lu_E2.solve(vorticity_vertex)
+
+        # Compute the errors
+        l8 = np.max(np.abs(psi_vertex_true[:] - psi_vertex[:])) / np.max(np.abs(psi_vertex_true[:]))
+        l2 = np.sum(np.abs(psi_vertex_true[:] - psi_vertex[:])**2 * g.areaTriangle[:])
+        l2 /=  np.sum(np.abs(psi_vertex_true[:])**2 * g.areaTriangle[:])
+        l2 = np.sqrt(l2)
+        print "Errors for the solver for the Poisson with Neumann BC's"
+        print "L infinity error = ", l8
+        print "L^2 error        = ", l2        
         
 def main( ):
 
@@ -547,8 +651,8 @@ def main( ):
     g = grid_data('grid.nc', c)
     s = state_data(g, c)
 
-    #run_tests(g, c, s)
-    #raise ValueError
+    run_tests(g, c, s)
+    raise ValueError("Just for testing.")
 
     s.initialization(g, c)
 

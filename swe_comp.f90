@@ -3,238 +3,6 @@ implicit none
 
 contains
 
-subroutine compute_tend_pv_cell(nEdges, nCells, boundaryEdge, &
-     cellsOnEdge, pv_edge, vorticity_cell, u, dcEdge, &
-     dvEdge, areaCell, curlWind_cell, bottomDrag, &
-     delVisc,  avgThickness, tend_pv_cell)
-
-  implicit none
-
-  integer, intent(in) :: nEdges, nCells
-  integer, intent(in) :: boundaryEdge(0:nEdges-1)
-  integer, intent(in) :: cellsOnEdge(0:nEdges-1,0:1)
-  double precision, intent(in) :: pv_edge(0:nEdges-1), &
-       dcEdge(0:nEdges-1), areaCell(0:nCells-1), &
-       u(0:nEdges-1), avgThickness
-  double precision, intent(in) :: dvEdge(0:nEdges-1),  &
-       delVisc, curlWind_cell(0:nCells-1), &
-       vorticity_cell(0:nCells-1), bottomDrag
-  double precision, intent(out):: tend_pv_cell(0:nCells-1)
-
-  double precision :: gradVorticityN(0:nEdges-1), &
-       laplaceVORTICITY_cell(0:nCells-1), &
-       gradLaplaceVorticityN(0:nEdges-1), &
-       laplaceLaplaceVORTICITY_cell(0:nCells-1)
-  
-  integer :: iEdge, cell0, cell1, iCell
-
-  double precision :: u_pv_edge(0:nEdges-1), pv_flux(0:nCells-1), del2Visc
-
-  tend_pv_cell(:) = curlWind_cell(:) / avgThickness - bottomDrag * vorticity_cell(:)
-
-  do iEdge = 0, nEdges-1
-!     if (boundaryEdge(iEdge) .EQ. 0) then
-         cell0 = cellsOnEdge(iEdge,0) - 1
-         cell1 = cellsOnEdge(iEdge,1) - 1
-
-         tend_pv_cell(cell0) = tend_pv_cell(cell0) - &
-              pv_edge(iEdge)*u(iEdge)*dvEdge(iEdge)/areaCell(cell0)
-         tend_pv_cell(cell1) = tend_pv_cell(cell1) + &
-              pv_edge(iEdge)*u(iEdge)*dvEdge(iEdge)/areaCell(cell1)
-!      endif
-   end do
-
-  ! Compute gradient of VORTICITY in the normal direction
-  do iEdge = 0, nEdges-1
-     if (boundaryEdge(iEdge) .EQ. 0) then
-        cell0 = cellsOnEdge(iEdge,0) - 1
-        cell1 = cellsOnEdge(iEdge,1) - 1
-        gradVorticityN(iEdge) = (vorticity_cell(cell1) - vorticity_cell(cell0))/dcEdge(iEdge)
-     else
-        gradVorticityN(iEdge) = 0.0 ! Zero flux on solid boundary
-     end if
-  end do
-
-  ! Compute Laplace of VORTICITY on each cell
-  laplaceVORTICITY_cell(:) = 0.0
-
-  do iEdge = 0, nEdges-1
-     if (boundaryEdge(iEdge) .EQ. 0) then
-        cell0 = cellsOnEdge(iEdge,0) - 1
-        cell1 = cellsOnEdge(iEdge,1) - 1
-
-        laplaceVORTICITY_cell(cell0) = laplaceVORTICITY_cell(cell0) + &
-             gradVorticityN(iEdge) * dvEdge(iEdge)
-        laplaceVORTICITY_cell(cell1) = laplaceVORTICITY_cell(cell1) - &
-             gradVorticityN(iEdge) * dvEdge(iEdge)
-     end if
-  end do
-
-  do iCell = 0, nCells-1
-     laplaceVORTICITY_cell(iCell) = laplaceVORTICITY_cell(iCell)/areaCell(iCell)
-  end do
-
-  ! Compute gradient of Laplace VORTICITY on each edge
-  do iEdge = 0, nEdges-1
-     if (boundaryEdge(iEdge) .EQ. 0) then
-        cell0 = cellsOnEdge(iEdge,0) - 1
-        cell1 = cellsOnEdge(iEdge,1) - 1
-        gradLaplaceVorticityN(iEdge) = (laplaceVorticity_cell(cell1) - &
-             laplaceVORTICITY_cell(cell0))/dcEdge(iEdge)
-     else
-
-        gradLaplaceVorticityN(iEdge) = 0.0 ! Zero flux on solid boundary
-     end if
-  end do
-  
-  ! Compute Laplace Laplace VORTICITY on each cell
-  laplaceLaplaceVORTICITY_cell(:) = 0.0
-
-  do iEdge = 0, nEdges-1
-     if (boundaryEdge(iEdge) .EQ. 0) then
-        cell0 = cellsOnEdge(iEdge,0) - 1
-        cell1 = cellsOnEdge(iEdge,1) - 1
-
-        laplaceLaplaceVORTICITY_cell(cell0) = laplaceLaplaceVORTICITY_cell(cell0) + &
-             gradLaplaceVorticityN(iEdge) * dvEdge(iEdge)
-        laplaceLaplaceVORTICITY_cell(cell1) = laplaceLaplaceVORTICITY_cell(cell1) - &
-             gradLaplaceVorticityN(iEdge) * dvEdge(iEdge)
-     end if
-  end do
-
-  do iCell = 0, nCells-1
-     laplaceLaplaceVORTICITY_cell(iCell) = &
-          laplaceLaplaceVORTICITY_cell(icell) / areaCell(iCell)
-  end do
-
-!  write(*,*) "delVisc = ", delVisc
-!  write(*,*) "del2Visc = ", del2Visc
-!  write(*,*) "min laplaceVORTICITY_cell = ", minval(laplaceVORTICITY_cell)
-!  write(*,*) "max laplaceVORTICITY_cell = ", maxval(laplaceVORTICITY_cell)
-
-  do iCell = 0, nCells-1
-     tend_pv_cell(iCell) = tend_pv_cell(iCell) + &
-          delVisc * laplaceVORTICITY_cell(iCell)
-!     tend_pv_cell(iCell) = tend_pv_cell(iCell) - &
-!          del2Visc * laplaceLaplaceVORTICITY_cell(iCell)
-  end do
-
-!  write(*,*) "tend_pv_cell(1152) = ", tend_pv_cell(1152)
-
-end subroutine compute_tend_pv_cell
-
-
-subroutine compute_pv_fluxes_cell(nEdges, nCells, &
-     cellsOnEdge, pv_edge, u, dvEdge, areaCell, &
-     pv_flux_cell)
-
-  implicit none
-
-  integer, intent(in) :: nEdges, nCells
-  integer, intent(in) :: cellsOnEdge(0:nEdges-1,0:1)
-  double precision, intent(in) :: pv_edge(0:nEdges-1), &
-       areaCell(0:nCells-1), &
-       u(0:nEdges-1)
-  double precision, intent(in) :: dvEdge(0:nEdges-1)
-  double precision, intent(out):: pv_flux_cell(0:nCells-1)
-
-  integer :: iEdge, cell0, cell1
-
-  pv_flux_cell(:) = 0.0
-  do iEdge = 0, nEdges-1
-         cell0 = cellsOnEdge(iEdge,0) - 1
-         cell1 = cellsOnEdge(iEdge,1) - 1
-
-         pv_flux_cell(cell0) = pv_flux_cell(cell0) + &
-              pv_edge(iEdge)*u(iEdge)*dvEdge(iEdge)/areaCell(cell0)
-         pv_flux_cell(cell1) = pv_flux_cell(cell1) - &
-              pv_edge(iEdge)*u(iEdge)*dvEdge(iEdge)/areaCell(cell1)
-   end do
-
-end subroutine compute_pv_fluxes_cell
-
-
-subroutine compute_tend_eta_cell(nEdges, nCells, &
-     boundaryEdge, cellsOnEdge, eta_edge, vorticity_cell, u, dcEdge, &
-     dvEdge, areaCell, fEdge, bottomTopEdge, curlWind_cell, bottomDrag, &
-     delVisc, btc, avgThickness, &
-     tend_eta_cell)
-
-  implicit none
-
-  integer, intent(in) :: nEdges, nCells
-  integer, intent(in) :: boundaryEdge(0:nEdges-1)
-  integer, intent(in) :: cellsOnEdge(0:nEdges-1,0:1)
-  double precision, intent(in) :: eta_edge(0:nEdges-1), &
-       dcEdge(0:nEdges-1), areaCell(0:nCells-1), &
-       u(0:nEdges-1), avgThickness, fEdge(0:nEdges-1), &
-       bottomTopEdge(0:nEdges-1)
-  double precision, intent(in) :: dvEdge(0:nEdges-1), btc, &
-       delVisc, curlWind_cell(0:nCells-1), &
-       vorticity_cell(0:nCells-1), bottomDrag
-  double precision, intent(out):: tend_eta_cell(0:nCells-1)
-
-  double precision :: gradVorticityN(0:nEdges-1), &
-       laplaceVORTICITY_cell(0:nCells-1), &
-       gradLaplaceVorticityN(0:nEdges-1), &
-       laplaceLaplaceVORTICITY_cell(0:nCells-1)
-  
-  integer :: iEdge, cell0, cell1, iCell
-
-  double precision :: pv_edge(0:nEdges-1)
-
-  pv_edge(:) = eta_edge(:) + fEdge(:) + btc*bottomTopEdge(:)
-
-  tend_eta_cell(:) = curlWind_cell(:) / avgThickness - bottomDrag * vorticity_cell(:)
-
-  do iEdge = 0, nEdges-1
-         cell0 = cellsOnEdge(iEdge,0) - 1
-         cell1 = cellsOnEdge(iEdge,1) - 1
-
-         tend_eta_cell(cell0) = tend_eta_cell(cell0) - &
-              pv_edge(iEdge)*u(iEdge)*dvEdge(iEdge)/areaCell(cell0)
-         tend_eta_cell(cell1) = tend_eta_cell(cell1) + &
-              pv_edge(iEdge)*u(iEdge)*dvEdge(iEdge)/areaCell(cell1)
-   end do
-
-  ! Compute gradient of VORTICITY in the normal direction
-  do iEdge = 0, nEdges-1
-     if (boundaryEdge(iEdge) .EQ. 0) then
-        cell0 = cellsOnEdge(iEdge,0) - 1
-        cell1 = cellsOnEdge(iEdge,1) - 1
-        gradVorticityN(iEdge) = (vorticity_cell(cell1) - vorticity_cell(cell0))/dcEdge(iEdge)
-     else
-        gradVorticityN(iEdge) = 0.0 ! Zero flux on solid boundary
-     end if
-  end do
-
-  ! Compute Laplace of VORTICITY on each cell
-  laplaceVORTICITY_cell(:) = 0.0
-
-  do iEdge = 0, nEdges-1
-     if (boundaryEdge(iEdge) .EQ. 0) then
-        cell0 = cellsOnEdge(iEdge,0) - 1
-        cell1 = cellsOnEdge(iEdge,1) - 1
-
-        laplaceVORTICITY_cell(cell0) = laplaceVORTICITY_cell(cell0) + &
-             gradVorticityN(iEdge) * dvEdge(iEdge)
-        laplaceVORTICITY_cell(cell1) = laplaceVORTICITY_cell(cell1) - &
-             gradVorticityN(iEdge) * dvEdge(iEdge)
-     end if
-  end do
-
-  do iCell = 0, nCells-1
-     laplaceVORTICITY_cell(iCell) = laplaceVORTICITY_cell(iCell)/areaCell(iCell)
-  end do
-
-  do iCell = 0, nCells-1
-     tend_eta_cell(iCell) = tend_eta_cell(iCell) + &
-          delVisc * laplaceVORTICITY_cell(iCell)
-  end do
-
-end subroutine compute_tend_eta_cell
-
-
 subroutine cell2vertex(nVertices, nCells, nEdges, vertexDegree, &
      cellsOnVertex, kiteAreasOnVertex, areaTriangle, verticesOnEdge, &
      scalar_cell, scalar_vertex)
@@ -365,54 +133,7 @@ subroutine cell2edge(nEdges, nCells, cellsOnEdge, scalar_cell, scalar_edge)
         scalar_edge(iEdge) = 0.5*(scalar_cell(iCell1) + scalar_cell(iCell2))
   end do
 
-end subroutine
-
-
-! Compute pv_edge from pv_cell (for now)
-subroutine compute_pv_edge_apvm(nEdges, nCells, cellsOnEdge, cellBoundaryMark, dcEdge, dt, pv_cell, u, apvm_factor, pv_edge)
-  integer, intent(in) :: nEdges, nCells
-  integer, intent(in) :: cellsOnEdge(0:nEdges-1, 0:1), cellBoundaryMark(0:nCells-1)
-  real*8, intent(in)  :: pv_cell(0:nCells-1), u(0:nEdges-1), dcEdge(0:nEdges-1)
-  double precision, intent(in) :: apvm_factor, dt
-  real*8, intent(out) :: pv_edge(0:nEdges-1)
-
-  integer :: iEdge, iCell1, iCell2
-  double precision    :: grad_pv(0:nEdges-1)
-
-  call discrete_grad_n(nEdges, nCells, pv_cell, cellsOnEdge, dcEdge, grad_pv)
-
-  do iEdge = 0, nEdges-1
-        iCell1 = cellsOnEdge(iEdge,0) - 1
-        iCell2 = cellsOnEdge(iEdge,1) - 1
-
-        pv_edge(iEdge) = 0.5*(pv_cell(iCell1) + pv_cell(iCell2))
-        pv_edge(iEdge) = pv_edge(iEdge) - apvm_factor * dt * u(iEdge) * grad_pv(iEdge)
-  end do
-
-end subroutine
-
-
-! Compute pv_edge from pv_cell (for now)
-subroutine compute_pv_edge_upwind(nEdges, nCells, cellsOnEdge, pv_cell, u, pv_edge)
-  integer, intent(in) :: nEdges, nCells
-  integer, intent(in) :: cellsOnEdge(0:nEdges-1, 0:1)
-  real*8, intent(in)  :: pv_cell(0:nCells-1), u(0:nEdges-1)
-  real*8, intent(out) :: pv_edge(0:nEdges-1)
-
-  integer :: iEdge, iCell1, iCell2
-
-  do iEdge = 0, nEdges-1
-        iCell1 = cellsOnEdge(iEdge,0) - 1
-        iCell2 = cellsOnEdge(iEdge,1) - 1
-
-        if (u(iEdge) > 0) then
-           pv_edge(iEdge) = pv_cell(iCell1)
-        else
-           pv_edge(iEdge) = pv_cell(iCell2)
-        end if
-  end do
-
-end subroutine
+end subroutine cell2edge
 
 
 subroutine discrete_grad_n(nEdges, nCells, scalar_cell, cellsOnEdge, &
@@ -436,10 +157,10 @@ end subroutine discrete_grad_n
 
 
 subroutine discrete_grad_t(nEdges, nVertices, &
-     scalar_vertex, verticesOnEdge, dvEdge, &
+     scalar_vertex, verticesOnEdge, dvEdge, bc, &
      grad_t)
   
-  integer, intent(in) :: nEdges, nVertices
+  integer, intent(in) :: nEdges, nVertices, bc
   integer, intent(in) :: verticesOnEdge(0:nEdges-1, 0:1)
   real*8, intent(in)  :: dvEdge(0:nEdges-1)
   real*8, intent(in)  :: scalar_vertex(0:nVertices-1)
@@ -454,9 +175,24 @@ subroutine discrete_grad_t(nEdges, nVertices, &
         if (vertex0 .GE. 0 .and. vertex1 .GE. 0) then
            grad_t(iEdge) = (scalar_vertex(vertex1) - scalar_vertex(vertex0))/dvEdge(iEdge)
         else if (vertex0 .GE. 0) then
-           grad_t(iEdge) =  - scalar_vertex(vertex0)/dvEdge(iEdge)
+           if (bc == 0) then  ! Homogeneous Dirichlet
+              grad_t(iEdge) =  - scalar_vertex(vertex0)/dvEdge(iEdge)
+           else if (bc == 1) then ! Homogeneous Neumann
+              grad_t(iEdge) = 0.
+           else
+              write(*,*) "Unknown BC type"
+              stop
+           end if
+           
         else if (vertex1 .GE. 0) then
-           grad_t(iEdge) =  scalar_vertex(vertex1)/dvEdge(iEdge)
+           if (bc == 0) then  ! Homogeneous Dirichlet
+              grad_t(iEdge) =  scalar_vertex(vertex1)/dvEdge(iEdge)
+           else if (bc == 1) then ! Homogeneous Neumann
+              grad_t(iEdge) = 0.
+           else
+              write(*,*) "Unknown BC type"
+              stop
+           end if
         else
            write(*,*) "Vertex indices in verticesOnEdge are wrong in discrete_grad_t. Exit."
            stop
@@ -494,8 +230,38 @@ subroutine discrete_div(nEdges, nCells, &
   
 end subroutine discrete_div
 
+subroutine discrete_div_t(nEdges, nVertices, &
+                          grad_t, verticesOnEdge, dcEdge, areaTriangle, &
+                          divergence_t)
+  integer, intent(in) :: nEdges, nVertices
+  integer, intent(in) :: verticesOnEdge(0:nEdges-1, 0:1)
+  real*8, intent(in)  :: grad_t(0:nEdges-1), dcEdge(0:nEdges-1), areaTriangle(0:nVertices-1)
+  real*8, intent(out) :: divergence_t(0:nVertices-1)
 
-! Given a discrete vector field vector_t, compute its discrete divergence.
+  integer :: iEdge, vertex0, vertex1, iVertex
+
+  divergence_t(:) = 0.0
+
+  do iEdge = 0, nEdges-1
+        vertex0 = verticesOnEdge(iEdge,0) - 1
+        vertex1 = verticesOnEdge(iEdge,1) - 1
+
+        if (vertex0 >= 0) then
+           divergence_t(vertex0) = divergence_t(vertex0) + grad_t(iEdge) * dcEdge(iEdge)
+        end if
+
+        if (vertex1 >= 0) then
+           divergence_t(vertex1) = divergence_t(vertex1) - grad_t(iEdge) * dcEdge(iEdge)
+        end if
+  end do
+
+  do iVertex = 0, nVertices-1
+     divergence_t(iVertex) = divergence_t(iVertex)/areaTriangle(iVertex)
+  end do
+  
+end subroutine discrete_div_t
+
+! Given a discrete vector field vector_t, compute its discrete curl.
 ! The orientation on the edge is such that the first cell (cell0) appears on the left of the edge
 subroutine discrete_curl(nEdges, nCells,  &
      cellsOnEdge, dvEdge, areaCell, vector_t, &
@@ -547,7 +313,28 @@ subroutine discrete_laplace(nEdges, nCells,  &
                        cellsOnEdge, dvEdge, areaCell, grad_n, &
                        laplace_cell)
 end subroutine discrete_laplace
+
+
+subroutine discrete_laplace_vertex(nEdges, nVertices,  &
+          verticesOnEdge, dcEdge, dvEdge, areaTriangle, scalar_vertex, bc, &
+          laplace_vertex)
   
+  integer, intent(in) :: nEdges, nVertices, bc
+  integer, intent(in) :: verticesOnEdge(0:nEdges-1, 0:1)
+  real*8, intent(in)  :: dcEdge(0:nEdges-1), dvEdge(0:nEdges-1), areaTriangle(0:nVertices-1), scalar_vertex(0:nVertices-1)
+  real*8, intent(out) :: laplace_vertex(0:nVertices-1)
+
+  real*8              :: grad_t(0:nEdges-1)
+
+  call discrete_grad_t(nEdges, nVertices, &
+     scalar_vertex, verticesOnEdge, dvEdge, bc, &
+     grad_t)
+
+   call discrete_div_t(nEdges, nVertices, &
+                       grad_t, verticesOnEdge, dcEdge, areaTriangle, &
+                       laplace_vertex)
+end subroutine discrete_laplace_vertex
+
 
 subroutine separate_boundary_interior_cells(nCells, nCellsInterior, nCellsBoundary, max_int, boundaryCell,  &
                                             cellInterior, cellBoundary, cellRankInterior)
@@ -754,5 +541,130 @@ subroutine construct_discrete_laplace_neumann(nCells, nEdges, &
   
 end subroutine construct_discrete_laplace_neumann
 
+
+subroutine construct_discrete_laplace_triangle(nVertices, nEdges, &
+     boundaryEdge, verticesOnEdge, dvEdge, dcEdge, areaTriangle, &
+     nEntries, rows, cols, valEntries)
+
+  integer, intent(in)    :: nVertices, nEdges
+  integer, intent(in)    :: boundaryEdge(0:nEdges-1), verticesOnEdge(0:nEdges-1,0:1)
+  double precision, intent(in)     :: dvEdge(0:nEdges-1), dcEdge(0:nEdges-1), areaTriangle(0:nVertices-1)
+  integer, intent(out)   :: rows(0:4*nEdges-1), cols(0:4*nEdges-1), nEntries
+  double precision, intent(out)    :: valEntries(0:4*nEdges-1)
+
+  integer   :: iEdge, vertex0, vertex1, iEntry
+
+  iEntry = 0
+
+  do iEdge = 0, nEdges-1
+     vertex0 = verticesOnEdge(iEdge,0) - 1
+     vertex1 = verticesOnEdge(iEdge,1) - 1
+        
+     if (boundaryEdge(iEdge) .EQ. 0) then
+
+        rows(iEntry) = vertex0
+        cols(iEntry) = vertex0
+        valEntries(iEntry) = -dcEdge(iEdge)/dvEdge(iEdge)/areaTriangle(vertex0)
+        iEntry = iEntry + 1
+
+        rows(iEntry) = vertex0
+        cols(iEntry) = vertex1
+        valEntries(iEntry) = dcEdge(iEdge)/dvEdge(iEdge)/areaTriangle(vertex0)
+        iEntry = iEntry + 1
+
+        rows(iEntry) = vertex1
+        cols(iEntry) = vertex0
+        valEntries(iEntry) = dcEdge(iEdge)/dvEdge(iEdge)/areaTriangle(vertex1)
+        iEntry = iEntry + 1
+
+        rows(iEntry) = vertex1
+        cols(iEntry) = vertex1
+        valEntries(iEntry) = -dcEdge(iEdge)/dvEdge(iEdge)/areaTriangle(vertex1)
+        iEntry = iEntry + 1
+     else if(vertex0 >= 0 .AND. vertex1 < 0) then
+        rows(iEntry) = vertex0
+        cols(iEntry) = vertex0
+        valEntries(iEntry) = -dcEdge(iEdge)/dvEdge(iEdge)/areaTriangle(vertex0)
+        iEntry = iEntry + 1
+     else if (vertex0 < 0 .AND. vertex1 >= 0 ) then
+        rows(iEntry) = vertex1
+        cols(iEntry) = vertex1
+        valEntries(iEntry) = -dcEdge(iEdge)/dvEdge(iEdge)/areaTriangle(vertex1)
+        iEntry = iEntry + 1
+     else
+        write(*,*) "Error in constructing the discrete Laplace on trianlges."
+        stop
+     end if
+  end do
+  
+  nEntries = iEntry
+  
+end subroutine construct_discrete_laplace_triangle
+
+
+subroutine construct_discrete_laplace_triangle_neumann(nVertices, nEdges, &
+     boundaryEdge, verticesOnEdge, dvEdge, dcEdge, areaTriangle, &
+     nEntries, rows, cols, valEntries)
+
+  integer, intent(in)    :: nVertices, nEdges
+  integer, intent(in)    :: boundaryEdge(0:nEdges-1), verticesOnEdge(0:nEdges-1,0:1)
+  double precision, intent(in)     :: dvEdge(0:nEdges-1), dcEdge(0:nEdges-1), areaTriangle(0:nVertices-1)
+  integer, intent(out)   :: rows(0:4*nEdges-1), cols(0:4*nEdges-1), nEntries
+  double precision, intent(out)    :: valEntries(0:4*nEdges-1)
+
+  integer   :: iEdge, vertex0, vertex1, iEntry
+
+  iEntry = 0
+
+!!$  write(*,*) "boundaryEdge(0) = ", boundaryEdge(0)
+!!$  write(*,*) "boundaryEdge(1) = ", boundaryEdge(1)
+!!$  write(*,*) "boundaryEdge(2) = ", boundaryEdge(2)
+!!$  write(*,*) "boundaryEdge(3) = ", boundaryEdge(3)
+
+  do iEdge = 0, nEdges-1
+     vertex0 = verticesOnEdge(iEdge,0) - 1
+     vertex1 = verticesOnEdge(iEdge,1) - 1
+        
+     if (boundaryEdge(iEdge) .EQ. 0) then
+!!$        if (vertex0 < 0 .OR. vertex1 < 0) then
+!!$           write(*,*) "Negative indices on non-boundary edges."
+!!$           write(*,*) "iEdge = ", iEdge
+!!$           write(*,*) "vertex0 = ", vertex0
+!!$           write(*,*) "vertex1 = ", vertex1
+!!$           stop
+!!$        end if
+
+        rows(iEntry) = vertex0
+        cols(iEntry) = vertex0
+        valEntries(iEntry) = -dcEdge(iEdge)/dvEdge(iEdge)/areaTriangle(vertex0)
+        iEntry = iEntry + 1
+
+        rows(iEntry) = vertex0
+        cols(iEntry) = vertex1
+        valEntries(iEntry) = dcEdge(iEdge)/dvEdge(iEdge)/areaTriangle(vertex0)
+        iEntry = iEntry + 1
+
+        rows(iEntry) = vertex1
+        cols(iEntry) = vertex0
+        valEntries(iEntry) = dcEdge(iEdge)/dvEdge(iEdge)/areaTriangle(vertex1)
+        iEntry = iEntry + 1
+
+        rows(iEntry) = vertex1
+        cols(iEntry) = vertex1
+        valEntries(iEntry) = -dcEdge(iEdge)/dvEdge(iEdge)/areaTriangle(vertex1)
+        iEntry = iEntry + 1
+     end if
+  end do
+  
+  nEntries = iEntry
+
+  ! Set all entries on the first row to zero except the diagonal term
+  do iEntry = 0, nEntries-1
+     if (rows(iEntry) .EQ. 0 .AND. cols(iEntry) .NE. 0) then
+        valEntries(iEntry) = 0.
+     end if
+  end do
+  
+end subroutine construct_discrete_laplace_triangle_neumann
 
 end module
