@@ -27,7 +27,7 @@ class parameters:
 
         self.bottom_topography = True
         
-        self.dt = 172.8*8
+        self.dt = 172.8*4
         self.nYears = 0.014
         self.save_inter_days = 1
         
@@ -49,7 +49,7 @@ class parameters:
         self.nTimeSteps = np.ceil(1.*86400*360/self.dt*self.nYears).astype('int')
         self.save_interval = np.ceil(1.*86400/self.dt*self.save_inter_days).astype('int')
 
-        self.on_a_global_sphere = False
+        self.on_a_global_sphere = True
         
 
 class grid_data:
@@ -237,6 +237,8 @@ class state_data:
         self.divergence = self.thickness.copy()
 
         # Diagnostic variables
+        self.vorticity_vertex = np.zeros(g.nVertices)
+        self.divergence_vertex = np.zeros(g.nVertices)
         self.psi_cell = np.zeros(g.nCells)
         self.psi_vertex = np.zeros(g.nVertices)
         self.phi_cell = np.zeros(g.nCells)
@@ -290,52 +292,53 @@ class state_data:
             self.divergence[:] = 0.
             self.compute_diagnostics(g, c)
 
-            # To check that vorticity and
-            #psi_true = -a * u0 * np.sin(g.latCell)
-            #psi_vertex_true = -a * u0 * np.sin(g.latVertex)
-            #psi_vertex_true -= psi_true[0]
-            #psi_true -= psi_true[0]
-            #u_true = u0 * np.cos(g.latEdge)
-            
-            #print("Max in nVelocity: %e" % np.max(self.nVelocity))
-            #print("Max in u_true: %e" % np.max(u_true))
-            #edgeInd = np.argmax(self.nVelocity)
-            #cell0 = g.cellsOnEdge[edgeInd, 0] - 1
-            #cell1 = g.cellsOnEdge[edgeInd, 1] - 1
-            #vertex0 = g.verticesOnEdge[edgeInd,0] - 1
-            #vertex1 = g.verticesOnEdge[edgeInd,1] - 1
-            #nVector = np.array([g.xCell[cell1] - g.xCell[cell0], g.yCell[cell1] - g.yCell[cell0], g.zCell[cell1] - g.zCell[cell0]])
-            #nVector /= np.sqrt(np.sum(nVector**2))
-            #hVector = np.array([-g.yEdge[edgeInd], g.xEdge[edgeInd], 0])
-            #hVector /= np.sqrt(np.sum(hVector**2))
-            #print("latEdge[%d] = %e" % (edgeInd, g.latEdge[edgeInd])) 
-            #print("lonEdge[%d] = %e" % (edgeInd, g.lonEdge[edgeInd])) 
-            #print("Actual horizontal velocity at edge %d: %e" % (edgeInd, u_true[edgeInd]))
-            #print("Actual normal velocity component: %e" % (u_true[edgeInd]*np.dot(nVector, hVector)))
-            #print("Approximate normal velocity component: %e" % (self.nVelocity[edgeInd],))
-            #print("Actual psi at vertex %d: %e" % (vertex0, -a*u0*np.sin(g.latVertex[vertex0]) + a*u0*np.sin(g.latCell[0])))
-            #print("Approximate psi at vertex %d: %e" % (vertex0, self.psi_vertex[vertex0]))
-            #print("Actual psi at vertex %d: %e" % (vertex1, -a*u0*np.sin(g.latVertex[vertex1]) + a*u0*np.sin(g.latCell[0])))
-            #print("Approximate psi at vertex %d: %e" % (vertex1, self.psi_vertex[vertex1]))
-            #print("dvEdge[%d] = %e" % (edgeInd, g.dvEdge[edgeInd]))
-            #print("")
-            
+            if False:
+                # To check that vorticity and
+                psi_true = -a * u0 * np.sin(g.latCell)
+                psi_vertex_true = -a * u0 * np.sin(g.latVertex)
+                psi_vertex_true -= psi_true[0]
+                psi_true -= psi_true[0]
+                u_true = u0 * np.cos(g.latEdge)
 
-            #print("Max in tVelocity: %e" % np.max(self.tVelocity))
-            #print("Max in u_true: %e" % np.max(u_true))
-            #print("")
-            
-            #print("Max in psi: %e" % np.max(self.psi_cell))
-            #print("Max in psi_vertex: %e" % np.max(self.psi_vertex))
-            #print("Error in psi: %e" % (np.max(np.abs(self.psi_cell - psi_true)) / np.max(np.abs(psi_true)),) )
-            #print("Error in psi_vertex: %e" % (np.max(np.abs(self.psi_vertex - psi_vertex_true)) / np.max(np.abs(psi_vertex_true)),) )
-            #print("")
+                print("Max in nVelocity: %e" % np.max(self.nVelocity))
+                print("Max in u_true: %e" % np.max(u_true))
+                edgeInd = np.argmax(self.nVelocity)
+                cell0 = g.cellsOnEdge[edgeInd, 0] - 1
+                cell1 = g.cellsOnEdge[edgeInd, 1] - 1
+                vertex0 = g.verticesOnEdge[edgeInd,0] - 1
+                vertex1 = g.verticesOnEdge[edgeInd,1] - 1
+                nVector = np.array([g.xCell[cell1] - g.xCell[cell0], g.yCell[cell1] - g.yCell[cell0], g.zCell[cell1] - g.zCell[cell0]])
+                nVector /= np.sqrt(np.sum(nVector**2))
+                hVector = np.array([-g.yEdge[edgeInd], g.xEdge[edgeInd], 0])
+                hVector /= np.sqrt(np.sum(hVector**2))
+                print("latEdge[%d] = %e" % (edgeInd, g.latEdge[edgeInd])) 
+                print("lonEdge[%d] = %e" % (edgeInd, g.lonEdge[edgeInd])) 
+                print("Actual horizontal velocity at edge %d: %e" % (edgeInd, u_true[edgeInd]))
+                print("Actual normal velocity component: %e" % (u_true[edgeInd]*np.dot(nVector, hVector)))
+                print("Approximate normal velocity component: %e" % (self.nVelocity[edgeInd],))
+                print("Actual psi at vertex %d: %e" % (vertex0, -a*u0*np.sin(g.latVertex[vertex0]) + a*u0*np.sin(g.latCell[0])))
+                print("Approximate psi at vertex %d: %e" % (vertex0, self.psi_vertex[vertex0]))
+                print("Actual psi at vertex %d: %e" % (vertex1, -a*u0*np.sin(g.latVertex[vertex1]) + a*u0*np.sin(g.latCell[0])))
+                print("Approximate psi at vertex %d: %e" % (vertex1, self.psi_vertex[vertex1]))
+                print("dvEdge[%d] = %e" % (edgeInd, g.dvEdge[edgeInd]))
+                print("")
 
-            #print("Max in phi: %e" % np.max(self.phi_cell))
-            #print("Max in phi_vertex: %e" % np.max(self.phi_vertex))
-            #print("")
-            
-            #raise ValueError
+
+                print("Max in tVelocity: %e" % np.max(self.tVelocity))
+                print("Max in u_true: %e" % np.max(u_true))
+                print("")
+
+                print("Max in psi: %e" % np.max(self.psi_cell))
+                print("Max in psi_vertex: %e" % np.max(self.psi_vertex))
+                print("L-infinity error in psi: %e" % (np.max(np.abs(self.psi_cell - psi_true)) / np.max(np.abs(psi_true)),) )
+                print("L-infinity error in psi_vertex: %e" % (np.max(np.abs(self.psi_vertex - psi_vertex_true)) / np.max(np.abs(psi_vertex_true)),) )
+                print("")
+
+                print("Max in phi: %e" % np.max(self.phi_cell))
+                print("Max in phi_vertex: %e" % np.max(self.phi_vertex))
+                print("")
+
+                raise ValueError("Abort after testing in start_from_function")
 
 
         else:
@@ -413,22 +416,27 @@ class state_data:
     def compute_diagnostics(self, g, c):
         # Compute diagnostic variables from pv_cell
 
-        # Compute psi_cell from vorticity
-        self.compute_psi_cell(g, c)
-
-        # Compute phi_cell from divergence
-        self.compute_phi_cell(g, c)
-
         # Compute the absolute vorticity
         self.eta_cell = self.vorticity + g.fCell
 
         # Compute the potential vorticity
         self.pv_cell = self.eta_cell / self.thickness
 
-        # Map from cell to vertex
-        self.psi_vertex = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.psi_cell)
-        self.phi_vertex = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.phi_cell)
+        # First approach: compute psi_cell and phi_cell from vorticity and divergence, and then map them onto the dual mesh
+        #self.compute_psi_cell(g, c)
+        #self.compute_phi_cell(g, c)
+        #self.psi_vertex = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.psi_cell)
+        #self.phi_vertex = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.phi_cell)
 
+        # Another approach: map vorticity and divergence to the dual mesh, and then compute the streamfunction and velocity potential
+        # from them
+        self.vorticity_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.vorticity)
+        self.divergence_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.divergence)
+        self.compute_psi_cell(g,c)
+        self.compute_phi_cell(g,c)
+        self.compute_psi_vertex(g,c)
+        self.compute_phi_vertex(g,c)
+        
         # compute the normal and tangential velocity components
         self.nVelocity = cmp.compute_normal_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_cell, self.psi_vertex)
         self.tVelocity = cmp.compute_tangential_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_vertex, self.psi_cell)
@@ -462,6 +470,23 @@ class state_data:
             
         return 0
 
+
+    def compute_psi_vertex(self, g, c):
+        # To compute the psi_cell using the elliptic equation on the
+        # interior cells
+
+        if not c.on_a_global_sphere or np.max(g.boundaryCellMark[:]) > 0:
+            # A bounded domain
+            self.psi_vertex[:] = g.lu_E1.solve(self.vorticity_vertex[:])
+            
+        else:
+            # A global domain with no boundary
+            b = np.zeros(g.nVertices)
+            b[1:] = self.vorticity_vertex[1:]
+            self.psi_vertex[:] = g.lu_E2.solve(b)
+            
+        return 0
+    
     
     def compute_phi_cell(self, g, c):
         # To compute the phi_cell from divergence
@@ -469,6 +494,15 @@ class state_data:
         b = np.zeros(g.nCells)
         b[1:] = self.divergence[1:]
         self.phi_cell[:] = g.lu_D2.solve( b )
+
+        return 0
+
+    def compute_phi_vertex(self, g, c):
+        # To compute the phi_cell from divergence
+
+        b = np.zeros(g.nVertices)
+        b[1:] = self.divergence_vertex[1:]
+        self.phi_vertex[:] = g.lu_E2.solve( b )
 
         return 0
     
@@ -651,8 +685,8 @@ def main( ):
     g = grid_data('grid.nc', c)
     s = state_data(g, c)
 
-    run_tests(g, c, s)
-    raise ValueError("Just for testing.")
+    #run_tests(g, c, s)
+    #raise ValueError("Just for testing.")
 
     s.initialization(g, c)
 
