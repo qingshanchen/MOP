@@ -17,7 +17,7 @@ class parameters:
 
     def __init__(self):
 
-        self.test_case = 2
+        self.test_case = 1
 
         # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
         self.timestepping = 'RK4'
@@ -27,8 +27,8 @@ class parameters:
 
         self.bottom_topography = True
         
-        self.dt = 172.8*8
-        self.nYears = 12/360.
+        self.dt = 720.   #1440 for 480km
+        self.nYears = 12.0/360.
         self.save_inter_days = 1
         
         self.delVisc = 0.
@@ -47,7 +47,9 @@ class parameters:
         self.output_file = 'output.nc'
 
         self.nTimeSteps = np.ceil(1.*86400*360/self.dt*self.nYears).astype('int')
-        self.save_interval = np.ceil(1.*86400/self.dt*self.save_inter_days).astype('int')
+        self.save_interval = np.floor(1.*86400/self.dt*self.save_inter_days).astype('int')
+        if self.save_interval < 1:
+            self.save_interval = 1
 
         self.on_a_global_sphere = True
         
@@ -278,10 +280,10 @@ class state_data:
             R = a/3
             u0 = 2*np.pi*a / (12*86400)
             h0 = 1000.
-            lon_c = 1.5*np.pi
+            lon_c = .5*np.pi
             lat_c = 0.
-            r = a*np.arccos(np.sin(lon_c)*np.sin(g.latCell[:]) + \
-                np.cos(lon_c)*np.cos(g.latCell[:])*np.cos(g.lonCell[:]-lon_c))
+            r = a*np.arccos(np.sin(lat_c)*np.sin(g.latCell[:]) + \
+                np.cos(lat_c)*np.cos(g.latCell[:])*np.cos(g.lonCell[:]-lon_c))
             self.thickness[:] = np.where(r<=R, 0.25*h0*(1+np.cos(np.pi*r/R)), 0.) + h0
 
             self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
