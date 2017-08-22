@@ -27,8 +27,8 @@ class parameters:
 
         self.bottom_topography = True
         
-        self.dt = 172.8*4
-        self.nYears = 0.014
+        self.dt = 172.8*8
+        self.nYears = 12/360.
         self.save_inter_days = 1
         
         self.delVisc = 0.
@@ -66,15 +66,15 @@ class grid_data:
         self.nVertLevels = len(grid.dimensions['nVertLevels'])
 
         # Read grid informaton
-        self.xCell = grid.variables['xCell'][:]
-        self.yCell = grid.variables['yCell'][:]
-        self.zCell = grid.variables['zCell'][:]
-        self.xEdge = grid.variables['xEdge'][:]
-        self.yEdge = grid.variables['yEdge'][:]
-        self.zEdge = grid.variables['zEdge'][:]
-        self.xVertex = grid.variables['xVertex'][:]
-        self.yVertex = grid.variables['yVertex'][:]
-        self.zVertex = grid.variables['zVertex'][:]
+        xCell = grid.variables['xCell'][:]
+        yCell = grid.variables['yCell'][:]
+        zCell = grid.variables['zCell'][:]
+        xEdge = grid.variables['xEdge'][:]
+        yEdge = grid.variables['yEdge'][:]
+        zEdge = grid.variables['zEdge'][:]
+        xVertex = grid.variables['xVertex'][:]
+        yVertex = grid.variables['yVertex'][:]
+        zVertex = grid.variables['zVertex'][:]
         self.latCell = grid.variables['latCell'][:]
         self.lonCell = grid.variables['lonCell'][:]
         self.latEdge = grid.variables['latEdge'][:]
@@ -108,18 +108,18 @@ class grid_data:
             self.boundaryEdgeMark = grid.variables['boundaryEdgeMark'][:]
             self.boundaryCellMark = grid.variables['boundaryCellMark'][:] 
 
-        radius = np.sqrt(self.xCell**2 + self.yCell**2 + self.zCell**2)
+        radius = np.sqrt(xCell**2 + yCell**2 + zCell**2)
         if np.max(np.abs(radius - 1.)/1.) < 0.01:
             # To scale the coordinates
-            self.xCell *= c.earth_radius
-            self.yCell *= c.earth_radius
-            self.zCell *= c.earth_radius
-            self.xEdge *= c.earth_radius
-            self.yEdge *= c.earth_radius
-            self.zEdge *= c.earth_radius
-            self.xVertex *= c.earth_radius
-            self.yVertex *= c.earth_radius
-            self.zVertex *= c.earth_radius
+            xCell *= c.earth_radius
+            yCell *= c.earth_radius
+            zCell *= c.earth_radius
+            xEdge *= c.earth_radius
+            yEdge *= c.earth_radius
+            zEdge *= c.earth_radius
+            xVertex *= c.earth_radius
+            yVertex *= c.earth_radius
+            zVertex *= c.earth_radius
             self.dvEdge *= c.earth_radius
             self.dcEdge *= c.earth_radius
             self.areaCell *= c.earth_radius**2
@@ -174,9 +174,9 @@ class grid_data:
         D2_coo = coo_matrix((valEntries[:nEntries], (rows[:nEntries], \
                                cols[:nEntries])), shape=(self.nCells, self.nCells))
         # Convert to csc sparse format
-        self.D2 = D2_coo.tocsc( )
+        D2 = D2_coo.tocsc( )
 
-        self.lu_D2 = splu(self.D2)
+        self.lu_D2 = splu(D2)
 
         if not c.on_a_global_sphere:
             # Construct matrix for discrete Laplacian on the triangles, corresponding to
@@ -199,9 +199,9 @@ class grid_data:
         E2_coo = coo_matrix((valEntries[:nEntries], (rows[:nEntries], \
                                cols[:nEntries])), shape=(self.nVertices, self.nVertices))
         # Convert to csc sparse format
-        self.E2 = E2_coo.tocsc( )
+        E2 = E2_coo.tocsc( )
 
-        self.lu_E2 = splu(self.E2)
+        self.lu_E2 = splu(E2)
 
         #raise ValueError("Abort for testing")
     
@@ -210,15 +210,15 @@ class grid_data:
 
         # Open the output file to save scaled grid data
         out = nc.Dataset(c.output_file, 'a', format='NETCDF4_CLASSIC')
-        out.variables['xCell'][:] = self.xCell[:]
-        out.variables['yCell'][:] = self.yCell[:]
-        out.variables['zCell'][:] = self.zCell[:]
-        out.variables['xEdge'][:] = self.xEdge[:]
-        out.variables['yEdge'][:] = self.yEdge[:]
-        out.variables['zEdge'][:] = self.zEdge[:]
-        out.variables['xVertex'][:] = self.xVertex[:]
-        out.variables['yVertex'][:] = self.yVertex[:]
-        out.variables['zVertex'][:] = self.zVertex[:]
+        out.variables['xCell'][:] = xCell[:]
+        out.variables['yCell'][:] = yCell[:]
+        out.variables['zCell'][:] = zCell[:]
+        out.variables['xEdge'][:] = xEdge[:]
+        out.variables['yEdge'][:] = yEdge[:]
+        out.variables['zEdge'][:] = zEdge[:]
+        out.variables['xVertex'][:] = xVertex[:]
+        out.variables['yVertex'][:] = yVertex[:]
+        out.variables['zVertex'][:] = zVertex[:]
         out.variables['dvEdge'][:] = self.dvEdge[:]
         out.variables['dcEdge'][:] = self.dcEdge[:]
         out.variables['areaCell'][:] = self.areaCell[:]
@@ -255,14 +255,7 @@ class state_data:
         # Forcing
         self.curlWind_cell = np.zeros(g.nCells)
 
-        # Temporary variables
-        self.pv_vertex_pre = np.zeros(g.nVertices);
-        self.pv_vertex_intm = self.pv_vertex_pre.copy( )
-        self.tend_pv_cell = np.zeros(g.nCells)
-        self.tend_eta_cell = np.zeros(g.nCells)
-        self.tend_vorticity_cell = np.zeros(g.nCells)
-
-        #
+        # Time keeper
         self.time = 0.0
 
 
@@ -280,7 +273,23 @@ class state_data:
         pi = np.pi; sin = np.sin; exp = np.exp
         r = c.earth_radius
 
-        if c.test_case == 2:
+        if c.test_case == 1:
+            a = c.earth_radius
+            R = a/3
+            u0 = 2*np.pi*a / (12*86400)
+            h0 = 1000.
+            lon_c = 1.5*np.pi
+            lat_c = 0.
+            r = a*np.arccos(np.sin(lon_c)*np.sin(g.latCell[:]) + \
+                np.cos(lon_c)*np.cos(g.latCell[:])*np.cos(g.lonCell[:]-lon_c))
+            self.thickness[:] = np.where(r<=R, 0.25*h0*(1+np.cos(np.pi*r/R)), 0.) + h0
+
+            self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
+            self.divergence[:] = 0.
+            self.compute_diagnostics(g, c)
+            
+
+        elif c.test_case == 2:
             a = c.earth_radius
             gh0 = 2.94e4
             u0 = 2*np.pi*a / (12*86400)
@@ -415,6 +424,13 @@ class state_data:
 
     def compute_diagnostics(self, g, c):
         # Compute diagnostic variables from pv_cell
+
+        if c.test_case == 1:
+            #For shallow water test case #1, reset the vorticity and divergence to the initial states
+            a = c.earth_radius
+            u0 = 2*np.pi*a / (12*86400)
+            self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
+            self.divergence[:] = 0.
 
         # Compute the absolute vorticity
         self.eta_cell = self.vorticity + g.fCell
