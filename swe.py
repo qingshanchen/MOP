@@ -354,10 +354,13 @@ class state_data:
         elif c.test_case == 5:
             a = c.earth_radius
             u0 = 20.
-            gh0 = 5960 * c.gravity
-            gh = np.sin(g.latCell[:])**2
-            gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
-            self.thickness[:] = gh / c.gravity
+
+            h0 = 5960.
+            gh = c.gravity*h0 - np.sin(g.latCell[:])**2 * (a*c.Omega0*u0 + 0.5*u0*u0) 
+#            gh0 = 5960 * c.gravity
+#            gh = np.sin(g.latCell[:])**2
+#            gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
+            h = gh / c.gravity
 
             # Define the mountain topography
             h_s0 = 2000.
@@ -367,6 +370,7 @@ class state_data:
             r = np.sqrt((g.latCell[:]-lat_c)**2 + (g.lonCell[:]-lon_c)**2)
             r = np.where(r < R, r, R)
             g.bottomTopographyCell[:] = h_s0 * ( 1 - r/R)
+            self.thickness[:] = h[:] - g.bottomTopographyCell[:]
 
             self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
             self.divergence[:] = 0.
