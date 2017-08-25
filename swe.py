@@ -17,7 +17,7 @@ class parameters:
 
     def __init__(self):
 
-        self.test_case = 1
+        self.test_case = 5
 
         # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
         self.timestepping = 'RK4'
@@ -27,8 +27,8 @@ class parameters:
 
         self.bottom_topography = True
         
-        self.dt = 720.   #1440 for 480km
-        self.nYears = 12.0/360.
+        self.dt = 360.   #1440 for 480km
+        self.nYears = 50/360.
         self.save_inter_days = 1
         
         self.delVisc = 0.
@@ -351,6 +351,26 @@ class state_data:
 
                 raise ValueError("Abort after testing in start_from_function")
 
+        elif c.test_case == 5:
+            a = c.earth_radius
+            u0 = 20.
+            gh0 = 5960 * c.gravity
+            gh = np.sin(g.latCell[:])**2
+            gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
+            self.thickness[:] = gh / c.gravity
+
+            # Define the mountain topography
+            h_s0 = 2000.
+            R = np.pi / 9
+            lat_c = np.pi / 6.
+            lon_c = .5*np.pi
+            r = np.sqrt((g.latCell[:]-lat_c)**2 + (g.lonCell[:]-lon_c)**2)
+            r = np.where(r < R, r, R)
+            g.bottomTopographyCell[:] = h_s0 * ( 1 - r/R)
+
+            self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
+            self.divergence[:] = 0.
+            self.compute_diagnostics(g, c)
 
         else:
             raise ValueError("Invaid choice for the test case.")
@@ -576,8 +596,10 @@ def timestepping_rk4_z_hex(s, g, c):
         # Compute the tendencies
         thicknessTransport = s_intm.thickness_edge[:] * s_intm.nVelocity[:]
         tend_thickness = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, thicknessTransport)
+        
         absVorTransport = s_intm.eta_edge[:] * s_intm.nVelocity[:]
         tend_vorticity = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorTransport)
+        
         absVorCirc = s_intm.eta_edge[:] * s_intm.tVelocity[:]
         geoPotent = c.gravity * (s_intm.thickness[:] + g.bottomTopographyCell[:])  + s_intm.kinetic_energy[:]
         tend_divergence = cmp.discrete_curl(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorCirc) - \
