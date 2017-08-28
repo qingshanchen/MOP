@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse import coo_matrix, csc_matrix
-from scipy.sparse.linalg import spsolve, splu
+from scipy.sparse.linalg import spsolve, splu, bicg, gmres
 import netCDF4 as nc
 from matplotlib import use
 use('Agg')
@@ -27,8 +27,8 @@ class parameters:
 
         self.bottom_topography = True
         
-        self.dt = 360.   #1440 for 480km
-        self.nYears = 50/360.
+        self.dt = 720.   #1440 for 480km
+        self.nYears = 1/360.
         self.save_inter_days = 1
         
         self.delVisc = 0.
@@ -52,6 +52,9 @@ class parameters:
             self.save_interval = 1
 
         self.on_a_global_sphere = True
+
+        self.err_tol = 1e-4
+        self.max_iter = 500
         
 
 class grid_data:
@@ -176,9 +179,9 @@ class grid_data:
         D2_coo = coo_matrix((valEntries[:nEntries], (rows[:nEntries], \
                                cols[:nEntries])), shape=(self.nCells, self.nCells))
         # Convert to csc sparse format
-        D2 = D2_coo.tocsc( )
+        self.D2 = D2_coo.tocsc( )
 
-        self.lu_D2 = splu(D2)
+        self.lu_D2 = splu(self.D2)
 
         if not c.on_a_global_sphere:
             # Construct matrix for discrete Laplacian on the triangles, corresponding to
@@ -201,9 +204,9 @@ class grid_data:
         E2_coo = coo_matrix((valEntries[:nEntries], (rows[:nEntries], \
                                cols[:nEntries])), shape=(self.nVertices, self.nVertices))
         # Convert to csc sparse format
-        E2 = E2_coo.tocsc( )
+        self.E2 = E2_coo.tocsc( )
 
-        self.lu_E2 = splu(E2)
+        self.lu_E2 = splu(self.E2)
 
         #raise ValueError("Abort for testing")
     
@@ -508,8 +511,9 @@ class state_data:
             # A global domain with no boundary
             b = np.zeros(g.nCells)
             b[1:] = self.vorticity[1:]
-            self.psi_cell[:] = g.lu_D2.solve(b)
-            
+            #self.psi_cell[:] = g.lu_D2.solve(b)
+            self.psi_cell[:] = iterative_solver(g.D2, b, None, g, c)
+                
         return 0
 
 
@@ -525,7 +529,8 @@ class state_data:
             # A global domain with no boundary
             b = np.zeros(g.nVertices)
             b[1:] = self.vorticity_vertex[1:]
-            self.psi_vertex[:] = g.lu_E2.solve(b)
+            #self.psi_vertex[:] = g.lu_E2.solve(b)
+            self.psi_vertex[:] = iterative_solver(g.E2, b, None, g, c)
             
         return 0
     
@@ -535,7 +540,9 @@ class state_data:
 
         b = np.zeros(g.nCells)
         b[1:] = self.divergence[1:]
-        self.phi_cell[:] = g.lu_D2.solve( b )
+#        self.phi_cell[:] = g.lu_D2.solve( b )
+        x0 = np.zeros(g.nCells)
+        self.phi_cell[:] = iterative_solver(g.D2, b, x0, g, c)
 
         return 0
 
@@ -544,7 +551,9 @@ class state_data:
 
         b = np.zeros(g.nVertices)
         b[1:] = self.divergence_vertex[1:]
-        self.phi_vertex[:] = g.lu_E2.solve( b )
+#        self.phi_vertex[:] = g.lu_E2.solve( b )
+        x0 = np.zeros(g.nVertices)
+        self.phi_vertex[:] = iterative_solver(g.E2, b, x0, g, c)
 
         return 0
     
@@ -581,7 +590,17 @@ class state_data:
         
         out.close( )
         
+def iterative_solver(A, b, x0, g, c):
+    x, err = bicg(A, b, x0=x0, tol=c.err_tol, maxiter=c.max_iter)
 
+    if err > 0:
+        print("Convergence not achieved after %d iterations in compute_psi_cell." % err)
+    elif err < 0:
+        raise ValueError("Something is wrong in iterative_solver. Program abort.")
+    else:
+        return x
+    
+    
 def timestepping_rk4_z_hex(s, g, c):
 
     coef = np.array([0., .5, .5, 1.])
