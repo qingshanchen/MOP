@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse import coo_matrix, csc_matrix
-from scipy.sparse.linalg import spsolve, splu, bicg, gmres
+from scipy.sparse.linalg import spsolve, splu, bicg, gmres, cg
 import netCDF4 as nc
 from matplotlib import use
 use('Agg')
@@ -27,7 +27,7 @@ class parameters:
 
         self.bottom_topography = True
         
-        self.dt = 720.   #1440 for 480km
+        self.dt = 1440.   #1440 for 480km
         self.nYears = 1/360.
         self.save_inter_days = 1
         
@@ -53,7 +53,7 @@ class parameters:
 
         self.on_a_global_sphere = True
 
-        self.err_tol = 1e-4
+        self.err_tol = 1e-5
         self.max_iter = 500
         
 
@@ -178,8 +178,12 @@ class grid_data:
                     self.areaCell)
         D2_coo = coo_matrix((valEntries[:nEntries], (rows[:nEntries], \
                                cols[:nEntries])), shape=(self.nCells, self.nCells))
+        D2s_coo = coo_matrix((valEntries[:nEntries]*self.areaCell[rows[:nEntries]], (rows[:nEntries], \
+                               cols[:nEntries])), shape=(self.nCells, self.nCells))
+        
         # Convert to csc sparse format
         self.D2 = D2_coo.tocsc( )
+        self.D2s = D2s_coo.tocsc( )
 
         self.lu_D2 = splu(self.D2)
 
@@ -203,8 +207,11 @@ class grid_data:
                       self.dvEdge, self.dcEdge, self.areaTriangle)
         E2_coo = coo_matrix((valEntries[:nEntries], (rows[:nEntries], \
                                cols[:nEntries])), shape=(self.nVertices, self.nVertices))
+        E2s_coo = coo_matrix((valEntries[:nEntries]*self.areaTriangle[rows[:nEntries]], (rows[:nEntries], \
+                               cols[:nEntries])), shape=(self.nVertices, self.nVertices))
         # Convert to csc sparse format
         self.E2 = E2_coo.tocsc( )
+        self.E2s = E2s_coo.tocsc( )
 
         self.lu_E2 = splu(self.E2)
 
@@ -512,7 +519,9 @@ class state_data:
             b = np.zeros(g.nCells)
             b[1:] = self.vorticity[1:]
             #self.psi_cell[:] = g.lu_D2.solve(b)
-            self.psi_cell[:] = iterative_solver(g.D2, b, None, g, c)
+            b *= g.areaCell[:]
+            x0 = None
+            self.psi_cell[:] = iterative_solver(g.D2s, b, x0, g, c)
                 
         return 0
 
@@ -530,7 +539,9 @@ class state_data:
             b = np.zeros(g.nVertices)
             b[1:] = self.vorticity_vertex[1:]
             #self.psi_vertex[:] = g.lu_E2.solve(b)
-            self.psi_vertex[:] = iterative_solver(g.E2, b, None, g, c)
+            b *= g.areaTriangle[:]
+            x0 = None
+            self.psi_vertex[:] = iterative_solver(g.E2s, b, x0, g, c)
             
         return 0
     
@@ -540,9 +551,10 @@ class state_data:
 
         b = np.zeros(g.nCells)
         b[1:] = self.divergence[1:]
-#        self.phi_cell[:] = g.lu_D2.solve( b )
+        #self.phi_cell[:] = g.lu_D2.solve( b )
+        b *= g.areaCell[:]
         x0 = np.zeros(g.nCells)
-        self.phi_cell[:] = iterative_solver(g.D2, b, x0, g, c)
+        self.phi_cell[:] = iterative_solver(g.D2s, b, x0, g, c)
 
         return 0
 
@@ -551,9 +563,10 @@ class state_data:
 
         b = np.zeros(g.nVertices)
         b[1:] = self.divergence_vertex[1:]
-#        self.phi_vertex[:] = g.lu_E2.solve( b )
+        #self.phi_vertex[:] = g.lu_E2.solve( b )
+        b *= g.areaTriangle[:]
         x0 = np.zeros(g.nVertices)
-        self.phi_vertex[:] = iterative_solver(g.E2, b, x0, g, c)
+        self.phi_vertex[:] = iterative_solver(g.E2s, b, x0, g, c)
 
         return 0
     
@@ -591,10 +604,10 @@ class state_data:
         out.close( )
         
 def iterative_solver(A, b, x0, g, c):
-    x, err = bicg(A, b, x0=x0, tol=c.err_tol, maxiter=c.max_iter)
+    x, err = cg(A, b, x0=x0, tol=c.err_tol, maxiter=c.max_iter)
 
     if err > 0:
-        print("Convergence not achieved after %d iterations in compute_psi_cell." % err)
+        raise ValueError("Convergence not achieved after %d iterations in compute_psi_cell." % err)
     elif err < 0:
         raise ValueError("Something is wrong in iterative_solver. Program abort.")
     else:
