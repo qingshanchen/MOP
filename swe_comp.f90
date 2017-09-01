@@ -679,8 +679,10 @@ subroutine construct_discrete_laplace_triangle_neumann(nVertices, nEdges, &
 
   ! Set all entries on the first row to zero except the diagonal term
   do iEntry = 0, nEntries-1
-     !if (rows(iEntry) .EQ. 0 .AND. cols(iEntry) .NE. 0) then
-     if (rows(iEntry)*cols(iEntry) .EQ. 0 .AND. rows(iEntry)+cols(iEntry) .NE. 0) then
+     if (rows(iEntry) .EQ. 0 .AND. cols(iEntry) .NE. 0) then
+     !if (rows(iEntry)*cols(iEntry) .EQ. 0 .AND. rows(iEntry)+cols(iEntry) .NE. 0) then
+        valEntries(iEntry) = 0.
+     else if (rows(iEntry) .NE. 0 .AND. cols(iEntry) .EQ. 0) then
         valEntries(iEntry) = 0.
      end if
   end do
