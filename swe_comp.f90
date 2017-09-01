@@ -532,13 +532,31 @@ subroutine construct_discrete_laplace_neumann(nCells, nEdges, &
 
   nEntries = iEntry
 
+!  write(*,*) "Before setting first row and first column to zero"
+!  do iEntry = 0, nEntries-1
+!     if (rows(iEntry) == 65536) then
+!        write(*,*) "row, col = ", rows(iEntry), cols(iEntry)
+!        write(*,*) "val = ", valEntries(iEntry)
+!     end if
+!  end do
+  
   ! Set all entries on the first row to zero except the diagonal term
   do iEntry = 0, nEntries-1
-     !if (rows(iEntry) .EQ. 0 .AND. cols(iEntry) .NE. 0) then
-     if (rows(iEntry)*cols(iEntry) .EQ. 0 .AND. rows(iEntry)+cols(iEntry) .NE. 0) then
+     if (rows(iEntry) .EQ. 0 .AND. cols(iEntry) .NE. 0) then
+     !if (rows(iEntry)*cols(iEntry) .EQ. 0 .AND. rows(iEntry)+cols(iEntry) .NE. 0) then
+        valEntries(iEntry) = 0.
+     else if (rows(iEntry) .NE. 0 .AND. cols(iEntry) .EQ. 0) then
         valEntries(iEntry) = 0.
      end if
   end do
+
+!  write(*,*) "After setting first row and first column to zero"
+!  do iEntry = 0, nEntries-1
+!     if (rows(iEntry) == 65536) then
+!        write(*,*) "row, col = ", rows(iEntry), cols(iEntry)
+!        write(*,*) "val = ", valEntries(iEntry)
+!     end if
+!  end do
   
 end subroutine construct_discrete_laplace_neumann
 
