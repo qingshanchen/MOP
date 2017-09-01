@@ -1,10 +1,10 @@
 import numpy as np
 from scipy.sparse import coo_matrix, csc_matrix
 from scipy.sparse.linalg import spsolve, splu, cg, spilu, gmres
-from pysparse.itsolvers import krylov
-from pysparse.sparse import spmatrix
-from pysparse.precon import precon
-from pysparse.direct import superlu
+#from pysparse.itsolvers import krylov
+#from pysparse.sparse import spmatrix
+#from pysparse.precon import precon
+#from pysparse.direct import superlu
 import netCDF4 as nc
 from matplotlib import use
 use('Agg')
@@ -193,11 +193,11 @@ class grid_data:
 
         self.lu_D2 = splu(self.D2)
 
-        self.D2s_ll = spmatrix.ll_mat(self.nCells, self.nCells, 10*self.nCells)
-        self.D2s_ll.update_add_at(valEntries[:nEntries]*self.areaCell[rows[:nEntries]], rows[:nEntries], \
-                               cols[:nEntries])
-        self.D2s_ps = self.D2s_ll.to_csr( )
-        self.ilu_D2s = ILU_Precon(self.D2s)
+        #self.D2s_ll = spmatrix.ll_mat(self.nCells, self.nCells, 10*self.nCells)
+        #self.D2s_ll.update_add_at(valEntries[:nEntries]*self.areaCell[rows[:nEntries]], rows[:nEntries], \
+        #                       cols[:nEntries])
+        #self.D2s_ps = self.D2s_ll.to_csr( )
+        #self.ilu_D2s = ILU_Precon(self.D2s)
         
         if not c.on_a_global_sphere:
             # Construct matrix for discrete Laplacian on the triangles, corresponding to
@@ -224,7 +224,7 @@ class grid_data:
         # Convert to csc sparse format
         self.E2 = E2_coo.tocsc( )
         self.E2s = E2s_coo.tocsc( )
-        self.ilu_E2s = ILU_Precon(self.E2s)
+        #self.ilu_E2s = ILU_Precon(self.E2s)
 
         self.lu_E2 = splu(self.E2)
 
@@ -886,8 +886,8 @@ def main( ):
     g = grid_data('grid.nc', c)
     s = state_data(g, c)
 
-    run_tests(g, c, s)
-    raise ValueError("Just for testing.")
+    #run_tests(g, c, s)
+    #raise ValueError("Just for testing.")
 
     s.initialization(g, c)
 
