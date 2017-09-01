@@ -1,6 +1,10 @@
 import numpy as np
 from scipy.sparse import coo_matrix, csc_matrix
-from scipy.sparse.linalg import spsolve, splu, bicg, gmres, cg
+from scipy.sparse.linalg import spsolve, splu, cg, spilu, gmres
+from pysparse.itsolvers import krylov
+from pysparse.sparse import spmatrix
+from pysparse.precon import precon
+from pysparse.direct import superlu
 import netCDF4 as nc
 from matplotlib import use
 use('Agg')
@@ -28,7 +32,7 @@ class parameters:
         self.bottom_topography = True
         
         self.dt = 1440.   #1440 for 480km
-        self.nYears = 1/360.
+        self.nYears = 50/360.
         self.save_inter_days = 1
         
         self.delVisc = 0.
@@ -53,8 +57,10 @@ class parameters:
 
         self.on_a_global_sphere = True
 
+        self.use_direct_solver = False
+
         self.err_tol = 1e-5
-        self.max_iter = 500
+        self.max_iter = 2000
         
 
 class grid_data:
@@ -187,6 +193,12 @@ class grid_data:
 
         self.lu_D2 = splu(self.D2)
 
+        self.D2s_ll = spmatrix.ll_mat(self.nCells, self.nCells, 10*self.nCells)
+        self.D2s_ll.update_add_at(valEntries[:nEntries]*self.areaCell[rows[:nEntries]], rows[:nEntries], \
+                               cols[:nEntries])
+        self.D2s_ps = self.D2s_ll.to_csr( )
+        self.ilu_D2s = ILU_Precon(self.D2s)
+        
         if not c.on_a_global_sphere:
             # Construct matrix for discrete Laplacian on the triangles, corresponding to
             # the homogeneous Dirichlet boundary conditions
@@ -212,6 +224,7 @@ class grid_data:
         # Convert to csc sparse format
         self.E2 = E2_coo.tocsc( )
         self.E2s = E2s_coo.tocsc( )
+        self.ilu_E2s = ILU_Precon(self.E2s)
 
         self.lu_E2 = splu(self.E2)
 
@@ -239,7 +252,24 @@ class grid_data:
 
         out.close( )
 
-                                                  
+class ILU_Precon:
+    """
+    A preconditioner based on an
+    incomplete LU factorization.
+
+    Input: A matrix in CSR format.
+    Keyword argument: Drop tolerance.
+    """
+    def __init__(self, A, drop=1.0e-2):
+        #self.LU = superlu.factorize(A, drop_tol=drop)
+        self.LU = spilu(A, drop_tol=drop)
+        self.shape = self.LU.shape
+
+    def precon(self, x, y):
+        #self.LU.solve(x,y)
+        y = self.LU.solve(x)
+
+
 class state_data:
     def __init__(self, g, c):
 
@@ -447,12 +477,13 @@ class state_data:
         # Record parameters used for this simulation
         out.test_case = "%d" % (c.test_case)
         out.timestepping = "%s" % (c.timestepping)
+        out.use_direct_solver = "%s" % (c.use_direct_solver)
         out.restart = "%s" % (c.restart)
         out.bottom_topography = "%s" % (c.bottom_topography) 
         out.dt = "%f" % (c.dt)
         out.delVisc = "%e" % (c.delVisc)
         out.bottomDrag = "%e" % (c.bottomDrag)
-        out.on_sphere = "True"
+        out.on_a_global_sphere = "%s" % (c.on_a_global_sphere)
         out.radius = "%e" % (c.earth_radius)
         
         out.close( )
@@ -518,11 +549,13 @@ class state_data:
             # A global domain with no boundary
             b = np.zeros(g.nCells)
             b[1:] = self.vorticity[1:]
-            #self.psi_cell[:] = g.lu_D2.solve(b)
-            b *= g.areaCell[:]
-            x0 = None
-            self.psi_cell[:] = iterative_solver(g.D2s, b, x0, g, c)
-                
+
+            if c.use_direct_solver:
+                self.psi_cell[:] = g.lu_D2.solve(b)
+            else:
+                b *= g.areaCell[:]
+                self.psi_cell = iterative_solver(g.D2s, b, self.psi_cell, c)
+
         return 0
 
 
@@ -538,10 +571,12 @@ class state_data:
             # A global domain with no boundary
             b = np.zeros(g.nVertices)
             b[1:] = self.vorticity_vertex[1:]
-            #self.psi_vertex[:] = g.lu_E2.solve(b)
-            b *= g.areaTriangle[:]
-            x0 = None
-            self.psi_vertex[:] = iterative_solver(g.E2s, b, x0, g, c)
+
+            if c.use_direct_solver:
+                self.psi_vertex[:] = g.lu_E2.solve(b)
+            else:
+                b *= g.areaTriangle[:]
+                self.psi_vertex = iterative_solver(g.E2s, b, self.psi_vertex, c)
             
         return 0
     
@@ -551,10 +586,12 @@ class state_data:
 
         b = np.zeros(g.nCells)
         b[1:] = self.divergence[1:]
-        #self.phi_cell[:] = g.lu_D2.solve( b )
-        b *= g.areaCell[:]
-        x0 = np.zeros(g.nCells)
-        self.phi_cell[:] = iterative_solver(g.D2s, b, x0, g, c)
+
+        if c.use_direct_solver:
+            self.phi_cell[:] = g.lu_D2.solve( b )
+        else:
+            b *= g.areaCell[:]
+            self.phi_cell = iterative_solver(g.D2s, b, self.phi_cell, c)
 
         return 0
 
@@ -563,10 +600,12 @@ class state_data:
 
         b = np.zeros(g.nVertices)
         b[1:] = self.divergence_vertex[1:]
-        #self.phi_vertex[:] = g.lu_E2.solve( b )
-        b *= g.areaTriangle[:]
-        x0 = np.zeros(g.nVertices)
-        self.phi_vertex[:] = iterative_solver(g.E2s, b, x0, g, c)
+
+        if c.use_direct_solver:
+            self.phi_vertex[:] = g.lu_E2.solve( b )
+        else:
+            b *= g.areaTriangle[:]
+            self.phi_vertex = iterative_solver(g.E2s, b, self.phi_vertex, c)
 
         return 0
     
@@ -603,7 +642,7 @@ class state_data:
         
         out.close( )
         
-def iterative_solver(A, b, x0, g, c):
+def iterative_solver(A, b, x0, c):
     x, err = cg(A, b, x0=x0, tol=c.err_tol, maxiter=c.max_iter)
 
     if err > 0:
@@ -612,7 +651,18 @@ def iterative_solver(A, b, x0, g, c):
         raise ValueError("Something is wrong in iterative_solver. Program abort.")
     else:
         return x
-    
+
+def pysparse_iterative_solver(A, b, x, K, c):
+
+    info, iter, relres = krylov.gmres(A, b, x, c.err_tol, c.max_iter, K)
+
+    if info < 0:
+        raise ValueError("Convergence not achieved after %d iterations. Error code %d." % (iter, info))
+    else:
+        print("x[1001] = %e" % x[1001])
+        print("iter = %d" % iter)
+        print("relres = %e" % relres)
+        return info
     
 def timestepping_rk4_z_hex(s, g, c):
 
@@ -726,7 +776,7 @@ def run_tests(g, c, s):
         print "L infinity error = ", l8
         print "L^2 error        = ", l2        
 
-    if True:
+    if False:
         # Test the linear solver for the Poisson equation on the triangles with homogeneous Neumann BC's
         # It also test the solver for the Poisson equation on the entire globe, with a zero value on triangle #0.
         psi_vertex_true = np.random.rand(g.nVertices)
@@ -749,6 +799,81 @@ def run_tests(g, c, s):
         print "Errors for the solver for the Poisson with Neumann BC's"
         print "L infinity error = ", l8
         print "L^2 error        = ", l2        
+
+    if True:
+        b = np.zeros(g.nCells)
+        b[1:] = np.random.rand(g.nCells-1) * 1.e-5
+
+        t0 = time.clock( )
+        x1 = np.zeros(g.nCells)
+        x1[:] = g.lu_D2.solve(b)
+        t1 = time.clock( )
+        print("CPU time for the direct method: %f" % (t1-t0,))
+        
+        b *= g.areaCell[:]
+        Kilu = ILU_Precon(g.D2s, drop=1.e-3)
+
+        t0 = time.clock( )
+        x1a = np.zeros(g.nCells)
+        x1a, info = cg(g.D2s, b, x1a, tol=c.err_tol)
+        t1 = time.clock( )
+        print("info = %d" % info)
+        print("CPU time for scipy cg solver: %f" % (t1-t0,))
+
+        t0 = time.clock( )
+        x1b = np.zeros(g.nCells)
+        x1b, info = gmres(g.D2s, b, None, tol=c.err_tol)
+        t1 = time.clock( )
+        print("info = %d" % info)
+        print("CPU time for scipy gmres solver: %f" % (t1-t0,))
+        
+        t0 = time.clock( )
+        x2 = np.zeros(g.nCells)
+        info, iter, relres = krylov.pcg(g.D2s_ps, b, x2, c.err_tol, c.max_iter)
+        t1 = time.clock( )
+        print("info = %d" % info)
+        print("iteration # = %d" % iter)
+        print("relres = %e" % relres)
+        print("CPU time for pysparse pcg: %f" % (t1-t0,))
+
+        t0 = time.clock( )
+        x3 = np.zeros(g.nCells)
+        info, iter, relres = krylov.gmres(g.D2s_ps, b, x3, c.err_tol, c.max_iter)
+        t1 = time.clock( )
+        print("info = %d" % info)
+        print("iteration # = %d" % iter)
+        print("relres = %e" % relres)
+        print("CPU time for pysparse gmres: %f" % (t1-t0,))
+        
+        t0 = time.clock( )
+        x4 = np.zeros(g.nCells)
+        info, iter, relres = krylov.bicgstab(g.D2s_ps, b, x4, c.err_tol, c.max_iter)
+        t1 = time.clock( )
+        print("info = %d" % info)
+        print("iteration # = %d" % iter)
+        print("relres = %e" % relres)
+        print("CPU time for pysparse bicgstab solver: %f" % (t1-t0,))
+
+        t0 = time.clock( )
+        x5 = np.zeros(g.nCells)
+        info, iter, relres = krylov.qmrs(g.D2s_ps, b, x5, c.err_tol, c.max_iter)
+        t1 = time.clock( )
+        print("info = %d" % info)
+        print("iteration # = %d" % iter)
+        print("relres = %e" % relres)
+        print("CPU time for pysparse qmrs solver: %f" % (t1-t0,))
+
+        t0 = time.clock( )
+        x6 = np.zeros(g.nCells)
+        info, iter, relres = krylov.minres(g.D2s_ps, b, x6, c.err_tol, c.max_iter)
+        t1 = time.clock( )
+        print("info = %d" % info)
+        print("iteration # = %d" % iter)
+        print("relres = %e" % relres)
+        print("CPU time for pysparse minres solver: %f" % (t1-t0,))
+
+        raise ValueError
+        
         
 def main( ):
 
@@ -761,8 +886,8 @@ def main( ):
     g = grid_data('grid.nc', c)
     s = state_data(g, c)
 
-    #run_tests(g, c, s)
-    #raise ValueError("Just for testing.")
+    run_tests(g, c, s)
+    raise ValueError("Just for testing.")
 
     s.initialization(g, c)
 
