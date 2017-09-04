@@ -331,6 +331,12 @@ class state_data:
 
             self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
             self.divergence[:] = 0.
+            self.psi_cell[:] = -a * u0 * np.sin(g.latCell[:])
+            self.psi_cell[:] -= self.psi_cell[0]
+            self.phi_cell[:] = 0.
+            self.psi_vertex[:] = -a * u0 * np.sin(g.latVertex[:])
+            self.psi_vertex[:] -= self.psi_vertex[0]
+            self.phi_vertex[:] = 0.
             self.compute_diagnostics(g, c)
 
             if False:
