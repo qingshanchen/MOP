@@ -21,7 +21,7 @@ class parameters:
 
     def __init__(self):
 
-        self.test_case = 5
+        self.test_case = 11
 
         # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
         self.timestepping = 'RK4'
@@ -31,7 +31,7 @@ class parameters:
 
         self.bottom_topography = True
         
-        self.dt = 1440.   #1440 for 480km
+        self.dt = 90.   #1440 for 480km
         self.nYears = 5/360.
         self.save_inter_days = 1
         
@@ -44,7 +44,6 @@ class parameters:
         self.gravity = 9.81
 
         # Forcing
-        self.tau0 = 1.e-4  #(m^2 s^-2, McWilliams et al 1981)
         self.bottomDrag = 0.e-8
 
         # IO files
@@ -55,9 +54,9 @@ class parameters:
         if self.save_interval < 1:
             self.save_interval = 1
 
-        self.on_a_global_sphere = True
+        self.on_a_global_sphere = False
 
-        self.use_direct_solver = False
+        self.use_direct_solver = True
 
         self.err_tol = 1e-5
         self.max_iter = 2000
@@ -178,12 +177,10 @@ class grid_data:
             self.lu_D1 = splu(self.D1)
 
         # Construct matrix for discrete Laplacian on all cells, corresponding to the
-        # Poisson problem with Neumann BC's
+        # Poisson problem with Neumann BC's, or to the Poisson problem on a global sphere (no boundary)
         nEntries, rows, cols, valEntries = \
           cmp.construct_discrete_laplace_neumann(self.cellsOnEdge, self.dvEdge, self.dcEdge, \
                     self.areaCell)
-        #D2_coo = coo_matrix((valEntries[:nEntries], (rows[:nEntries], \
-        #                       cols[:nEntries])), shape=(self.nCells, self.nCells))
         D2s_coo = coo_matrix((valEntries[:nEntries]*self.areaCell[rows[:nEntries]], (rows[:nEntries], \
                                cols[:nEntries])), shape=(self.nCells, self.nCells))
         
@@ -207,7 +204,7 @@ class grid_data:
             self.lu_E1 = splu(self.E1)
 
         # Construct matrix for discrete Laplacian on the triangles, corresponding to the
-        # Poisson problem with Neumann BC's
+        # Poisson problem with Neumann BC's, or to the Poisson problem on a global sphere (no boundary)
         nEntries, rows, cols, valEntries = \
           cmp.construct_discrete_laplace_triangle_neumann(self.boundaryEdgeMark, self.verticesOnEdge, \
                       self.dvEdge, self.dcEdge, self.areaTriangle)
@@ -282,9 +279,13 @@ class state_data:
         self.eta_cell = np.zeros(g.nCells)
         self.eta_edge = np.zeros(g.nEdges)
         self.kinetic_energy = np.zeros(g.nCells)
+        self.tend_thickness = np.zeros(g.nCells)
+        self.tend_vorticity = np.zeros(g.nCells)
+        self.tend_divergence = np.zeros(g.nCells)
 
         # Forcing
         self.curlWind_cell = np.zeros(g.nCells)
+        self.divWind_cell = np.zeros(g.nCells)
 
         # Time keeper
         self.time = 0.0
@@ -405,6 +406,33 @@ class state_data:
             self.divergence[:] = 0.
             self.compute_diagnostics(g, c)
 
+        elif c.test_case == 11:
+            # A wind-driven gyre at mid-latitude in the northern hemisphere
+            tau0 = 1.e-4
+            
+            latmin = np.min(g.latCell[:]); latmax = np.max(g.latCell[:])
+            lonmin = np.min(g.lonCell[:]); lonmax = np.max(g.lonCell[:])
+
+            latmid = 0.5*(latmin+latmax)
+            latwidth = latmax - latmin
+
+            lonmid = 0.5*(lonmin+lonmax)
+            lonwidth = lonmax - lonmin
+
+            r = c.earth_radius
+
+            self.vorticity[:] = 0.
+            self.divergence[:] = 0.
+            self.thickness[:] = 4000.
+
+            self.psi_cell[:] = 0.0
+            self.psi_vertex[:] = 0.0
+            
+            # Initialize wind
+            self.curlWind_cell[:] = -tau0 * np.pi/(latwidth*r) * \
+                                    np.sin(np.pi*(g.latCell[:]-latmin) / latwidth)
+            self.divWind_cell[:] = 0.
+            
         else:
             raise ValueError("Invaid choice for the test case.")
 
@@ -686,27 +714,31 @@ def timestepping_rk4_z_hex(s, g, c):
 
         # Compute the tendencies
         thicknessTransport = s_intm.thickness_edge[:] * s_intm.nVelocity[:]
-        tend_thickness = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, thicknessTransport)
+        s.tend_thickness = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, thicknessTransport)
         
         absVorTransport = s_intm.eta_edge[:] * s_intm.nVelocity[:]
-        tend_vorticity = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorTransport)
+        s.tend_vorticity = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorTransport)
+        s.tend_vorticity += s.curlWind_cell
+        s.tend_vorticity -= c.bottomDrag * s_intm.vorticity[:]
         
         absVorCirc = s_intm.eta_edge[:] * s_intm.tVelocity[:]
         geoPotent = c.gravity * (s_intm.thickness[:] + g.bottomTopographyCell[:])  + s_intm.kinetic_energy[:]
-        tend_divergence = cmp.discrete_curl(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorCirc) - \
+        s.tend_divergence = cmp.discrete_curl(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorCirc) - \
                           cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, geoPotent)
+        s.tend_divergence += s.divWind_cell
+        s.tend_divergence -= c.bottomDrag * s_intm.divergence[:]
 
 
         # Accumulating the change in s
-        s.thickness[:] += tend_thickness[:]*accum[i]*dt
-        s.vorticity[:] += tend_vorticity[:]*accum[i]*dt
-        s.divergence[:] += tend_divergence[:]*accum[i]*dt
+        s.thickness[:] += s.tend_thickness[:]*accum[i]*dt
+        s.vorticity[:] += s.tend_vorticity[:]*accum[i]*dt
+        s.divergence[:] += s.tend_divergence[:]*accum[i]*dt
 
         if i < 3:
             # Advance pv_cell_intm 
-            s_intm.thickness[:] = s_pre.thickness[:] + coef[i+1]*dt*tend_thickness[:]
-            s_intm.vorticity[:] = s_pre.vorticity[:] + coef[i+1]*dt*tend_vorticity[:]
-            s_intm.divergence[:] = s_pre.divergence[:] + coef[i+1]*dt*tend_divergence[:]
+            s_intm.thickness[:] = s_pre.thickness[:] + coef[i+1]*dt*s.tend_thickness[:]
+            s_intm.vorticity[:] = s_pre.vorticity[:] + coef[i+1]*dt*s.tend_vorticity[:]
+            s_intm.divergence[:] = s_pre.divergence[:] + coef[i+1]*dt*s.tend_divergence[:]
 
             s_intm.compute_diagnostics(g, c)
 
@@ -978,7 +1010,7 @@ def main( ):
 #    plt.plot(days, total_energy, '-', label="Total energy")
     plt.xlabel('Time (days)')
     plt.ylabel('Energy')
-    plt.ylim(2.5e17, 2.6e17)
+    #plt.ylim(2.5e17, 2.6e17)
     plt.legend(loc=1)
     plt.savefig('energy.pdf', format='PDF')
 
@@ -988,7 +1020,7 @@ def main( ):
     plt.plot(days, total_energy, '-', label="Total energy")
     plt.xlabel('Time (days)')
     plt.ylabel('Energy')
-    plt.ylim(8.0e20,8.15e20)
+    #plt.ylim(8.0e20,8.15e20)
     plt.legend(loc=1)
     plt.savefig('total-energy.pdf', format='PDF')
     
@@ -996,14 +1028,14 @@ def main( ):
     plt.plot(days, penstrophy)
     plt.xlabel('Time (days)')
     plt.ylabel('Enstrophy')
-    plt.ylim(0.74, 0.78)
+    #plt.ylim(0.74, 0.78)
     plt.savefig('enstrophy.pdf', format='PDF')
 
     plt.figure(5)
     plt.plot(days, mass)
     plt.xlabel('Time (days)')
     plt.ylabel('Mass')
-    plt.ylim(1.175e18, 1.225e18)
+    #plt.ylim(1.175e18, 1.225e18)
     plt.savefig('mass.pdf', format='PDF')
     
     if c.test_case == 2:
