@@ -32,7 +32,7 @@ class parameters:
         self.bottom_topography = True
         
         self.dt = 1440.   #1440 for 480km
-        self.nYears = 50/360.
+        self.nYears = 5/360.
         self.save_inter_days = 1
         
         self.delVisc = 0.
@@ -182,23 +182,17 @@ class grid_data:
         nEntries, rows, cols, valEntries = \
           cmp.construct_discrete_laplace_neumann(self.cellsOnEdge, self.dvEdge, self.dcEdge, \
                     self.areaCell)
-        D2_coo = coo_matrix((valEntries[:nEntries], (rows[:nEntries], \
-                               cols[:nEntries])), shape=(self.nCells, self.nCells))
+        #D2_coo = coo_matrix((valEntries[:nEntries], (rows[:nEntries], \
+        #                       cols[:nEntries])), shape=(self.nCells, self.nCells))
         D2s_coo = coo_matrix((valEntries[:nEntries]*self.areaCell[rows[:nEntries]], (rows[:nEntries], \
                                cols[:nEntries])), shape=(self.nCells, self.nCells))
         
         # Convert to csc sparse format
-        self.D2 = D2_coo.tocsc( )
         self.D2s = D2s_coo.tocsc( )
 
-        self.lu_D2 = splu(self.D2)
+        if c.use_direct_solver:
+            self.lu_D2s = splu(self.D2s)
 
-        #self.D2s_ll = spmatrix.ll_mat(self.nCells, self.nCells, 10*self.nCells)
-        #self.D2s_ll.update_add_at(valEntries[:nEntries]*self.areaCell[rows[:nEntries]], rows[:nEntries], \
-        #                       cols[:nEntries])
-        #self.D2s_ps = self.D2s_ll.to_csr( )
-        #self.ilu_D2s = ILU_Precon(self.D2s)
-        
         if not c.on_a_global_sphere:
             # Construct matrix for discrete Laplacian on the triangles, corresponding to
             # the homogeneous Dirichlet boundary conditions
@@ -217,19 +211,14 @@ class grid_data:
         nEntries, rows, cols, valEntries = \
           cmp.construct_discrete_laplace_triangle_neumann(self.boundaryEdgeMark, self.verticesOnEdge, \
                       self.dvEdge, self.dcEdge, self.areaTriangle)
-        E2_coo = coo_matrix((valEntries[:nEntries], (rows[:nEntries], \
-                               cols[:nEntries])), shape=(self.nVertices, self.nVertices))
         E2s_coo = coo_matrix((valEntries[:nEntries]*self.areaTriangle[rows[:nEntries]], (rows[:nEntries], \
                                cols[:nEntries])), shape=(self.nVertices, self.nVertices))
         # Convert to csc sparse format
-        self.E2 = E2_coo.tocsc( )
         self.E2s = E2s_coo.tocsc( )
-        #self.ilu_E2s = ILU_Precon(self.E2s)
 
-        self.lu_E2 = splu(self.E2)
+        if c.use_direct_solver:
+            self.lu_E2s = splu(self.E2s)
 
-        #raise ValueError("Abort for testing")
-    
         # Make a copy of grid file
         os.system('cp %s %s' % (netcdf_file, c.output_file))
 
@@ -551,10 +540,14 @@ class state_data:
             b[1:] = self.vorticity[1:]
 
             if c.use_direct_solver:
-                self.psi_cell[:] = g.lu_D2.solve(b)
-            else:
+                #self.psi_cell[:] = g.lu_D2.solve(b)
+                b *= g.areaCell[:]
+                self.psi_cell[:] = g.lu_D2s.solve(b)
+            elif not c.use_direct_solver:
                 b *= g.areaCell[:]
                 self.psi_cell = iterative_solver(g.D2s, b, self.psi_cell, c)
+            else:
+                raise ValueError("Indicator for director is not valid. Abort.")
 
         return 0
 
@@ -573,10 +566,14 @@ class state_data:
             b[1:] = self.vorticity_vertex[1:]
 
             if c.use_direct_solver:
-                self.psi_vertex[:] = g.lu_E2.solve(b)
-            else:
+                #self.psi_vertex[:] = g.lu_E2.solve(b)
+                b *= g.areaTriangle[:]
+                self.psi_vertex[:] = g.lu_E2s.solve(b)
+            elif not c.use_direct_solver:
                 b *= g.areaTriangle[:]
                 self.psi_vertex = iterative_solver(g.E2s, b, self.psi_vertex, c)
+            else:
+                raise ValueError("Indicator for director is not valid. Abort.")
             
         return 0
     
@@ -588,10 +585,14 @@ class state_data:
         b[1:] = self.divergence[1:]
 
         if c.use_direct_solver:
-            self.phi_cell[:] = g.lu_D2.solve( b )
-        else:
+            #self.phi_cell[:] = g.lu_D2.solve( b )
+            b *= g.areaCell[:]
+            self.phi_cell[:] = g.lu_D2s.solve( b )
+        elif not c.use_direct_solver:
             b *= g.areaCell[:]
             self.phi_cell = iterative_solver(g.D2s, b, self.phi_cell, c)
+        else:
+            raise ValueError("Indicator for director is not valid. Abort.")
 
         return 0
 
@@ -602,10 +603,14 @@ class state_data:
         b[1:] = self.divergence_vertex[1:]
 
         if c.use_direct_solver:
-            self.phi_vertex[:] = g.lu_E2.solve( b )
-        else:
+            #self.phi_vertex[:] = g.lu_E2.solve( b )
+            b *= g.areaTriangle[:]
+            self.phi_vertex[:] = g.lu_E2s.solve( b )
+        elif not c.use_direct_solver:
             b *= g.areaTriangle[:]
             self.phi_vertex = iterative_solver(g.E2s, b, self.phi_vertex, c)
+        else:
+            raise ValueError("Indicator for director is not valid. Abort.")
 
         return 0
     
