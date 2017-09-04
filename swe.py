@@ -44,7 +44,7 @@ class parameters:
         self.gravity = 9.81
 
         # Forcing
-        self.bottomDrag = 0.e-8
+        self.bottomDrag = 5.e-8
 
         # IO files
         self.output_file = 'output.nc'
@@ -724,14 +724,14 @@ def timestepping_rk4_z_hex(s, g, c):
         
         absVorTransport = s_intm.eta_edge[:] * s_intm.nVelocity[:]
         s.tend_vorticity = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorTransport)
-        s.tend_vorticity += s.curlWind_cell
+        s.tend_vorticity += s.curlWind_cell / s_intm.thickness[:]
         s.tend_vorticity -= c.bottomDrag * s_intm.vorticity[:]
         
         absVorCirc = s_intm.eta_edge[:] * s_intm.tVelocity[:]
         geoPotent = c.gravity * (s_intm.thickness[:] + g.bottomTopographyCell[:])  + s_intm.kinetic_energy[:]
         s.tend_divergence = cmp.discrete_curl(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorCirc) - \
                           cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, geoPotent)
-        s.tend_divergence += s.divWind_cell
+        s.tend_divergence += s.divWind_cell/s_intm.thickness[:]
         s.tend_divergence -= c.bottomDrag * s_intm.divergence[:]
 
 
