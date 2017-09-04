@@ -21,7 +21,7 @@ class parameters:
 
     def __init__(self):
 
-        self.test_case = 5
+        self.test_case = 2
 
         # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
         self.timestepping = 'RK4'
@@ -31,7 +31,7 @@ class parameters:
 
         self.bottom_topography = True
         
-        self.dt = 1440.   #1440 for 480km
+        self.dt = 45.   #1440 for 480km
         self.nYears = 5/360.
         self.save_inter_days = 1
         
@@ -330,6 +330,12 @@ class state_data:
 
             self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
             self.divergence[:] = 0.
+            self.psi_cell[:] = -a * u0 * np.sin(g.latCell[:])
+            self.psi_cell[:] -= self.psi_cell[0]
+            self.phi_cell[:] = 0.
+            self.psi_vertex[:] = -a * u0 * np.sin(g.latVertex[:])
+            self.psi_vertex[:] -= self.psi_vertex[0]
+            self.phi_vertex[:] = 0.
             self.compute_diagnostics(g, c)
 
             if False:
