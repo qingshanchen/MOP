@@ -31,7 +31,7 @@ class parameters:
 
         self.bottom_topography = True
         
-        self.dt = 90.   #1440 for 480km
+        self.dt = 180.   #1440 for 480km
         self.nYears = 5/360.
         self.save_inter_days = 1
         
@@ -49,18 +49,18 @@ class parameters:
         # IO files
         self.output_file = 'output.nc'
 
+        self.on_a_global_sphere = False
+
+        self.free_slip = False
+        
+        self.use_direct_solver = True
+        self.err_tol = 1e-5
+        self.max_iter = 2000
+        
         self.nTimeSteps = np.ceil(1.*86400*360/self.dt*self.nYears).astype('int')
         self.save_interval = np.floor(1.*86400/self.dt*self.save_inter_days).astype('int')
         if self.save_interval < 1:
             self.save_interval = 1
-
-        self.on_a_global_sphere = False
-
-        self.use_direct_solver = True
-
-        self.err_tol = 1e-5
-        self.max_iter = 2000
-        
 
 class grid_data:
     
@@ -159,7 +159,7 @@ class grid_data:
             self.cellInner = cellInner_tmp[:nCellsInner]
             self.cellOuter = cellOuter_tmp[:nCellsOuter]
 
-            # Construct matrix for discrete Laplacian on interior cells
+            # Construct matrix for discrete Laplacian on interior cells, with homogeneous Dirichlet BC
             nEntries, rows, cols, valEntries = \
               cmp.construct_discrete_laplace_interior(self.boundaryEdgeMark[:], \
                         self.cellsOnEdge, self.boundaryCellMark, \
@@ -501,6 +501,7 @@ class state_data:
         out.test_case = "%d" % (c.test_case)
         out.timestepping = "%s" % (c.timestepping)
         out.use_direct_solver = "%s" % (c.use_direct_solver)
+        out.free_slip = "%s" % (c.free_slip)
         out.restart = "%s" % (c.restart)
         out.bottom_topography = "%s" % (c.bottom_topography) 
         out.dt = "%f" % (c.dt)
@@ -528,18 +529,13 @@ class state_data:
         # Compute the potential vorticity
         self.pv_cell = self.eta_cell / self.thickness
 
-        # First approach: compute psi_cell and phi_cell from vorticity and divergence, and then map them onto the dual mesh
-        #self.compute_psi_cell(g, c)
-        #self.compute_phi_cell(g, c)
-        #self.psi_vertex = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.psi_cell)
-        #self.phi_vertex = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.phi_cell)
-
-        # Another approach: map vorticity and divergence to the dual mesh, and then compute the streamfunction and velocity potential
-        # from them
-        self.vorticity_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.vorticity)
-        self.divergence_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.divergence)
         self.compute_psi_cell(g,c)
         self.compute_phi_cell(g,c)
+        
+        # Map vorticity and divergence to the dual mesh, and then compute the streamfunction and velocity potential
+        # on dual mesh
+        self.vorticity_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.vorticity)
+        self.divergence_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.divergence)
         self.compute_psi_vertex(g,c)
         self.compute_phi_vertex(g,c)
         
@@ -557,7 +553,7 @@ class state_data:
         # Compute kinetic energy
         self.compute_kinetic_energy(g, c)
 
-
+        
     def compute_psi_cell(self, g, c):
         # To compute the psi_cell using the elliptic equation on the
         # interior cells
@@ -592,19 +588,29 @@ class state_data:
 
         if not c.on_a_global_sphere or np.max(g.boundaryCellMark[:]) > 0:
             # A bounded domain
-            self.psi_vertex[:] = g.lu_E1.solve(self.vorticity_vertex[:])
-            
+            if c.delVisc < np.finfo('float32').tiny: # Inviscid case
+                if c.use_direct_solver:
+                    self.psi_vertex[:] = g.lu_E1.solve(self.vorticity_vertex[:])
+                else:
+                    raise ValueError("Indirector for direct solver is not valid. Abort.")
+            else:                                    # Viscous case
+                b = np.zeros(g.nVertices)
+                b[1:] = self.vorticity_vertex[1:]
+                b *= g.areaTriangle[:]
+                
+                if c.use_direct_solver:
+                    self.psi_vertex[:] = g.lu_E2s.solve(b)
+                else:
+                    raise ValueError("Indirector for direct solver is not valid. Abort.")
         else:
             # A global domain with no boundary
             b = np.zeros(g.nVertices)
             b[1:] = self.vorticity_vertex[1:]
+            b *= g.areaTriangle[:]
 
             if c.use_direct_solver:
-                #self.psi_vertex[:] = g.lu_E2.solve(b)
-                b *= g.areaTriangle[:]
                 self.psi_vertex[:] = g.lu_E2s.solve(b)
             elif not c.use_direct_solver:
-                b *= g.areaTriangle[:]
                 self.psi_vertex = iterative_solver(g.E2s, b, self.psi_vertex, c)
             else:
                 raise ValueError("Indicator for director is not valid. Abort.")
@@ -615,36 +621,74 @@ class state_data:
     def compute_phi_cell(self, g, c):
         # To compute the phi_cell from divergence
 
-        b = np.zeros(g.nCells)
-        b[1:] = self.divergence[1:]
+        if not c.on_a_global_sphere or np.max(g.boundaryCellMark[:]) > 0:
+            if c.delVisc < np.finfo('float32').tiny:     # Inviscid case
+                b = np.zeros(g.nCells)
+                b[1:] = self.divergence[1:]
+                b *= g.areaCell[:]
 
-        if c.use_direct_solver:
-            #self.phi_cell[:] = g.lu_D2.solve( b )
-            b *= g.areaCell[:]
-            self.phi_cell[:] = g.lu_D2s.solve( b )
-        elif not c.use_direct_solver:
-            b *= g.areaCell[:]
-            self.phi_cell = iterative_solver(g.D2s, b, self.phi_cell, c)
+                if c.use_direct_solver:
+                    self.phi_cell[:] = g.lu_D2s.solve( b )
+                elif not c.use_direct_solver:
+                    self.phi_cell = iterative_solver(g.D2s, b, self.phi_cell, c)
+                else:
+                    raise ValueError("Indicator for director is not valid. Abort.")
+            else:                                        # Viscous case
+                if c.use_direct_solver:
+                    self.phi_cell[:] = 0.
+                    x = g.lu_D1.solve(self.divergence[g.cellInterior[:]-1])
+                    self.phi_cell[g.cellInterior[:]-1] = x[:]
+                else:
+                    raise ValueError("Indicator for direct solver is not valid. Abort.")
+
         else:
-            raise ValueError("Indicator for director is not valid. Abort.")
+            b = np.zeros(g.nCells)
+            b[1:] = self.divergence[1:]
+            b *= g.areaCell[:]
 
+            if c.use_direct_solver:
+                self.phi_cell[:] = g.lu_D2s.solve( b )
+            elif not c.use_direct_solver:
+                self.phi_cell = iterative_solver(g.D2s, b, self.phi_cell, c)
+            else:
+                raise ValueError("Indicator for direct solver is not valid. Abort.")
+            
         return 0
 
     def compute_phi_vertex(self, g, c):
         # To compute the phi_cell from divergence
 
-        b = np.zeros(g.nVertices)
-        b[1:] = self.divergence_vertex[1:]
-
-        if c.use_direct_solver:
-            #self.phi_vertex[:] = g.lu_E2.solve( b )
-            b *= g.areaTriangle[:]
-            self.phi_vertex[:] = g.lu_E2s.solve( b )
-        elif not c.use_direct_solver:
-            b *= g.areaTriangle[:]
-            self.phi_vertex = iterative_solver(g.E2s, b, self.phi_vertex, c)
+        if not c.on_a_global_sphere or np.max(g.boundaryCellMark[:]) > 0:
+            # A bounded domain
+            if c.delVisc < np.finfo('float32').tiny: # Inviscid case
+                b = np.zeros(g.nVertices)
+                b[1:] = self.divergence_vertex[1:]
+                b *= g.areaTriangle[:]
+                if c.use_direct_solver:
+                    self.phi_vertex[:] = g.lu_E2s.solve(b)
+                else:
+                    raise ValueError("Indirector for direct solver is not valid. Abort.")
+            else:                                    # Viscous case
+                b = np.zeros(g.nVertices)
+                b[1:] = self.divergence_vertex[1:]
+                b *= g.areaTriangle[:]
+                
+                if c.use_direct_solver:
+                    self.phi_vertex[:] = g.lu_E2s.solve(b)
+                else:
+                    raise ValueError("Indirector for direct solver is not valid. Abort.")
         else:
-            raise ValueError("Indicator for director is not valid. Abort.")
+            # A global domain with no boundary
+            b = np.zeros(g.nVertices)
+            b[1:] = self.divergence_vertex[1:]
+            b *= g.areaTriangle[:]
+
+            if c.use_direct_solver:
+                self.phi_vertex[:] = g.lu_E2s.solve(b)
+            elif not c.use_direct_solver:
+                self.phi_vertex = iterative_solver(g.E2s, b, self.psi_vertex, c)
+            else:
+                raise ValueError("Indicator for director is not valid. Abort.")
 
         return 0
     
@@ -741,7 +785,7 @@ def timestepping_rk4_z_hex(s, g, c):
         s.divergence[:] += s.tend_divergence[:]*accum[i]*dt
 
         if i < 3:
-            # Advance pv_cell_intm 
+            # Advance s_intm 
             s_intm.thickness[:] = s_pre.thickness[:] + coef[i+1]*dt*s.tend_thickness[:]
             s_intm.vorticity[:] = s_pre.vorticity[:] + coef[i+1]*dt*s.tend_vorticity[:]
             s_intm.divergence[:] = s_pre.divergence[:] + coef[i+1]*dt*s.tend_divergence[:]
