@@ -77,6 +77,32 @@ subroutine compute_normal_velocity(nEdges, nVertices, nCells, verticesOnEdge, ce
 end subroutine compute_normal_velocity
 
 
+subroutine compute_normal_velocity_visc(nEdges, nVertices, nCells, verticesOnEdge, cellsOnEdge, dcEdge, dvEdge, phi_cell, psi_vertex, u)
+  integer, intent(in) :: nEdges, nVertices, nCells
+  integer, intent(in) :: verticesOnEdge(0:nEdges-1, 0:1), cellsOnEdge(0:nEdges-1, 0:1)
+  double precision, intent(in)  :: dcEdge(0:nEdges-1), dvEdge(0:nEdges-1), psi_vertex(0:nVertices-1), phi_cell(0:nCells-1)
+  double precision, intent(out) :: u(0:nEdges-1)
+
+  integer :: iEdge, vertex0, vertex1, cell0, cell1
+
+  do iEdge = 0, nEdges-1
+        vertex0 = verticesOnEdge(iEdge,0) - 1
+        vertex1 = verticesOnEdge(iEdge,1) - 1
+        cell0 = cellsOnEdge(iEdge,0) - 1
+        cell1 = cellsOnEdge(iEdge,1) - 1
+        
+        u(iEdge) = (phi_cell(cell1) - phi_cell(cell0)) / dcEdge(iEdge)
+        
+        if (vertex0 >= 0 .AND. vertex1 >= 0) then
+           ! For interior edges
+           u(iEdge) = u(iEdge) - (psi_vertex(vertex1) - psi_vertex(vertex0)) / dvEdge(iEdge)           
+
+        end if
+  end do
+
+end subroutine compute_normal_velocity_visc
+
+
 ! Compute the tangential velocity component v from psi_cell and phi_vertex
 subroutine compute_tangential_velocity(nEdges, nVertices, nCells, verticesOnEdge, cellsOnEdge, dcEdge, dvEdge, phi_vertex, psi_cell, v)
   integer, intent(in) :: nEdges, nVertices, nCells

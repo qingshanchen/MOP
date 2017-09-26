@@ -32,8 +32,8 @@ class parameters:
         self.bottom_topography = True
         
         self.dt = 180.   #1440 for 480km
-        self.nYears = 5/360.
-        self.save_inter_days = 1
+        self.nYears = 5.
+        self.save_inter_days = 5
         
         self.delVisc = 0.
 
@@ -531,16 +531,24 @@ class state_data:
 
         self.compute_psi_cell(g,c)
         self.compute_phi_cell(g,c)
-        
+
+        if c.delVisc > np.finfo('float32').tiny:  # It is necessary to compute the vorticity and divergence on the boundary and enforce some artificial BCs
+            self.vorticity[:] = cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.psi_cell)
+            self.divergence[:] = cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.phi_cell)
+            
         # Map vorticity and divergence to the dual mesh, and then compute the streamfunction and velocity potential
         # on dual mesh
         self.vorticity_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.vorticity)
         self.divergence_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.divergence)
-        self.compute_psi_vertex(g,c)
-        self.compute_phi_vertex(g,c)
+        self.compute_psi_vertex(g, c)
+        self.compute_phi_vertex(g, c)
         
         # compute the normal and tangential velocity components
-        self.nVelocity = cmp.compute_normal_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_cell, self.psi_vertex)
+        if c.delVisc < np.finfo('float32').tiny:
+            self.nVelocity = cmp.compute_normal_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_cell, self.psi_vertex)
+        else:
+             self.nVelocity = cmp.compute_normal_velocity_visc(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_cell, self.psi_vertex)
+             
         self.tVelocity = cmp.compute_tangential_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_vertex, self.psi_cell)
 
         # Map from cell to edge
@@ -577,7 +585,7 @@ class state_data:
                 b *= g.areaCell[:]
                 self.psi_cell = iterative_solver(g.D2s, b, self.psi_cell, c)
             else:
-                raise ValueError("Indicator for director is not valid. Abort.")
+                raise ValueError("Indicator for solver is not valid. Abort.")
 
         return 0
 
@@ -601,7 +609,7 @@ class state_data:
                 if c.use_direct_solver:
                     self.psi_vertex[:] = g.lu_E2s.solve(b)
                 else:
-                    raise ValueError("Indirector for direct solver is not valid. Abort.")
+                    raise ValueError("Indirector for solver is not valid. Abort.")
         else:
             # A global domain with no boundary
             b = np.zeros(g.nVertices)
@@ -632,14 +640,14 @@ class state_data:
                 elif not c.use_direct_solver:
                     self.phi_cell = iterative_solver(g.D2s, b, self.phi_cell, c)
                 else:
-                    raise ValueError("Indicator for director is not valid. Abort.")
+                    raise ValueError("Indicator for solver is not valid. Abort.")
             else:                                        # Viscous case
                 if c.use_direct_solver:
                     self.phi_cell[:] = 0.
                     x = g.lu_D1.solve(self.divergence[g.cellInterior[:]-1])
                     self.phi_cell[g.cellInterior[:]-1] = x[:]
                 else:
-                    raise ValueError("Indicator for direct solver is not valid. Abort.")
+                    raise ValueError("Indicator for solver is not valid. Abort.")
 
         else:
             b = np.zeros(g.nCells)
@@ -651,7 +659,7 @@ class state_data:
             elif not c.use_direct_solver:
                 self.phi_cell = iterative_solver(g.D2s, b, self.phi_cell, c)
             else:
-                raise ValueError("Indicator for direct solver is not valid. Abort.")
+                raise ValueError("Indicator for solver is not valid. Abort.")
             
         return 0
 
@@ -667,7 +675,7 @@ class state_data:
                 if c.use_direct_solver:
                     self.phi_vertex[:] = g.lu_E2s.solve(b)
                 else:
-                    raise ValueError("Indirector for direct solver is not valid. Abort.")
+                    raise ValueError("Indirector for solver is not valid. Abort.")
             else:                                    # Viscous case
                 b = np.zeros(g.nVertices)
                 b[1:] = self.divergence_vertex[1:]
@@ -676,7 +684,7 @@ class state_data:
                 if c.use_direct_solver:
                     self.phi_vertex[:] = g.lu_E2s.solve(b)
                 else:
-                    raise ValueError("Indirector for direct solver is not valid. Abort.")
+                    raise ValueError("Indirector for solver is not valid. Abort.")
         else:
             # A global domain with no boundary
             b = np.zeros(g.nVertices)
@@ -688,7 +696,7 @@ class state_data:
             elif not c.use_direct_solver:
                 self.phi_vertex = iterative_solver(g.E2s, b, self.psi_vertex, c)
             else:
-                raise ValueError("Indicator for director is not valid. Abort.")
+                raise ValueError("Indicator for is not valid. Abort.")
 
         return 0
     
