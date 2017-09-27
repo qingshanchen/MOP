@@ -35,7 +35,7 @@ class parameters:
         self.nYears = 5.
         self.save_inter_days = 5
         
-        self.delVisc = 0.
+        self.delVisc = 10.
 
         # Size of the phyiscal domain
         self.earth_radius = 6371000.0
@@ -778,6 +778,7 @@ def timestepping_rk4_z_hex(s, g, c):
         s.tend_vorticity = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorTransport)
         s.tend_vorticity += s.curlWind_cell / s_intm.thickness[:]
         s.tend_vorticity -= c.bottomDrag * s_intm.vorticity[:]
+        s.tend_vorticity += c.delVisc * cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, s_intm.vorticity)
         
         absVorCirc = s_intm.eta_edge[:] * s_intm.tVelocity[:]
         geoPotent = c.gravity * (s_intm.thickness[:] + g.bottomTopographyCell[:])  + s_intm.kinetic_energy[:]
@@ -785,6 +786,7 @@ def timestepping_rk4_z_hex(s, g, c):
                           cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, geoPotent)
         s.tend_divergence += s.divWind_cell/s_intm.thickness[:]
         s.tend_divergence -= c.bottomDrag * s_intm.divergence[:]
+        s.tend_divergence += c.delVisc * cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, s_intm.divergence)
 
 
         # Accumulating the change in s
