@@ -33,9 +33,9 @@ class parameters:
         
         self.dt = 180.   #1440 for 480km
         self.nYears = 5.
-        self.save_inter_days = 1
+        self.save_inter_days = 5
         
-        self.delVisc = 1.
+        self.delVisc = 10.
 
         # Size of the phyiscal domain
         self.earth_radius = 6371000.0
@@ -538,10 +538,10 @@ class state_data:
         self.compute_phi_vertex(g, c)
         
         # compute the normal and tangential velocity components
-        if c.delVisc < np.finfo('float32').tiny:
-            self.nVelocity = cmp.compute_normal_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_cell, self.psi_vertex)
-        else:
-             self.nVelocity = cmp.compute_normal_velocity_visc(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_cell, self.psi_vertex)
+#        if c.delVisc < np.finfo('float32').tiny:
+        self.nVelocity = cmp.compute_normal_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_cell, self.psi_vertex)
+#        else:
+#             self.nVelocity = cmp.compute_normal_velocity_visc(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_cell, self.psi_vertex)
              
         self.tVelocity = cmp.compute_tangential_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_vertex, self.psi_cell)
 
@@ -596,20 +596,20 @@ class state_data:
 
         if not c.on_a_global_sphere or np.max(g.boundaryCellMark[:]) > 0:
             # A bounded domain
-            if c.delVisc < np.finfo('float32').tiny: # Inviscid case
+#            if c.delVisc < np.finfo('float32').tiny: # Inviscid case
                 if c.use_direct_solver:
                     self.psi_vertex[:] = g.lu_E1.solve(self.vorticity_vertex[:])
                 else:
                     raise ValueError("Indirector for direct solver is not valid. Abort.")
-            else:                                    # Viscous case
-                b = np.zeros(g.nVertices)
-                b[1:] = self.vorticity_vertex[1:]
-                b *= g.areaTriangle[:]
-                
-                if c.use_direct_solver:
-                    self.psi_vertex[:] = g.lu_E2s.solve(b)
-                else:
-                    raise ValueError("Indirector for solver is not valid. Abort.")
+#            else:                                    # Viscous case
+#                b = np.zeros(g.nVertices)
+#                b[1:] = self.vorticity_vertex[1:]
+#                b *= g.areaTriangle[:]
+#                
+#                if c.use_direct_solver:
+#                    self.psi_vertex[:] = g.lu_E2s.solve(b)
+#                else:
+#                    raise ValueError("Indirector for solver is not valid. Abort.")
         else:
             # A global domain with no boundary
             b = np.zeros(g.nVertices)
