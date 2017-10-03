@@ -33,9 +33,9 @@ class parameters:
         
         self.dt = 180.   #1440 for 480km
         self.nYears = 5.
-        self.save_inter_days = 5
+        self.save_inter_days = 1
         
-        self.delVisc = 10.
+        self.delVisc = 0.
 
         # Size of the phyiscal domain
         self.earth_radius = 6371000.0
@@ -526,23 +526,20 @@ class state_data:
         self.compute_psi_cell(g,c)
         self.compute_phi_cell(g,c)
 
-        if c.delVisc > np.finfo('float32').tiny:  # It is necessary to compute the vorticity and divergence on the boundary and enforce some artificial BCs
-            self.vorticity[:] = cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.psi_cell)
-#            self.divergence[:] = cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.phi_cell)
+        #if c.delVisc > np.finfo('float32').tiny:  # It is necessary to compute the vorticity and divergence on the boundary and enforce some artificial BCs
+        self.vorticity[:] = cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.psi_cell)
             
         # Map vorticity and divergence to the dual mesh, and then compute the streamfunction and velocity potential
         # on dual mesh
         self.vorticity_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.vorticity)
         self.divergence_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.divergence)
+
+        # Compute psi_vertex and phi_vertex from vorticity_vertex and divergence_vertex
         self.compute_psi_vertex(g, c)
         self.compute_phi_vertex(g, c)
         
         # compute the normal and tangential velocity components
-#        if c.delVisc < np.finfo('float32').tiny:
         self.nVelocity = cmp.compute_normal_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_cell, self.psi_vertex)
-#        else:
-#             self.nVelocity = cmp.compute_normal_velocity_visc(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_cell, self.psi_vertex)
-             
         self.tVelocity = cmp.compute_tangential_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_vertex, self.psi_cell)
 
         # Compute the absolute vorticity
@@ -578,7 +575,6 @@ class state_data:
             b[1:] = self.vorticity[1:]
 
             if c.use_direct_solver:
-                #self.psi_cell[:] = g.lu_D2.solve(b)
                 b *= g.areaCell[:]
                 self.psi_cell[:] = g.lu_D2s.solve(b)
             elif not c.use_direct_solver:
@@ -595,21 +591,11 @@ class state_data:
         # interior cells
 
         if not c.on_a_global_sphere or np.max(g.boundaryCellMark[:]) > 0:
-            # A bounded domain
-#            if c.delVisc < np.finfo('float32').tiny: # Inviscid case
-                if c.use_direct_solver:
-                    self.psi_vertex[:] = g.lu_E1.solve(self.vorticity_vertex[:])
-                else:
-                    raise ValueError("Indirector for direct solver is not valid. Abort.")
-#            else:                                    # Viscous case
-#                b = np.zeros(g.nVertices)
-#                b[1:] = self.vorticity_vertex[1:]
-#                b *= g.areaTriangle[:]
-#                
-#                if c.use_direct_solver:
-#                    self.psi_vertex[:] = g.lu_E2s.solve(b)
-#                else:
-#                    raise ValueError("Indirector for solver is not valid. Abort.")
+            if c.use_direct_solver:
+                self.psi_vertex[:] = g.lu_E1.solve(self.vorticity_vertex[:])
+            else:
+                raise ValueError("Indirector for direct solver is not valid. Abort.")
+
         else:
             # A global domain with no boundary
             b = np.zeros(g.nVertices)
@@ -630,24 +616,16 @@ class state_data:
         # To compute the phi_cell from divergence
 
         if not c.on_a_global_sphere or np.max(g.boundaryCellMark[:]) > 0:
-#            if c.delVisc < np.finfo('float32').tiny:     # Inviscid case
-                b = np.zeros(g.nCells)
-                b[1:] = self.divergence[1:]
-                b *= g.areaCell[:]
+            b = np.zeros(g.nCells)
+            b[1:] = self.divergence[1:]
+            b *= g.areaCell[:]
 
-                if c.use_direct_solver:
-                    self.phi_cell[:] = g.lu_D2s.solve( b )
-                elif not c.use_direct_solver:
-                    self.phi_cell = iterative_solver(g.D2s, b, self.phi_cell, c)
-                else:
-                    raise ValueError("Indicator for solver is not valid. Abort.")
-#            else:                                        # Viscous case
-#                if c.use_direct_solver:
-#                    self.phi_cell[:] = 0.
-#                    x = g.lu_D1.solve(self.divergence[g.cellInterior[:]-1])
-#                    self.phi_cell[g.cellInterior[:]-1] = x[:]
-#                else:
-#                    raise ValueError("Indicator for solver is not valid. Abort.")
+            if c.use_direct_solver:
+                self.phi_cell[:] = g.lu_D2s.solve( b )
+            elif not c.use_direct_solver:
+                self.phi_cell = iterative_solver(g.D2s, b, self.phi_cell, c)
+            else:
+                raise ValueError("Indicator for solver is not valid. Abort.")
 
         else:
             b = np.zeros(g.nCells)
@@ -769,7 +747,7 @@ def timestepping_rk4_z_hex(s, g, c):
         s.tend_vorticity = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorTransport)
         s.tend_vorticity += s.curlWind_cell / s_intm.thickness[:]
         s.tend_vorticity -= c.bottomDrag * s_intm.vorticity[:]
-        s.tend_vorticity += c.delVisc * cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, s_intm.vorticity)
+#        s.tend_vorticity += c.delVisc * cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, s_intm.vorticity)
         
         absVorCirc = s_intm.eta_edge[:] * s_intm.tVelocity[:]
         geoPotent = c.gravity * (s_intm.thickness[:] + g.bottomTopographyCell[:])  + s_intm.kinetic_energy[:]
@@ -777,7 +755,7 @@ def timestepping_rk4_z_hex(s, g, c):
                           cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, geoPotent)
         s.tend_divergence += s.divWind_cell/s_intm.thickness[:]
         s.tend_divergence -= c.bottomDrag * s_intm.divergence[:]
-        s.tend_divergence += c.delVisc * cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, s_intm.divergence)
+#        s.tend_divergence += c.delVisc * cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, s_intm.divergence)
 
 
         # Accumulating the change in s
