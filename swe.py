@@ -21,20 +21,24 @@ class parameters:
 
     def __init__(self):
 
-        self.test_case = 11
+        self.on_a_global_sphere = True
+
+        self.test_case = 2
 
         # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
         self.timestepping = 'RK4'
 
+        self.dt = 360.   #1440 for 480km
+        self.nYears = 5./360
+        self.save_inter_days = 1
+
+        self.use_direct_solver = True
+        self.err_tol = 1e-5
+        self.max_iter = 2000
+        
         self.restart = False
         self.restart_file = 'restart.nc'
 
-        self.bottom_topography = True
-        
-        self.dt = 180.   #1440 for 480km
-        self.nYears = 5.
-        self.save_inter_days = 1
-        
         self.delVisc = 0.
 
         # Size of the phyiscal domain
@@ -44,19 +48,11 @@ class parameters:
         self.gravity = 9.81
 
         # Forcing
-        self.bottomDrag = 5.e-8
+        self.bottomDrag = 0.  #5.e-8
 
         # IO files
         self.output_file = 'output.nc'
 
-        self.on_a_global_sphere = False
-
-        self.free_slip = False
-        
-        self.use_direct_solver = True
-        self.err_tol = 1e-5
-        self.max_iter = 2000
-        
         self.nTimeSteps = np.ceil(1.*86400*360/self.dt*self.nYears).astype('int')
         self.save_interval = np.floor(1.*86400/self.dt*self.save_inter_days).astype('int')
         if self.save_interval < 1:
@@ -468,7 +464,6 @@ class state_data:
         # Read simulation parameters
         c.test_case = int(rdata.test_case)
         c.free_surface = bool(rdata.free_surface)
-        c.bottom_topography = bool(rdata.bottom_topography)
         c.dt = float(rdata.dt)
         c.delVisc = float(rdata.delVisc)
         c.bottomDrag = float(rdata.bottomDrag)
@@ -501,9 +496,7 @@ class state_data:
         out.test_case = "%d" % (c.test_case)
         out.timestepping = "%s" % (c.timestepping)
         out.use_direct_solver = "%s" % (c.use_direct_solver)
-        out.free_slip = "%s" % (c.free_slip)
         out.restart = "%s" % (c.restart)
-        out.bottom_topography = "%s" % (c.bottom_topography) 
         out.dt = "%f" % (c.dt)
         out.delVisc = "%e" % (c.delVisc)
         out.bottomDrag = "%e" % (c.bottomDrag)
@@ -747,7 +740,7 @@ def timestepping_rk4_z_hex(s, g, c):
         s.tend_vorticity = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorTransport)
         s.tend_vorticity += s.curlWind_cell / s_intm.thickness[:]
         s.tend_vorticity -= c.bottomDrag * s_intm.vorticity[:]
-#        s.tend_vorticity += c.delVisc * cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, s_intm.vorticity)
+        s.tend_vorticity += c.delVisc * cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, s_intm.vorticity)
         
         absVorCirc = s_intm.eta_edge[:] * s_intm.tVelocity[:]
         geoPotent = c.gravity * (s_intm.thickness[:] + g.bottomTopographyCell[:])  + s_intm.kinetic_energy[:]
@@ -755,13 +748,21 @@ def timestepping_rk4_z_hex(s, g, c):
                           cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, geoPotent)
         s.tend_divergence += s.divWind_cell/s_intm.thickness[:]
         s.tend_divergence -= c.bottomDrag * s_intm.divergence[:]
-#        s.tend_divergence += c.delVisc * cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, s_intm.divergence)
-
+        s.tend_divergence += c.delVisc * cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, s_intm.divergence)
 
         # Accumulating the change in s
         s.thickness[:] += s.tend_thickness[:]*accum[i]*dt
         s.vorticity[:] += s.tend_vorticity[:]*accum[i]*dt
         s.divergence[:] += s.tend_divergence[:]*accum[i]*dt
+
+        ## Examine pot-enstrophy conservation
+        #q2 = s_intm.pv_cell * s_intm.pv_cell
+        #grad_q2 = cmp.discrete_grad_n(q2, g.cellsOnEdge, g.dcEdge)
+        #grad_q = cmp.discrete_grad_n(s_intm.pv_cell, g.cellsOnEdge, g.dcEdge)
+        #dArea = g.dcEdge * g.dvEdge * 0.5
+        #pot_ens = np.sum(grad_q2 * s_intm.thickness_edge * s_intm.nVelocity * dArea)
+        #pot_ens -= 2*np.sum(grad_q * s_intm.eta_edge * s_intm.nVelocity * dArea)
+        #print("pot_ens = %e" % pot_ens)
 
         if i < 3:
             # Advance s_intm 
@@ -773,6 +774,50 @@ def timestepping_rk4_z_hex(s, g, c):
 
     s.compute_diagnostics(g, c)
 
+
+def timestepping_euler(s, g, c):
+
+    dt = c.dt
+
+    s_pre = deepcopy(s)
+
+    # Update the time stamp first
+    s.time += dt
+
+    # Compute the tendencies
+    thicknessTransport = s_pre.thickness_edge[:] * s_pre.nVelocity[:]
+    s.tend_thickness = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, thicknessTransport)
+
+    absVorTransport = s_pre.eta_edge[:] * s_pre.nVelocity[:]
+    s.tend_vorticity = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorTransport)
+    s.tend_vorticity += s.curlWind_cell / s_pre.thickness[:]
+    s.tend_vorticity -= c.bottomDrag * s_pre.vorticity[:]
+    s.tend_vorticity += c.delVisc * cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, s_pre.vorticity)
+
+    absVorCirc = s_pre.eta_edge[:] * s_pre.tVelocity[:]
+    geoPotent = c.gravity * (s_pre.thickness[:] + g.bottomTopographyCell[:])  + s_pre.kinetic_energy[:]
+    s.tend_divergence = cmp.discrete_curl(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorCirc) - \
+                      cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, geoPotent)
+    s.tend_divergence += s.divWind_cell/s_pre.thickness[:]
+    s.tend_divergence -= c.bottomDrag * s_pre.divergence[:]
+    s.tend_divergence += c.delVisc * cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, s_pre.divergence)
+
+    # Accumulating the change in s
+    s.thickness[:] += s.tend_thickness[:]*dt
+    s.vorticity[:] += s.tend_vorticity[:]*dt
+    s.divergence[:] += s.tend_divergence[:]*dt
+
+    ## Examine pot-enstrophy conservation
+    #q2 = s_pre.pv_cell * s_pre.pv_cell
+    #grad_q2 = cmp.discrete_grad_n(q2, g.cellsOnEdge, g.dcEdge)
+    #grad_q = cmp.discrete_grad_n(s_pre.pv_cell, g.cellsOnEdge, g.dcEdge)
+    #dArea = g.dcEdge * g.dvEdge * 0.5
+    #pot_ens = np.sum(grad_q2 * s_pre.thickness_edge * s_pre.nVelocity * dArea)
+    #pot_ens -= 2*np.sum(grad_q * s_pre.eta_edge * s_pre.nVelocity * dArea)
+    #print("pot_ens = %e" % pot_ens)
+
+    s.compute_diagnostics(g, c)
+    
 
 def run_tests(g, c, s):
 
@@ -966,12 +1011,16 @@ def main( ):
     total_energy = np.zeros(c.nTimeSteps+1)
     mass = np.zeros(c.nTimeSteps+1)
     penstrophy = np.zeros(c.nTimeSteps+1)
+    pv_max = np.zeros(c.nTimeSteps+1)
+    pv_min = np.zeros(c.nTimeSteps+1)
 
-    kenergy[0] = np.sum(s.kinetic_energy[:]*g.areaCell[:])
+    kenergy[0] = np.sum(s.thickness[:]*s.kinetic_energy[:]*g.areaCell[:])
     penergy[0] = 0.5*c.gravity* np.sum((s.thickness[:]-h0)**2 * g.areaCell[:])
     total_energy[0] = kenergy[0] + penergy[0]
     mass[0] = np.sum(s.thickness[:] * g.areaCell[:])
     penstrophy[0] = 0.5 * np.sum(g.areaCell[:] * s.pv_cell[:]**2)
+    pv_max[0] = np.max(s.pv_cell)
+    pv_min[0] = np.min(s.pv_cell)
 
 
     print("Running test case \#%d" % c.test_case)
@@ -992,21 +1041,26 @@ def main( ):
 
         if c.timestepping == 'RK4':
             timestepping_rk4_z_hex(s, g, c)
+        elif c.timestepping == 'E':
+            timestepping_euler(s, g, c)
         else:
-            raise ValueError("Invalid value for timestepping")
+            raise ValueError("Invalid choice for time stepping")
 
         # Compute energy and enstrophy
-        kenergy[iStep+1] = np.sum(s.kinetic_energy[:]*g.areaCell[:])
+        kenergy[iStep+1] = np.sum(s.thickness[:]*s.kinetic_energy[:]*g.areaCell[:])
         penergy[iStep+1] = 0.5*c.gravity* np.sum((s.thickness[:]-h0)**2 * g.areaCell[:])
         total_energy[iStep+1] = kenergy[iStep+1] + penergy[iStep+1]
         mass[iStep+1] = np.sum(s.thickness[:] * g.areaCell[:])
         penstrophy[iStep+1] = 0.5 * np.sum(g.areaCell[:] * s.pv_cell[:]**2)
+        pv_max[iStep+1] = np.max(s.pv_cell)
+        pv_min[iStep+1] = np.min(s.pv_cell)
+#        aVorticity_total[iStep+1] = np.sum(g.areaCell * s.eta[:])
+        
         print("K-nergy, p-energy, t-energy, p-enstrophy, mass: %e, %e, %e, %e, %e" % \
               (kenergy[iStep+1], penergy[iStep+1], total_energy[iStep+1], penstrophy[iStep+1], mass[iStep+1]))
 
         if kenergy[iStep+1] != kenergy[iStep+1]:
-            print "Exceptions detected in energy. Stop now"
-            raise ValueError 
+            raise ValueError("Exceptions detected in energy. Stop now")
         
         if np.mod(iStep+1, c.save_interval) == 0:
             k = (iStep+1) / c.save_interval
@@ -1035,37 +1089,54 @@ def main( ):
 
     plt.figure(0)
     plt.plot(days, kenergy, '--', label="Kinetic energy", hold=True)
-#    plt.plot(days, penergy, '-.', label="Potential energy")
-#    plt.plot(days, total_energy, '-', label="Total energy")
     plt.xlabel('Time (days)')
     plt.ylabel('Energy')
     #plt.ylim(2.5e17, 2.6e17)
     plt.legend(loc=1)
-    plt.savefig('energy.pdf', format='PDF')
+    plt.savefig('energy.png', format='PNG')
 
     plt.figure(6)
-#    plt.plot(days, kenergy, '--', label="Kinetic energy", hold=True)
     plt.plot(days, penergy, '-.', label="Potential energy", hold=True)
     plt.plot(days, total_energy, '-', label="Total energy")
     plt.xlabel('Time (days)')
     plt.ylabel('Energy')
     #plt.ylim(8.0e20,8.15e20)
     plt.legend(loc=1)
-    plt.savefig('total-energy.pdf', format='PDF')
+    plt.savefig('total-energy.png', format='PNG')
     
     plt.figure(1)
     plt.plot(days, penstrophy)
     plt.xlabel('Time (days)')
     plt.ylabel('Enstrophy')
     #plt.ylim(0.74, 0.78)
-    plt.savefig('enstrophy.pdf', format='PDF')
+    plt.savefig('enstrophy.png', format='PNG')
 
     plt.figure(5)
     plt.plot(days, mass)
     plt.xlabel('Time (days)')
     plt.ylabel('Mass')
     #plt.ylim(1.175e18, 1.225e18)
-    plt.savefig('mass.pdf', format='PDF')
+    plt.savefig('mass.png', format='PNG')
+
+    plt.figure(7)
+    plt.plot(days, pv_max, '-.', hold=True, label='PV max')
+    plt.plot(days, pv_min, '--', hold=True, label='PV min')
+    plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
+#    plt.ylim([-0.0001, 0.0001])
+    plt.xlabel('Days')
+    plt.ylabel('Max/Min potential vorticity')
+    plt.legend(loc=1)
+    plt.savefig('pv_max_min.png', format='PNG')
+    plt.savefig('pv_max_min.pdf', format='PDF')
+
+    #plt.figure(8)
+    #plt.plot(Years, aVorticity_total)
+    #plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
+    ##plt.ylim([-0.0001, 0.0001])
+    #plt.xlabel('Years')
+    #plt.ylabel('Total absolute vorticity')
+    #plt.savefig('aVort_total.png', format='PNG')
+    #plt.savefig('aVort_total.pdf', format='PDF')
     
     if c.test_case == 2:
         plt.figure(2); 
@@ -1075,7 +1146,7 @@ def main( ):
         plt.legend(loc=1)
         plt.xlabel('Time (days)')
         plt.ylabel('Relative error')
-        plt.savefig('error-h.pdf', format='PDF')
+        plt.savefig('error-h.png', format='PNG')
 
         plt.figure(3); 
         plt.plot(days, error1[:,1], '--', label=r'$L^1$ norm', hold=True)
@@ -1084,7 +1155,7 @@ def main( ):
         plt.legend(loc=1)
         plt.xlabel('Time (days)')
         plt.ylabel('Relative error')
-        plt.savefig('error-vorticity.pdf', format='PDF')
+        plt.savefig('error-vorticity.png', format='PNG')
 
         plt.figure(4); 
         plt.plot(days, error1[:,2], '--', label=r'$L^1$ norm', hold=True)
@@ -1093,7 +1164,7 @@ def main( ):
         plt.legend(loc=1)
         plt.xlabel('Time (days)')
         plt.ylabel('Absolute error')
-        plt.savefig('error-divergence.pdf', format='PDF')
+        plt.savefig('error-divergence.png', format='PNG')
 
         print("Final l2 errors for thickness, vorticity, and divergence:")
         print("                    %e,        %e,     %e" % (error2[-1,0], error2[-1,1], error2[-1,2]))
