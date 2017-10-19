@@ -23,13 +23,13 @@ class parameters:
 
         self.on_a_global_sphere = True
 
-        self.test_case = 2
+        self.test_case = 5
 
         # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
         self.timestepping = 'RK4'
 
-        self.dt = 360.   #1440 for 480km
-        self.nYears = 5./360
+        self.dt = 720.   #1440 for 480km
+        self.nYears = 1./360
         self.save_inter_days = 1
 
         self.use_direct_solver = True
@@ -807,16 +807,20 @@ def timestepping_euler(s, g, c):
     s.vorticity[:] += s.tend_vorticity[:]*dt
     s.divergence[:] += s.tend_divergence[:]*dt
 
+
+    s.compute_diagnostics(g, c)
+
     ## Examine pot-enstrophy conservation
-    #q2 = s_pre.pv_cell * s_pre.pv_cell
+    #q2_pre = s_pre.pv_cell * s_pre.pv_cell
+    #pEns_pre = np.sum(0.5*s_pre.thickness*q2_pre*g.areaCell)
+    #q2 = s.pv_cell * s_pre.pv_cell
+    #pEns = np.sum(0.5*s.thickness*q2*g.areaCell)
+    #print("pEns_pre, pEns, diff = %e, %e, %e" % (pEns_pre, pEns, pEns-pEns_pre))
     #grad_q2 = cmp.discrete_grad_n(q2, g.cellsOnEdge, g.dcEdge)
     #grad_q = cmp.discrete_grad_n(s_pre.pv_cell, g.cellsOnEdge, g.dcEdge)
     #dArea = g.dcEdge * g.dvEdge * 0.5
     #pot_ens = np.sum(grad_q2 * s_pre.thickness_edge * s_pre.nVelocity * dArea)
     #pot_ens -= 2*np.sum(grad_q * s_pre.eta_edge * s_pre.nVelocity * dArea)
-    #print("pot_ens = %e" % pot_ens)
-
-    s.compute_diagnostics(g, c)
     
 
 def run_tests(g, c, s):
@@ -1018,7 +1022,7 @@ def main( ):
     penergy[0] = 0.5*c.gravity* np.sum((s.thickness[:]-h0)**2 * g.areaCell[:])
     total_energy[0] = kenergy[0] + penergy[0]
     mass[0] = np.sum(s.thickness[:] * g.areaCell[:])
-    penstrophy[0] = 0.5 * np.sum(g.areaCell[:] * s.pv_cell[:]**2)
+    penstrophy[0] = 0.5 * np.sum(g.areaCell[:] * s.thickness * s.pv_cell[:]**2)
     pv_max[0] = np.max(s.pv_cell)
     pv_min[0] = np.min(s.pv_cell)
 
@@ -1051,7 +1055,7 @@ def main( ):
         penergy[iStep+1] = 0.5*c.gravity* np.sum((s.thickness[:]-h0)**2 * g.areaCell[:])
         total_energy[iStep+1] = kenergy[iStep+1] + penergy[iStep+1]
         mass[iStep+1] = np.sum(s.thickness[:] * g.areaCell[:])
-        penstrophy[iStep+1] = 0.5 * np.sum(g.areaCell[:] * s.pv_cell[:]**2)
+        penstrophy[iStep+1] = 0.5 * np.sum(g.areaCell[:] * s.thickness[:] * s.pv_cell[:]**2)
         pv_max[iStep+1] = np.max(s.pv_cell)
         pv_min[iStep+1] = np.min(s.pv_cell)
 #        aVorticity_total[iStep+1] = np.sum(g.areaCell * s.eta[:])
