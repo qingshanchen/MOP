@@ -1,6 +1,8 @@
 import numpy as np
-from scipy.sparse import coo_matrix, csc_matrix
-from scipy.sparse.linalg import spsolve, splu, cg, spilu, gmres
+from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
+from scipy.sparse.linalg import spsolve, splu
+from LinearAlgebra import cg
+import scipy.sparse.linalg as sp
 #from pysparse.itsolvers import krylov
 #from pysparse.sparse import spmatrix
 #from pysparse.precon import precon
@@ -21,20 +23,21 @@ class parameters:
 
     def __init__(self):
 
+        ### Parameters essential
+        self.test_case = 5
         self.on_a_global_sphere = True
 
-        self.test_case = 5
-
+        ### Parameters secondary
         # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
         self.timestepping = 'RK4'
 
-        self.dt = 720.   #1440 for 480km
+        self.dt = 1440   #1440 for 480km
         self.nYears = 1./360
         self.save_inter_days = 1
 
         self.use_direct_solver = True
         self.err_tol = 1e-5
-        self.max_iter = 2000
+        self.max_iter = 100
         
         self.restart = False
         self.restart_file = 'restart.nc'
@@ -389,9 +392,6 @@ class state_data:
 
             h0 = 5960.
             gh = c.gravity*h0 - np.sin(g.latCell[:])**2 * (a*c.Omega0*u0 + 0.5*u0*u0) 
-#            gh0 = 5960 * c.gravity
-#            gh = np.sin(g.latCell[:])**2
-#            gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
             h = gh / c.gravity
 
             # Define the mountain topography
@@ -434,6 +434,31 @@ class state_data:
             self.curlWind_cell[:] = -tau0 * np.pi/(latwidth*r) * \
                                     np.sin(np.pi*(g.latCell[:]-latmin) / latwidth)
             self.divWind_cell[:] = 0.
+
+        elif c.test_case == 12:
+            # One gyre with no forcing and drag, for a bounded domain over NA
+            d = np.sqrt(32*(g.latCell[:] - latmid)**2/latwidth**2 + 4*(g.lonCell[:]-(-1.1))**2/.3**2)
+            f0 = np.mean(g.fCell)
+            self.psi_cell[:] = 2*np.exp(-d**2) * 0.5*(1-np.tanh(20*(d-1.5)))
+            self.psi_cell[:] -= np.sum(self.psi_cell * g.areaCell) / np.sum(g.areaCell)
+            self.psi_cell *= c.gravity / f0
+            self.vorticity = cmp.discrete_laplace( \
+                 g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, \
+                 self.psi_cell)
+            self.divergence[:] = 0.
+            self.thickness[:] = 4000.
+            
+            # Initialize wind
+            self.curlWind_cell[:] = 0.
+            self.divWind_cell[:] = 0.
+
+            # Eliminate bottom drag
+            c.bottomDrag = 0.
+
+            # Eliminate lateral diffusion
+            c.delVisc = 0.
+            c.del2Visc = 0.
+            
             
         else:
             raise ValueError("Invaid choice for the test case.")
@@ -520,7 +545,7 @@ class state_data:
         self.compute_phi_cell(g,c)
 
         #if c.delVisc > np.finfo('float32').tiny:  # It is necessary to compute the vorticity and divergence on the boundary and enforce some artificial BCs
-        self.vorticity[:] = cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.psi_cell)
+        #self.vorticity[:] = cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.psi_cell)
             
         # Map vorticity and divergence to the dual mesh, and then compute the streamfunction and velocity potential
         # on dual mesh
@@ -699,7 +724,7 @@ def iterative_solver(A, b, x0, c):
     x, err = cg(A, b, x0=x0, tol=c.err_tol, maxiter=c.max_iter)
 
     if err > 0:
-        raise ValueError("Convergence not achieved after %d iterations in compute_psi_cell." % err)
+        raise ValueError("Convergence not achieved after %d iterations." % err)
     elif err < 0:
         raise ValueError("Something is wrong in iterative_solver. Program abort.")
     else:
@@ -712,7 +737,7 @@ def pysparse_iterative_solver(A, b, x, K, c):
     if info < 0:
         raise ValueError("Convergence not achieved after %d iterations. Error code %d." % (iter, info))
     else:
-        print("x[1001] = %e" % x[1001])
+        #print("x[1001] = %e" % x[1001])
         print("iter = %d" % iter)
         print("relres = %e" % relres)
         return info
@@ -760,9 +785,9 @@ def timestepping_rk4_z_hex(s, g, c):
         #grad_q2 = cmp.discrete_grad_n(q2, g.cellsOnEdge, g.dcEdge)
         #grad_q = cmp.discrete_grad_n(s_intm.pv_cell, g.cellsOnEdge, g.dcEdge)
         #dArea = g.dcEdge * g.dvEdge * 0.5
-        #pot_ens = np.sum(grad_q2 * s_intm.thickness_edge * s_intm.nVelocity * dArea)
-        #pot_ens -= 2*np.sum(grad_q * s_intm.eta_edge * s_intm.nVelocity * dArea)
-        #print("pot_ens = %e" % pot_ens)
+        #pEns_tend = np.sum(grad_q2 * s_intm.thickness_edge * s_intm.nVelocity * dArea)
+        #pEns_tend -= 2*np.sum(grad_q * s_intm.eta_edge * s_intm.nVelocity * dArea)
+        #print("pEns_tend = %e" % pEns_tend)
 
         if i < 3:
             # Advance s_intm 
@@ -813,16 +838,28 @@ def timestepping_euler(s, g, c):
     ## Examine pot-enstrophy conservation
     #q2_pre = s_pre.pv_cell * s_pre.pv_cell
     #pEns_pre = np.sum(0.5*s_pre.thickness*q2_pre*g.areaCell)
-    #q2 = s.pv_cell * s_pre.pv_cell
+    #q2 = s.pv_cell * s.pv_cell
     #pEns = np.sum(0.5*s.thickness*q2*g.areaCell)
     #print("pEns_pre, pEns, diff = %e, %e, %e" % (pEns_pre, pEns, pEns-pEns_pre))
-    #grad_q2 = cmp.discrete_grad_n(q2, g.cellsOnEdge, g.dcEdge)
-    #grad_q = cmp.discrete_grad_n(s_pre.pv_cell, g.cellsOnEdge, g.dcEdge)
-    #dArea = g.dcEdge * g.dvEdge * 0.5
-    #pot_ens = np.sum(grad_q2 * s_pre.thickness_edge * s_pre.nVelocity * dArea)
-    #pot_ens -= 2*np.sum(grad_q * s_pre.eta_edge * s_pre.nVelocity * dArea)
-    
 
+    #del_pEns_cell = 0.5*s.thickness*q2 - 0.5*s_pre.thickness*q2_pre
+    #del_pEns_cell *= c.dt * s.tend_thickness / s_pre.thickness
+    #del_pEns_cell += 0.5*(s.eta_cell - s_pre.eta_cell)**2 / s_pre.thickness
+    #del_pEns = np.sum(del_pEns_cell * g.areaCell)
+    #print("del_pEns = %e " % del_pEns)
+
+    #del_pEns_cell = 0.5*s.thickness*q2 - 0.5*s_pre.thickness*q2_pre
+    #del_pEns_cell *= c.dt * s.tend_thickness / s_pre.thickness
+    #del_pEns_cell += 0.5*(c.dt*s.tend_vorticity)**2 / s_pre.thickness
+    #del_pEns_cell = 0.5*(c.dt*s.tend_vorticity)**2 / s_pre.thickness
+    #del_pEns = np.sum(del_pEns_cell * g.areaCell)
+    #print("del_pEns = %e " % del_pEns)
+    
+    #del_pEns_cell = c.dt*0.5*(s.pv_cell + s_pre.pv_cell) * s.tend_vorticity
+    #del_pEns_cell -= 0.5*c.dt*s.tend_thickness*s.pv_cell*s_pre.pv_cell
+    #del_pEns = np.sum(del_pEns_cell * g.areaCell)
+    #print("del_pEns = %e " % del_pEns)
+    
 def run_tests(g, c, s):
 
     if False:   # Test the linear solver the Lapace equation on the interior cells with homogeneous Dirichlet BC's
@@ -916,79 +953,51 @@ def run_tests(g, c, s):
         print "L^2 error        = ", l2        
 
     if True:
-        b = np.zeros(g.nCells)
-        b[1:] = np.random.rand(g.nCells-1) * 1.e-5
+        sol = np.random.rand(g.nCells)
+        sol[0] = 0.
+        b = g.D2s.dot(sol)
 
         t0 = time.clock( )
         x1 = np.zeros(g.nCells)
-        x1[:] = g.lu_D2.solve(b)
+        x1[:] = g.lu_D2s.solve(b)
         t1 = time.clock( )
+        print("rel error = %f" % (np.sqrt(np.sum((x1-sol)**2))))
         print("CPU time for the direct method: %f" % (t1-t0,))
-        
-        b *= g.areaCell[:]
-        Kilu = ILU_Precon(g.D2s, drop=1.e-3)
-
-        t0 = time.clock( )
-        x1a = np.zeros(g.nCells)
-        x1a, info = cg(g.D2s, b, x1a, tol=c.err_tol)
-        t1 = time.clock( )
-        print("info = %d" % info)
-        print("CPU time for scipy cg solver: %f" % (t1-t0,))
-
-        t0 = time.clock( )
-        x1b = np.zeros(g.nCells)
-        x1b, info = gmres(g.D2s, b, None, tol=c.err_tol)
-        t1 = time.clock( )
-        print("info = %d" % info)
-        print("CPU time for scipy gmres solver: %f" % (t1-t0,))
         
         t0 = time.clock( )
         x2 = np.zeros(g.nCells)
-        info, iter, relres = krylov.pcg(g.D2s_ps, b, x2, c.err_tol, c.max_iter)
+        x2, info = sp.cg(g.D2s, b, x2, tol=c.err_tol)
         t1 = time.clock( )
         print("info = %d" % info)
-        print("iteration # = %d" % iter)
-        print("relres = %e" % relres)
-        print("CPU time for pysparse pcg: %f" % (t1-t0,))
+        print("rel error = %f" % (np.sqrt(np.sum((x2-sol)**2))/np.sqrt(np.sum(sol*sol))))
+        print("CPU time for scipy cg solver: %f" % (t1-t0,))
 
-        t0 = time.clock( )
-        x3 = np.zeros(g.nCells)
-        info, iter, relres = krylov.gmres(g.D2s_ps, b, x3, c.err_tol, c.max_iter)
-        t1 = time.clock( )
-        print("info = %d" % info)
-        print("iteration # = %d" % iter)
-        print("relres = %e" % relres)
-        print("CPU time for pysparse gmres: %f" % (t1-t0,))
-        
+
         t0 = time.clock( )
         x4 = np.zeros(g.nCells)
-        info, iter, relres = krylov.bicgstab(g.D2s_ps, b, x4, c.err_tol, c.max_iter)
+        A = g.D2s.tocsr( )
+        info, nIter = cg(A, b, x4, relres=c.err_tol)
         t1 = time.clock( )
         print("info = %d" % info)
-        print("iteration # = %d" % iter)
-        print("relres = %e" % relres)
-        print("CPU time for pysparse bicgstab solver: %f" % (t1-t0,))
+        print("nIter = %d" % nIter)
+        print("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol))))
+        print("CPU time for cg solver: %f" % (t1-t0,))
 
-        t0 = time.clock( )
-        x5 = np.zeros(g.nCells)
-        info, iter, relres = krylov.qmrs(g.D2s_ps, b, x5, c.err_tol, c.max_iter)
-        t1 = time.clock( )
-        print("info = %d" % info)
-        print("iteration # = %d" % iter)
-        print("relres = %e" % relres)
-        print("CPU time for pysparse qmrs solver: %f" % (t1-t0,))
+    if False:
+        # Test LinearAlgebra.cg solver by a small simple example
+        A = csr_matrix([[2,1,0],[1,3,1],[0,1,4]])
+        sol = np.array([1,0,-1])
+        b = np.array([2,0,-4])
 
-        t0 = time.clock( )
-        x6 = np.zeros(g.nCells)
-        info, iter, relres = krylov.minres(g.D2s_ps, b, x6, c.err_tol, c.max_iter)
-        t1 = time.clock( )
-        print("info = %d" % info)
-        print("iteration # = %d" % iter)
-        print("relres = %e" % relres)
-        print("CPU time for pysparse minres solver: %f" % (t1-t0,))
+        x0 = np.array([0.,0.,0.])
+        x, info = cg_scipy(A, b, x0=x0, maxiter = 200)
+        print("cg_scipy: info = %d" % info)
+        print(x)
+        info, nIter = cg(A, b, x0, max_iter = 100)
+        print("nIter = %d" % nIter)
+        print("x = ")
+        print(x0)
 
-        raise ValueError
-        
         
 def main( ):
 
@@ -1001,8 +1010,8 @@ def main( ):
     g = grid_data('grid.nc', c)
     s = state_data(g, c)
 
-    #run_tests(g, c, s)
-    #raise ValueError("Just for testing.")
+    run_tests(g, c, s)
+    raise ValueError("Just for testing.")
 
     s.initialization(g, c)
 
@@ -1114,6 +1123,7 @@ def main( ):
     plt.ylabel('Enstrophy')
     #plt.ylim(0.74, 0.78)
     plt.savefig('enstrophy.png', format='PNG')
+    print("Change in potential enstrophy = %e " % (penstrophy[-1] - penstrophy[0]))
 
     plt.figure(5)
     plt.plot(days, mass)
