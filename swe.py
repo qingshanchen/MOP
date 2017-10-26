@@ -35,9 +35,9 @@ class parameters:
         self.nYears = 1./360
         self.save_inter_days = 1
 
-        self.use_direct_solver = True
+        self.use_direct_solver = False
         self.err_tol = 1e-5
-        self.max_iter = 100
+        self.max_iter = 500
         
         self.restart = False
         self.restart_file = 'restart.nc'
@@ -597,7 +597,10 @@ class state_data:
                 self.psi_cell[:] = g.lu_D2s.solve(b)
             elif not c.use_direct_solver:
                 b *= g.areaCell[:]
-                self.psi_cell = iterative_solver(g.D2s, b, self.psi_cell, c)
+                #self.psi_cell[:] = 0.
+                #self.psi_cell = iterative_solver(g.D2s, b, self.psi_cell, c)
+                info, nIter = cg(g.D2s, b, self.psi_cell, relres=c.err_tol)
+                print("compute_psi_cell, nIter = %d" % nIter)
             else:
                 raise ValueError("Indicator for solver is not valid. Abort.")
 
@@ -623,7 +626,10 @@ class state_data:
             if c.use_direct_solver:
                 self.psi_vertex[:] = g.lu_E2s.solve(b)
             elif not c.use_direct_solver:
-                self.psi_vertex = iterative_solver(g.E2s, b, self.psi_vertex, c)
+                #self.psi_vertex = iterative_solver(g.E2s, b, self.psi_vertex, c)
+#                self.psi_vertex[:] = 0.
+                info, nIter = cg(g.E2s, b, self.psi_vertex, relres=c.err_tol)
+                print("compute_psi_vertex, nIter = %d" % nIter)
             else:
                 raise ValueError("Indicator for director is not valid. Abort.")
             
@@ -653,7 +659,11 @@ class state_data:
             if c.use_direct_solver:
                 self.phi_cell[:] = g.lu_D2s.solve( b )
             elif not c.use_direct_solver:
-                self.phi_cell = iterative_solver(g.D2s, b, self.phi_cell, c)
+#                self.phi_cell[:] = 0.
+                #self.phi_cell = iterative_solver(g.D2s, b, self.phi_cell, c)
+                #self.phi_cell, err = sp.cg(g.D2s, b, x0=self.phi_cell, tol=c.err_tol)
+                info, nIter = cg(g.D2s, b, self.phi_cell, relres=c.err_tol)
+                print("compute_phi_cell, nIter = %d" % nIter)
             else:
                 raise ValueError("Indicator for solver is not valid. Abort.")
             
@@ -681,9 +691,13 @@ class state_data:
             if c.use_direct_solver:
                 self.phi_vertex[:] = g.lu_E2s.solve(b)
             elif not c.use_direct_solver:
-                self.phi_vertex = iterative_solver(g.E2s, b, self.psi_vertex, c)
+#                self.phi_vertex[:] = 0.
+                #self.phi_vertex = iterative_solver(g.E2s, b, self.phi_vertex, c)
+                #self.phi_vertex, err = sp.cg(g.E2s, b, x0=self.phi_vertex, tol=c.err_tol)
+                info, nIter = cg(g.E2s, b, self.phi_vertex, relres=c.err_tol)
+                print("compute_phi_vertex, nIter = %d" % nIter)
             else:
-                raise ValueError("Indicator for is not valid. Abort.")
+                raise ValueError("Indicator solver for is not valid. Abort.")
 
         return 0
     
@@ -953,6 +967,8 @@ def run_tests(g, c, s):
         print "L^2 error        = ", l2        
 
     if True:
+        # To test and compare direct and iterative linear solvers for systems on the primary mesh
+        
         sol = np.random.rand(g.nCells)
         sol[0] = 0.
         b = g.D2s.dot(sol)
@@ -983,6 +999,41 @@ def run_tests(g, c, s):
         print("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol))))
         print("CPU time for cg solver: %f" % (t1-t0,))
 
+
+    if True:
+        # To test and compare direct and iterative linear solvers for systems on the dual mesh
+        
+        sol = np.random.rand(g.nVertices)
+        sol[0] = 0.
+        b = g.E2s.dot(sol)
+
+        t0 = time.clock( )
+        x1 = np.zeros(g.nVertices)
+        x1[:] = g.lu_E2s.solve(b)
+        t1 = time.clock( )
+        print("rel error = %f" % (np.sqrt(np.sum((x1-sol)**2))))
+        print("CPU time for the direct method: %f" % (t1-t0,))
+        
+        t0 = time.clock( )
+        x2 = np.zeros(g.nVertices)
+        x2, info = sp.cg(g.E2s, b, x2, tol=c.err_tol)
+        t1 = time.clock( )
+        print("info = %d" % info)
+        print("rel error = %f" % (np.sqrt(np.sum((x2-sol)**2))/np.sqrt(np.sum(sol*sol))))
+        print("CPU time for scipy cg solver: %f" % (t1-t0,))
+
+
+        A = g.E2s.tocsr( )
+        t0 = time.clock( )
+        x4 = np.zeros(g.nVertices)
+        info, nIter = cg(g.E2s, b, x4, relres=c.err_tol)
+        t1 = time.clock( )
+        print("info = %d" % info)
+        print("nIter = %d" % nIter)
+        print("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol))))
+        print("CPU time for cg solver: %f" % (t1-t0,))
+
+        
     if False:
         # Test LinearAlgebra.cg solver by a small simple example
         A = csr_matrix([[2,1,0],[1,3,1],[0,1,4]])
@@ -1010,8 +1061,8 @@ def main( ):
     g = grid_data('grid.nc', c)
     s = state_data(g, c)
 
-    run_tests(g, c, s)
-    raise ValueError("Just for testing.")
+    #run_tests(g, c, s)
+    #raise ValueError("Just for testing.")
 
     s.initialization(g, c)
 
