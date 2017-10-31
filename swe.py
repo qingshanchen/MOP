@@ -16,7 +16,6 @@ from swe_comp import swe_comp as cmp
 import os
 from copy import deepcopy as deepcopy 
 
-#cmp = swe_comp.swe_comp
 max_int = np.iinfo('int32').max
 
 class parameters:
@@ -31,13 +30,13 @@ class parameters:
         # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
         self.timestepping = 'RK4'
 
-        self.dt = 1440   #1440 for 480km
-        self.nYears = 1./360
+        self.dt = 360   #1440 for 480km
+        self.nYears = .04/360
         self.save_inter_days = 1
 
         self.use_direct_solver = False
-        self.err_tol = 1e-5
-        self.max_iter = 500
+        self.err_tol = 1e-4
+        self.max_iter = 2000
         
         self.restart = False
         self.restart_file = 'restart.nc'
@@ -89,6 +88,7 @@ class grid_data:
         self.latEdge = grid.variables['latEdge'][:]
         self.lonEdge = grid.variables['lonEdge'][:]
         self.latVertex = grid.variables['latVertex'][:]
+        self.lonVertex = grid.variables['lonVertex'][:]
         self.cellsOnEdge = grid.variables['cellsOnEdge'][:]
         self.nEdgesOnCell = grid.variables['nEdgesOnCell'][:]
         self.dvEdge = grid.variables['dvEdge'][:]
@@ -104,6 +104,7 @@ class grid_data:
         self.kiteAreasOnVertex = grid.variables['kiteAreasOnVertex'][:]
 
         self.fEdge = grid.variables['fEdge'][:]
+        self.fVertex = grid.variables['fVertex'][:]
         self.fCell = 2 * 7.292e-5 * np.sin(self.latCell[:])
         #self.fCell = grid.variables['fCell'][:]
 
@@ -264,6 +265,7 @@ class state_data:
         self.divergence = self.thickness.copy()
 
         # Diagnostic variables
+        self.thickness_vertex = np.zeros(g.nVertices)
         self.vorticity_vertex = np.zeros(g.nVertices)
         self.divergence_vertex = np.zeros(g.nVertices)
         self.psi_cell = np.zeros(g.nCells)
@@ -285,6 +287,10 @@ class state_data:
         # Forcing
         self.curlWind_cell = np.zeros(g.nCells)
         self.divWind_cell = np.zeros(g.nCells)
+        self.sfWind_cell = np.zeros(g.nCells)
+        self.sfWind_vertex = np.zeros(g.nVertices)
+        self.vpWind_cell = np.zeros(g.nCells)
+        self.vpWind_vertex = np.zeros(g.nVertices)
 
         # Time keeper
         self.time = 0.0
@@ -403,10 +409,16 @@ class state_data:
             r = np.where(r < R, r, R)
             g.bottomTopographyCell[:] = h_s0 * ( 1 - r/R)
             self.thickness[:] = h[:] - g.bottomTopographyCell[:]
-
             self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
             self.divergence[:] = 0.
             self.compute_diagnostics(g, c)
+
+            self.curlWind_cell[:] = 0.
+            self.divWind_cell[:] = 0.
+            self.sfWind_cell[:] = 0.
+            self.sfWind_vertex[:] = 0.
+            self.vpWind_cell[:] = 0.
+            self.vpWind_vertex[:] = 0.
 
         elif c.test_case == 11:
             # A wind-driven gyre at mid-latitude in the northern hemisphere
@@ -541,6 +553,8 @@ class state_data:
             self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
             self.divergence[:] = 0.
 
+        self.thickness_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.thickness)
+        
         self.compute_psi_cell(g,c)
         self.compute_phi_cell(g,c)
 
@@ -553,6 +567,10 @@ class state_data:
         self.divergence_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.divergence)
 
         # Compute psi_vertex and phi_vertex from vorticity_vertex and divergence_vertex
+        #self.psi_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.psi_cell)
+        #self.psi_vertex[:] -= self.psi_vertex[0]
+        #self.phi_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.phi_cell)
+        #self.phi_vertex[:] -= self.phi_vertex[0]
         self.compute_psi_vertex(g, c)
         self.compute_phi_vertex(g, c)
         
@@ -597,9 +615,9 @@ class state_data:
                 self.psi_cell[:] = g.lu_D2s.solve(b)
             elif not c.use_direct_solver:
                 b *= g.areaCell[:]
-                #self.psi_cell[:] = 0.
+                self.psi_cell[:] -= self.psi_cell[0]
                 #self.psi_cell = iterative_solver(g.D2s, b, self.psi_cell, c)
-                info, nIter = cg(g.D2s, b, self.psi_cell, relres=c.err_tol)
+                info, nIter = cg(g.D2s, b, self.psi_cell, max_iter=c.max_iter, relres=c.err_tol)
                 print("compute_psi_cell, nIter = %d" % nIter)
             else:
                 raise ValueError("Indicator for solver is not valid. Abort.")
@@ -627,8 +645,8 @@ class state_data:
                 self.psi_vertex[:] = g.lu_E2s.solve(b)
             elif not c.use_direct_solver:
                 #self.psi_vertex = iterative_solver(g.E2s, b, self.psi_vertex, c)
-#                self.psi_vertex[:] = 0.
-                info, nIter = cg(g.E2s, b, self.psi_vertex, relres=c.err_tol)
+                self.psi_vertex[:] -= self.psi_vertex[0]
+                info, nIter = cg(g.E2s, b, self.psi_vertex, max_iter=c.max_iter, relres=c.err_tol)
                 print("compute_psi_vertex, nIter = %d" % nIter)
             else:
                 raise ValueError("Indicator for director is not valid. Abort.")
@@ -659,10 +677,10 @@ class state_data:
             if c.use_direct_solver:
                 self.phi_cell[:] = g.lu_D2s.solve( b )
             elif not c.use_direct_solver:
-#                self.phi_cell[:] = 0.
                 #self.phi_cell = iterative_solver(g.D2s, b, self.phi_cell, c)
                 #self.phi_cell, err = sp.cg(g.D2s, b, x0=self.phi_cell, tol=c.err_tol)
-                info, nIter = cg(g.D2s, b, self.phi_cell, relres=c.err_tol)
+                self.phi_cell[:] -= self.phi_cell[0]
+                info, nIter = cg(g.D2s, b, self.phi_cell, max_iter=c.max_iter, relres=c.err_tol)
                 print("compute_phi_cell, nIter = %d" % nIter)
             else:
                 raise ValueError("Indicator for solver is not valid. Abort.")
@@ -691,10 +709,10 @@ class state_data:
             if c.use_direct_solver:
                 self.phi_vertex[:] = g.lu_E2s.solve(b)
             elif not c.use_direct_solver:
-#                self.phi_vertex[:] = 0.
+                self.phi_vertex[:] -= self.phi_vertex[0]
                 #self.phi_vertex = iterative_solver(g.E2s, b, self.phi_vertex, c)
                 #self.phi_vertex, err = sp.cg(g.E2s, b, x0=self.phi_vertex, tol=c.err_tol)
-                info, nIter = cg(g.E2s, b, self.phi_vertex, relres=c.err_tol)
+                info, nIter = cg(g.E2s, b, self.phi_vertex, max_iter=c.max_iter, relres=c.err_tol)
                 print("compute_phi_vertex, nIter = %d" % nIter)
             else:
                 raise ValueError("Indicator solver for is not valid. Abort.")
@@ -809,8 +827,21 @@ def timestepping_rk4_z_hex(s, g, c):
             s_intm.vorticity[:] = s_pre.vorticity[:] + coef[i+1]*dt*s.tend_vorticity[:]
             s_intm.divergence[:] = s_pre.divergence[:] + coef[i+1]*dt*s.tend_divergence[:]
 
+            # Prediction of streamfunction and velocity potential by the linearized equations
+            fdt = coef[i+1]*dt
+            s_intm.psi_cell[:] = s_pre.psi_cell[:] + fdt * s_intm.sfWind_cell[:]/s_intm.thickness[:]
+            s_intm.psi_cell -= fdt * g.fCell[:]*s_intm.phi_cell[:]
+            s_intm.psi_vertex[:] = s_pre.psi_vertex[:] + fdt * s_intm.sfWind_vertex[:]/s_intm.thickness_vertex[:]
+            s_intm.psi_vertex[:] -= fdt * g.fVertex[:]*s_intm.phi_vertex[:]
+            
             s_intm.compute_diagnostics(g, c)
 
+    # Prediction using the latest s_intm values
+    s.psi_cell[:] = s_intm.psi_cell[:]
+    s.phi_cell[:] = s_intm.phi_cell[:]
+    s.psi_vertex[:] = s_intm.psi_vertex[:]
+    s.phi_vertex[:] = s_intm.phi_vertex[:]
+    
     s.compute_diagnostics(g, c)
 
 
@@ -966,8 +997,9 @@ def run_tests(g, c, s):
         print "L infinity error = ", l8
         print "L^2 error        = ", l2        
 
-    if True:
+    if False:
         # To test and compare direct and iterative linear solvers for systems on the primary mesh
+        print("To test and compare direct and iterative linear solvers for systems on the primary mesh")
         
         sol = np.random.rand(g.nCells)
         sol[0] = 0.
@@ -1000,8 +1032,9 @@ def run_tests(g, c, s):
         print("CPU time for cg solver: %f" % (t1-t0,))
 
 
-    if True:
+    if False:
         # To test and compare direct and iterative linear solvers for systems on the dual mesh
+        print("To test and compare direct and iterative linear solvers for systems on the dual mesh")
         
         sol = np.random.rand(g.nVertices)
         sol[0] = 0.
@@ -1033,6 +1066,96 @@ def run_tests(g, c, s):
         print("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol))))
         print("CPU time for cg solver: %f" % (t1-t0,))
 
+
+    if False:
+        print("To study and compare initializaiton schemes ")
+        
+        sol_cell = np.cos(g.latCell)*np.sin(g.lonCell)
+        sol_cell[:] -= sol_cell[0]
+        sol_vertex = np.cos(g.latVertex)*np.sin(g.lonVertex)
+        sol_vertex[:] -= sol_vertex[0]
+
+        vort_cell = cmp.discrete_laplace( \
+                 g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, \
+                                          sol_cell)
+        vort_vertex = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, vort_cell)
+        
+        x_cell = np.zeros(g.nCells)
+        b_cell = vort_cell[:] * g.areaCell[:]
+        b_cell[0] = 0.
+        t0 = time.clock( )
+        info, nIter = cg(g.D2s, b_cell, x_cell, relres=c.err_tol)
+        t1 = time.clock( )
+        print("info = %d" % info)
+        print("nIter = %d" % nIter)
+        print("rel error = %f" % (np.sqrt(np.sum((x_cell-sol_cell)**2))/np.sqrt(np.sum(sol_cell*sol_cell))))
+        print("CPU time for cg solver on primary mesh: %f" % (t1-t0,))
+
+        x_vertex = np.zeros(g.nVertices)
+        b_vertex = vort_vertex[:] * g.areaTriangle[:]
+        b_vertex[0] = 0.
+        t0 = time.clock( )
+        info, nIter = cg(g.E2s, b_vertex, x_vertex, relres=c.err_tol)
+        t1 = time.clock( )
+        print("info = %d" % info)
+        print("nIter = %d" % nIter)
+        print("rel error = %f" % (np.sqrt(np.sum((x_vertex-sol_vertex)**2))/np.sqrt(np.sum(sol_vertex*sol_vertex))))
+        print("CPU time for cg solver on dual mesh with generic initialization: %f" % (t1-t0,))
+
+        x_vertex = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, sol_cell)
+        x_vertex[:] -= x_vertex[0]
+        print("Initial guess, rel error = %f" % (np.sqrt(np.sum((x_vertex-sol_vertex)**2))/np.sqrt(np.sum(sol_vertex*sol_vertex))))
+        t0 = time.clock( )
+        info, nIter = cg(g.E2s, b_vertex, x_vertex, relres=c.err_tol)
+        t1 = time.clock( )
+        print("info = %d" % info)
+        print("nIter = %d" % nIter)
+        print("rel error = %f" % (np.sqrt(np.sum((x_vertex-sol_vertex)**2))/np.sqrt(np.sum(sol_vertex*sol_vertex))))
+        print("CPU time for cg solver on dual mesh with proper initialization: %f" % (t1-t0,))
+        
+
+    if True:
+        print("Repeat previous test, but using data from SWSTC #5 ")
+
+        s.initialization(g, c)
+        sol_cell = s.psi_cell[:]
+        sol_cell[:] -= sol_cell[0]
+        sol_vertex = s.psi_vertex[:]
+        sol_vertex[:] -= sol_vertex[0]
+
+        x_cell = np.zeros(g.nCells)
+        b_cell = s.vorticity[:] * g.areaCell[:]
+        b_cell[0] = 0.
+        t0 = time.clock( )
+        info, nIter = cg(g.D2s, b_cell, x_cell, max_iter=2000, relres=c.err_tol)
+        t1 = time.clock( )
+        print("info = %d" % info)
+        print("nIter = %d" % nIter)
+        print("rel error = %f" % (np.sqrt(np.sum((x_cell-sol_cell)**2))/np.sqrt(np.sum(sol_cell*sol_cell))))
+        print("CPU time for cg solver on primary mesh: %f" % (t1-t0,))
+
+        x_vertex = np.zeros(g.nVertices)
+        b_vertex = s.vorticity_vertex[:] * g.areaTriangle[:]
+        b_vertex[0] = 0.
+        t0 = time.clock( )
+        info, nIter = cg(g.E2s, b_vertex, x_vertex, max_iter=2000, relres=c.err_tol)
+        t1 = time.clock( )
+        print("info = %d" % info)
+        print("nIter = %d" % nIter)
+        print("rel error = %f" % (np.sqrt(np.sum((x_vertex-sol_vertex)**2))/np.sqrt(np.sum(sol_vertex*sol_vertex))))
+        print("CPU time for cg solver on dual mesh with generic initialization: %f" % (t1-t0,))
+
+        x_vertex = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, sol_cell)
+        x_vertex[:] -= x_vertex[0]
+        print("Initial guess, rel error = %f" % (np.sqrt(np.sum((x_vertex-sol_vertex)**2))/np.sqrt(np.sum(sol_vertex*sol_vertex))))
+        t0 = time.clock( )
+        info, nIter = cg(g.E2s, b_vertex, x_vertex, max_iter=c.max_iter, relres=c.err_tol)
+        t1 = time.clock( )
+        print("info = %d" % info)
+        print("nIter = %d" % nIter)
+        print("rel error = %f" % (np.sqrt(np.sum((x_vertex-sol_vertex)**2))/np.sqrt(np.sum(sol_vertex*sol_vertex))))
+        print("CPU time for cg solver on dual mesh with proper initialization: %f" % (t1-t0,))
+        
         
     if False:
         # Test LinearAlgebra.cg solver by a small simple example
@@ -1065,7 +1188,7 @@ def main( ):
     #raise ValueError("Just for testing.")
 
     s.initialization(g, c)
-
+    
     s_init = deepcopy(s)
     h0 = np.mean(s_init.thickness[:])
         
