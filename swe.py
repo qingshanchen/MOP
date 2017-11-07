@@ -31,7 +31,7 @@ class parameters:
         self.timestepping = 'RK4'
 
         self.dt = 360   #1440 for 480km
-        self.nYears = 4./360
+        self.nYears = .04/360
         self.save_inter_days = 1
 
         self.use_direct_solver = False
@@ -187,9 +187,9 @@ class grid_data:
         # Convert to csc sparse format
         self.D2s = D2s_coo.tocsc( )
 
-#        if c.use_direct_solver:
-#            self.lu_D2s = splu(self.D2s)
-        self.lu_D2s = splu(self.D2s)
+        if c.use_direct_solver:
+            self.lu_D2s = splu(self.D2s)
+#        self.lu_D2s = splu(self.D2s)
 
 
         if not c.on_a_global_sphere:
@@ -776,19 +776,21 @@ def pysparse_iterative_solver(A, b, x, K, c):
         print("relres = %e" % relres)
         return info
     
-def timestepping_rk4_z_hex(s, g, c):
+def timestepping_rk4_z_hex(s, s_pre, s_old, g, c):
 
     coef = np.array([0., .5, .5, 1.])
     accum = np.array([1./6, 1./3, 1./3, 1./6])
 
     dt = c.dt
 
-    s_pre = deepcopy(s)
-    s_intm = deepcopy(s)
+    s_intm = deepcopy(s_pre)
 
     # Update the time stamp first
     s.time += dt
 
+    s.thickness[:] = s_pre.thickness[:]
+    s.vorticity[:] = s_pre.vorticity[:]
+    s.divergence[:] = s_pre.divergence[:]
     for i in xrange(4):
 
         # Compute the tendencies
@@ -835,62 +837,6 @@ def timestepping_rk4_z_hex(s, g, c):
                 s_intm.psi_vertex[:] = 2*s_intm.psi_vertex[:] - s_pre.psi_vertex[:]
                 s_intm.phi_vertex[:] = 2*s_intm.phi_vertex[:] - s_pre.phi_vertex[:]
 
-            # Prediction of streamfunction by the linearized equations
-            fdt = coef[i+1]*dt
-#            psi_cell_intm = s_intm.psi_cell.copy()
-#            s_intm.psi_cell[:] = s_pre.psi_cell[:] + fdt * s_intm.sfWind_cell[:]/s_intm.thickness[:]
-#            s_intm.psi_cell[:] -= fdt * g.fCell[:]*s_intm.phi_cell[:]
-#            s_intm.psi_vertex[:] = s_pre.psi_vertex[:] + fdt * s_intm.sfWind_vertex[:]/s_intm.thickness_vertex[:]
-#            s_intm.psi_vertex[:] -= fdt * g.fVertex[:]*s_intm.phi_vertex[:]
-
-#            s_intm.phi_cell[:] = s_pre.phi_cell[:] + fdt * s_intm.vpWind_cell[:] / s_intm.thickness[:]
-#            s_intm.phi_cell[:] += fdt*g.fCell[:] * psi_cell_intm
-#            s_intm.phi_cell[:] -= fdt*geoPotent
-            
-#            fu = s_intm.eta_edge[:] * s_intm.tVelocity[:]
-#            curlfu = cmp.discrete_curl(g.cellsOnEdge, g.dvEdge, g.areaCell, fu)
-#            laplaceGeoPot = cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, geoPotent)
-#            print("max of in curlfu: %e" % np.max(curlfu))
-#            print("min of in curlfu: %e" % np.min(curlfu))
-#            print("max of in laplaceGeoPot: %e" % np.max(laplaceGeoPot))
-#            print("min of in laplaceGeoPot: %e" % np.min(laplaceGeoPot))
-#            print("max of in tend_divergence: %e" % np.max(s.tend_divergence))
-#            print("min of in tend_divergence: %e" % np.min(s.tend_divergence))
-#            print("max of in curlfu-laplaceGeoPot: %e" % np.max(curlfu-laplaceGeoPot))
-#            print("min of in curlfu-laplaceGeoPot: %e" % np.min(curlfu-laplaceGeoPot))
-#            divergence_tend = curlfu_inv - c.gravity * (s_intm.thickness[:] + g.bottomTopographyCell[:]) - s_intm.kinetic_energy[:]
-            #divergence_tend = curlfu_inv - geoPotent
-#            divergence_tend = cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, divergence_tend)
-#            print("max of difference in divergence_tend: %e" % np.max(np.abs(divergence_tend - s.tend_divergence)))
-            
-#            print("diff in curlfu: %e" % np.max(np.abs((curlfu - cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, g.fCell*psi_cell_intm)))))
-#            phi_cell_tend = np.zeros(g.nCells)
-#            latL = np.pi/6
-#            hiLatN = (g.latCell > latL)
-#            hiLatS = (g.latCell < -latL)
-#            midZone = (np.abs(g.latCell) <= latL)
-#            phi_cell_tend[hiLatN] = g.fCell[hiLatN] * psi_cell_intm[hiLatN]
-#            laplace_fpsi = cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, phi_cell_tend)
-#            HILatN = (g.latCell > latL+0.02)
-#            print("Max in laplace(f psi) = %e" % np.max(laplace_fpsi[HILatN]))
-#            print("max of in curlfu: %e" % np.max(curlfu[HILatN]))
-#            print("Min in laplace(f psi) = %e" % np.min(laplace_fpsi[HILatN]))
-#            print("min of in curlfu: %e" % np.min(curlfu[HILatN]))
-#            phi_cell_tend[hiLatN] -= geoPotent[hiLatN]
-#            phi_cell_tend[hiLatN] -= np.mean(phi_cell_tend[hiLatN])
-#            phi_cell_tend[hiLatS] = g.fCell[hiLatS] * psi_cell_intm[hiLatS]
-#            phi_cell_tend[hiLatS] -= geoPotent[hiLatS]
-#            phi_cell_tend[hiLatS] -= np.mean(phi_cell_tend[hiLatS])
-#            print("Max in laplace(phi_cell_tend) = %e" % np.max(cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, phi_cell_tend)))
-#            print("Min in laplace(phi_cell_tend) = %e" % np.min(cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, phi_cell_tend)))
-#            s_intm.phi_cell[:] += fdt * phi_cell_tend
-#            s_intm.phi_cell[:] -= fdt * geoPotent
-#            s_intm.phi_cell[:] -= fdt * c.gravity * (s_intm.thickness[:] + g.bottomTopographyCell[:])
-#            s_intm.phi_cell[:] -= fdt * s_intm.kinetic_energy[:]
-
-            
-#            print("l2 of vorticity = %e" % np.sqrt(np.mean(s_intm.vorticity[:]**2)))
-#            print("l2 of divergence = %e" % np.sqrt(np.mean(s_intm.divergence[:]**2)))
             s_intm.compute_diagnostics(g, c)
 
     # Prediction using the latest s_intm values
@@ -1279,12 +1225,15 @@ def main( ):
     # Entering the loop
     t0 = time.clock( )
     t0a = time.time( )
+    s_pre = deepcopy(s)
+    s_old = deepcopy(s)
+    
     for iStep in xrange(c.nTimeSteps):
 
         print "Doing step %d " % iStep
 
         if c.timestepping == 'RK4':
-            timestepping_rk4_z_hex(s, g, c)
+            timestepping_rk4_z_hex(s, s_pre, s_old, g, c)
         elif c.timestepping == 'E':
             timestepping_euler(s, g, c)
         else:
@@ -1324,7 +1273,12 @@ def main( ):
 
             errorInf[iStep+1, 0] = np.max(np.abs(s.thickness[:] - s_init.thickness[:])) / np.max(np.abs(s_init.thickness[:]))
             errorInf[iStep+1, 1] = np.max(np.abs(s.vorticity[:] - s_init.vorticity[:])) / np.max(np.abs(s_init.vorticity[:]))
-            errorInf[iStep+1, 2] = np.max(np.abs(s.divergence[:] - s_init.divergence[:])) 
+            errorInf[iStep+1, 2] = np.max(np.abs(s.divergence[:] - s_init.divergence[:]))
+
+        s_tmp = s_old
+        s_old = s_pre
+        s_pre = s
+        s = s_tmp
 
     days = c.dt * np.arange(c.nTimeSteps+1) / 86400.
     t1 = time.clock( )
