@@ -545,6 +545,25 @@ class state_data:
         out.close( )
 
 
+    def compute_tendencies(self, g, c):
+
+        thicknessTransport = self.thickness_edge[:] * self.nVelocity[:]
+        self.tend_thickness[:] = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, thicknessTransport)
+        
+        absVorTransport = self.eta_edge[:] * self.nVelocity[:]
+        self.tend_vorticity[:] = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorTransport)
+        self.tend_vorticity[:] += self.curlWind_cell / self.thickness[:]
+        self.tend_vorticity[:] -= c.bottomDrag * self.vorticity[:]
+        self.tend_vorticity[:] += c.delVisc * cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.vorticity)
+        
+        absVorCirc = self.eta_edge[:] * self.tVelocity[:]
+        geoPotent = c.gravity * (self.thickness[:] + g.bottomTopographyCell[:])  + self.kinetic_energy[:]
+        self.tend_divergence[:] = cmp.discrete_curl(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorCirc) - \
+                          cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, geoPotent)
+        self.tend_divergence[:] += self.divWind_cell/self.thickness[:]
+        self.tend_divergence[:] -= c.bottomDrag * self.divergence[:]
+        self.tend_divergence[:] += c.delVisc * cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.divergence)
+
     def compute_diagnostics(self, g, c):
         # Compute diagnostic variables from pv_cell
 
@@ -794,27 +813,12 @@ def timestepping_rk4_z_hex(s, s_pre, s_old, g, c):
     for i in xrange(4):
 
         # Compute the tendencies
-        thicknessTransport = s_intm.thickness_edge[:] * s_intm.nVelocity[:]
-        s.tend_thickness = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, thicknessTransport)
-        
-        absVorTransport = s_intm.eta_edge[:] * s_intm.nVelocity[:]
-        s.tend_vorticity = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorTransport)
-        s.tend_vorticity += s.curlWind_cell / s_intm.thickness[:]
-        s.tend_vorticity -= c.bottomDrag * s_intm.vorticity[:]
-        s.tend_vorticity += c.delVisc * cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, s_intm.vorticity)
-        
-        absVorCirc = s_intm.eta_edge[:] * s_intm.tVelocity[:]
-        geoPotent = c.gravity * (s_intm.thickness[:] + g.bottomTopographyCell[:])  + s_intm.kinetic_energy[:]
-        s.tend_divergence = cmp.discrete_curl(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorCirc) - \
-                          cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, geoPotent)
-        s.tend_divergence += s.divWind_cell/s_intm.thickness[:]
-        s.tend_divergence -= c.bottomDrag * s_intm.divergence[:]
-        s.tend_divergence += c.delVisc * cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, s_intm.divergence)
+        s_intm.compute_tendencies(g, c)
 
         # Accumulating the change in s
-        s.thickness[:] += s.tend_thickness[:]*accum[i]*dt
-        s.vorticity[:] += s.tend_vorticity[:]*accum[i]*dt
-        s.divergence[:] += s.tend_divergence[:]*accum[i]*dt
+        s.thickness[:] += s_intm.tend_thickness[:]*accum[i]*dt
+        s.vorticity[:] += s_intm.tend_vorticity[:]*accum[i]*dt
+        s.divergence[:] += s_intm.tend_divergence[:]*accum[i]*dt
 
         ## Examine pot-enstrophy conservation
         #q2 = s_intm.pv_cell * s_intm.pv_cell
@@ -827,9 +831,9 @@ def timestepping_rk4_z_hex(s, s_pre, s_old, g, c):
 
         if i < 3:
             # Advance s_intm 
-            s_intm.thickness[:] = s_pre.thickness[:] + coef[i+1]*dt*s.tend_thickness[:]
-            s_intm.vorticity[:] = s_pre.vorticity[:] + coef[i+1]*dt*s.tend_vorticity[:]
-            s_intm.divergence[:] = s_pre.divergence[:] + coef[i+1]*dt*s.tend_divergence[:]
+            s_intm.thickness[:] = s_pre.thickness[:] + coef[i+1]*dt*s_intm.tend_thickness[:]
+            s_intm.vorticity[:] = s_pre.vorticity[:] + coef[i+1]*dt*s_intm.tend_vorticity[:]
+            s_intm.divergence[:] = s_pre.divergence[:] + coef[i+1]*dt*s_intm.tend_divergence[:]
 
             if i==2:
                 s_intm.psi_cell[:] = 2*s_intm.psi_cell[:] - s_pre.psi_cell[:]
