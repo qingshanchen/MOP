@@ -27,6 +27,34 @@ subroutine cell2vertex(nVertices, nCells, nEdges, vertexDegree, &
 end subroutine cell2vertex
 
 
+subroutine edge2cell(nCells, nEdges, &
+     cellsOnEdge, dcEdge, dvEdge, areaCell, scalar_edge, &
+     scalar_cell)
+  integer, intent(in) :: nCells, nEdges
+  integer, intent(in) :: cellsOnEdge(0:nEdges-1, 0:1)
+  double precision, intent(in)  :: scalar_edge(0:nEdges-1), areaCell(0:nCells-1), dvEdge(0:nEdges-1), &
+       dcEdge(0:nEdges-1)
+  double precision, intent(out) :: scalar_cell(0:nCells-1)
+
+  integer :: iCell, iEdge, cell0, cell1
+  double precision:: scalarEdgeTmp
+
+  scalar_cell(:) = 0.0
+  do iEdge = 0, nEdges-1
+     cell0 = cellsOnEdge(iEdge,0) - 1
+     cell1 = cellsOnEdge(iEdge,1) - 1
+     scalarEdgeTmp = 0.5 * 0.5 * scalar_edge(iEdge) * dvEdge(iEdge) * dcEdge(iEdge)
+     scalar_cell(cell0) = scalar_cell(cell0) + scalarEdgeTmp
+     scalar_cell(cell1) = scalar_cell(cell1) + scalarEdgeTmp
+  end do
+
+  do iCell = 0, nCells-1
+     scalar_cell(iCell) = scalar_cell(iCell) / areaCell(iCell)
+  end do
+
+end subroutine edge2cell
+
+
 ! Compute the normal velocity component from psi_vertex and phi_cell
 subroutine compute_normal_velocity(nEdges, nVertices, nCells, verticesOnEdge, cellsOnEdge, dcEdge, dvEdge, phi_cell, psi_vertex, u)
   integer, intent(in) :: nEdges, nVertices, nCells
