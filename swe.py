@@ -325,7 +325,7 @@ class state_data:
 
             self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
             self.divergence[:] = 0.
-            self.compute_diagnostics(g, c)
+            #self.compute_diagnostics(g, c)
             
 
         elif c.test_case == 2:
@@ -344,7 +344,7 @@ class state_data:
             self.psi_vertex[:] = -a * u0 * np.sin(g.latVertex[:])
             self.psi_vertex[:] -= self.psi_vertex[0]
             self.phi_vertex[:] = 0.
-            self.compute_diagnostics(g, c)
+            #self.compute_diagnostics(g, c)
 
             if False:
                 # To check that vorticity and
@@ -413,7 +413,14 @@ class state_data:
             self.thickness[:] = h[:] - g.bottomTopographyCell[:]
             self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
             self.divergence[:] = 0.
-            self.compute_diagnostics(g, c)
+            self.psi_cell[:] = -a * u0 * np.sin(g.latCell[:])
+            self.psi_cell[:] -= self.psi_cell[0]
+            self.phi_cell[:] = 0.
+            self.psi_vertex[:] = -a * u0 * np.sin(g.latVertex[:])
+            self.psi_vertex[:] -= self.psi_vertex[0]
+            self.phi_vertex[:] = 0.
+            
+            #self.compute_diagnostics(g, c)
 
             self.curlWind_cell[:] = 0.
             self.divWind_cell[:] = 0.
@@ -771,7 +778,7 @@ class state_data:
         if k==0:
             out.variables['curlWind_cell'][:] = self.curlWind_cell[:]
 
-        self.compute_kinetic_energy(g, c)
+        #self.compute_kinetic_energy(g, c)
         out.variables['kinetic_energy'][k,:,0]= self.kinetic_energy[:]
         
         out.close( )
