@@ -31,7 +31,7 @@ class parameters:
         self.timestepping = 'RK4'
 
         self.dt = 360   #1440 for 480km
-        self.nYears = 50./360
+        self.nYears = .1/360
         self.save_inter_days = 1
 
         self.use_direct_solver = False
@@ -613,7 +613,10 @@ class state_data:
         self.eta_edge[:] = self.pv_edge[:] * self.thickness_edge[:]
 
         # Compute kinetic energy
-        self.compute_kinetic_energy(g, c)
+        #self.compute_kinetic_energy(g, c)
+        kenergy_edge = 0.5 * (self.nVelocity * self.nVelocity + self.tVelocity * self.tVelocity )
+        self.kinetic_energy[:] = cmp.edge2cell(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, kenergy_edge)
+
 
         
     def compute_psi_cell(self, g, c):
