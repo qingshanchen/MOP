@@ -135,7 +135,7 @@ def run_tests(g, c, s):
         print("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol))))
         print("CPU time for cg solver: %f" % (t1-t0,))
 
-    if True:
+    if False:
         # To run solver_diagnostics for the AMG
         print("To run solver_diagnostics for the AMG")
         
@@ -157,7 +157,7 @@ def run_tests(g, c, s):
                        definiteness='positive',
                        solver=rootnode_solver)
         
-    if False:
+    if True:
         # Timing tests for AMG solvers
         print("Timing tests for AMG solvers ")
 
@@ -169,12 +169,12 @@ def run_tests(g, c, s):
         A = A.tocsr( )
         b = A.dot(sol)
 
-        x1 = np.zeros(g.nCells)
-        t0 = time.clock( )
-        x1[:] = g.lu_D2s.solve(b)
-        t1 = time.clock( )
-        print("rel error = %f" % (np.sqrt(np.sum((x1+sol)**2))/np.sqrt(np.sum(sol*sol))))
-        print("CPU time for the direct method: %f" % (t1-t0,))
+#        x1 = np.zeros(g.nCells)
+#        t0 = time.clock( )
+#        x1[:] = g.lu_D2s.solve(b)
+#        t1 = time.clock( )
+#        print("rel error = %f" % (np.sqrt(np.sum((x1+sol)**2))/np.sqrt(np.sum(sol*sol))))
+#        print("CPU time for the direct method: %f" % (t1-t0,))
 
         x4 = np.zeros(g.nCells)
         t0 = time.clock( )
@@ -208,7 +208,6 @@ def run_tests(g, c, s):
 
         
     if False:
-        # To test and compare direct, cg, and cg + amg linear solvers for systems on the primary mesh
         print("To test and compare direct and iterative linear solvers for systems on the primary mesh")
         
         sol = np.random.rand(g.nCells)

@@ -31,12 +31,12 @@ class parameters:
         # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
         self.timestepping = 'RK4'
 
-        self.dt = 360   #1440 for 480km
-        self.nYears = .1/360
+        self.dt = 360.   #1440 for 480km
+        self.nYears = 50./360
         self.save_inter_days = 1
 
         self.use_direct_solver = False
-        self.err_tol = 1e-6
+        self.err_tol = 1e-3
         self.max_iter = 2000
         
         self.restart = False
@@ -186,12 +186,23 @@ class grid_data:
                                cols[:nEntries])), shape=(self.nCells, self.nCells))
         
         # Convert to csc sparse format
-        self.D2s = D2s_coo.tocsc( )
+        self.D2s = D2s_coo.tocsr( )
 
         if c.use_direct_solver:
             self.lu_D2s = splu(self.D2s)
-#        self.lu_D2s = splu(self.D2s)
-
+        else:
+            self.D2spd = -self.D2s
+            B = np.ones((self.D2spd.shape[0],1), dtype=self.D2spd.dtype); BH = B.copy()
+            self.D2spd_amg = rootnode_solver(self.D2spd, B=B, BH=BH,
+                strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
+                smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
+                improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), None, None, None, None, None, None, None, None, None, None, None, None, None, None],
+                aggregate="standard",
+                presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                max_levels=15,
+                max_coarse=300,
+                coarse_solver="pinv")
 
         if not c.on_a_global_sphere:
             # Construct matrix for discrete Laplacian on the triangles, corresponding to
@@ -218,6 +229,19 @@ class grid_data:
 
         if c.use_direct_solver:
             self.lu_E2s = splu(self.E2s)
+        else:
+            self.E2spd = -self.E2s
+            B = np.ones((self.E2spd.shape[0],1), dtype=self.E2spd.dtype); BH = B.copy()
+            self.E2spd_amg = rootnode_solver(self.E2spd, B=B, BH=BH,
+                strength=('evolution', {'epsilon': 4.0, 'k': 2, 'proj_type': 'l2'}),
+                smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
+                improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), None, None, None, None, None, None, None, None, None, None, None, None, None, None],
+                aggregate="standard",
+                presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                max_levels=15,
+                max_coarse=300,
+                coarse_solver="pinv")
 
         # Make a copy of grid file
         os.system('cp %s %s' % (netcdf_file, c.output_file))
@@ -648,9 +672,19 @@ class state_data:
             elif not c.use_direct_solver:
                 b *= g.areaCell[:]
                 self.psi_cell[:] -= self.psi_cell[0]
+                
                 #self.psi_cell = iterative_solver(g.D2s, b, self.psi_cell, c)
-                info, nIter = cg(g.D2s, b, self.psi_cell, max_iter=c.max_iter, relres=c.err_tol)
-                print("compute_psi_cell, nIter = %d" % nIter)
+                
+                #info, nIter = cg(g.D2s, b, self.psi_cell, max_iter=c.max_iter, relres=c.err_tol)
+                #print("compute_psi_cell, nIter = %d" % nIter)
+
+                res = []
+                b = -b
+                self.psi_cell[:] = g.D2spd_amg.solve(b, x0=self.psi_cell, tol=c.err_tol, residuals=res, accel="cg", maxiter=300, cycle="V")
+                print("compute_psi_cell, nIter = %d" % len(res))
+                #print(res)
+
+                
             else:
                 raise ValueError("Indicator for solver is not valid. Abort.")
 
@@ -676,10 +710,19 @@ class state_data:
             if c.use_direct_solver:
                 self.psi_vertex[:] = g.lu_E2s.solve(b)
             elif not c.use_direct_solver:
-                #self.psi_vertex = iterative_solver(g.E2s, b, self.psi_vertex, c)
                 self.psi_vertex[:] -= self.psi_vertex[0]
-                info, nIter = cg(g.E2s, b, self.psi_vertex, max_iter=c.max_iter, relres=c.err_tol)
-                print("compute_psi_vertex, nIter = %d" % nIter)
+                
+                #self.psi_vertex = iterative_solver(g.E2s, b, self.psi_vertex, c)
+                
+                #info, nIter = cg(g.E2s, b, self.psi_vertex, max_iter=c.max_iter, relres=c.err_tol)
+                #print("compute_psi_vertex, nIter = %d" % nIter)
+
+                res = []
+                b = -b
+                self.psi_vertex[:] = g.E2spd_amg.solve(b, x0=self.psi_vertex, tol=c.err_tol, residuals=res, accel="cg", maxiter=300, cycle="V")
+                print("compute_psi_vertex, nIter = %d" % len(res))
+                #print(res)
+                
             else:
                 raise ValueError("Indicator for director is not valid. Abort.")
             
@@ -709,11 +752,21 @@ class state_data:
             if c.use_direct_solver:
                 self.phi_cell[:] = g.lu_D2s.solve( b )
             elif not c.use_direct_solver:
-                #self.phi_cell = iterative_solver(g.D2s, b, self.phi_cell, c)
-                #self.phi_cell, err = sp.cg(g.D2s, b, x0=self.phi_cell, tol=c.err_tol)
                 self.phi_cell[:] -= self.phi_cell[0]
-                info, nIter = cg(g.D2s, b, self.phi_cell, max_iter=c.max_iter, relres=c.err_tol)
-                print("compute_phi_cell, nIter = %d" % nIter)
+                
+                #self.phi_cell = iterative_solver(g.D2s, b, self.phi_cell, c)
+                
+                #self.phi_cell, err = sp.cg(g.D2s, b, x0=self.phi_cell, tol=c.err_tol)
+                
+                #info, nIter = cg(g.D2s, b, self.phi_cell, max_iter=c.max_iter, relres=c.err_tol)
+                #print("compute_phi_cell, nIter = %d" % nIter)
+
+                res = []
+                b = -b
+                self.phi_cell[:] = g.D2spd_amg.solve(b, x0=self.phi_cell, tol=c.err_tol, residuals=res, accel="cg", maxiter=300, cycle="V")
+                print("compute_phi_cell, nIter = %d" % len(res))
+                #print(res)
+                
             else:
                 raise ValueError("Indicator for solver is not valid. Abort.")
             
@@ -742,10 +795,20 @@ class state_data:
                 self.phi_vertex[:] = g.lu_E2s.solve(b)
             elif not c.use_direct_solver:
                 self.phi_vertex[:] -= self.phi_vertex[0]
+                
                 #self.phi_vertex = iterative_solver(g.E2s, b, self.phi_vertex, c)
+                
                 #self.phi_vertex, err = sp.cg(g.E2s, b, x0=self.phi_vertex, tol=c.err_tol)
-                info, nIter = cg(g.E2s, b, self.phi_vertex, max_iter=c.max_iter, relres=c.err_tol)
-                print("compute_phi_vertex, nIter = %d" % nIter)
+                
+                #info, nIter = cg(g.E2s, b, self.phi_vertex, max_iter=c.max_iter, relres=c.err_tol)
+                #print("compute_phi_vertex, nIter = %d" % nIter)
+
+                res = []
+                b = -b
+                self.phi_vertex[:] = g.E2spd_amg.solve(b, x0=self.phi_vertex, tol=c.err_tol, residuals=res, accel="cg", maxiter=300, cycle="V")
+                print("compute_phi_vertex, nIter = %d" % len(res))
+                #print(res)
+                
             else:
                 raise ValueError("Indicator solver for is not valid. Abort.")
 
@@ -917,9 +980,9 @@ def main( ):
     g = grid_data('grid.nc', c)
     s = state_data(g, c)
 
-    from testing import run_tests
-    run_tests(g, c, s)
-    raise ValueError("Just for testing.")
+#    from testing import run_tests
+#    run_tests(g, c, s)
+#    raise ValueError("Just for testing.")
 
     s.initialization(g, c)
     
