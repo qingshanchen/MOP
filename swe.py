@@ -24,25 +24,32 @@ class parameters:
     def __init__(self):
 
         ### Parameters essential
-        self.test_case = 5
-        self.on_a_global_sphere = True
+        self.test_case = 11
+        self.on_a_global_sphere = False
 
         ### Parameters secondary
         # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
         self.timestepping = 'RK4'
 
-        self.dt = 360.   #1440 for 480km
-        self.nYears = 50./360
-        self.save_inter_days = 1
+        # Duration, time stepping size, saving interval
+        #self.dt = 1440.   #1440 for 480km
+        self.dt = 360.   #360 for NA818
+        self.nYears = 1.
+        self.save_inter_days = 5
 
-        self.use_direct_solver = False
-        self.err_tol = 1e-3
+        # Model configuraitons, boundary conditions
+        self.delVisc = 0.
+        self.bottomDrag =  5.e-8
+        self.no_flux_BC = True  # Should always be on
+        self.no_slip_BC = False
+        
+        # Solver config
+        self.use_direct_solver = True
+        self.err_tol = 1e-5
         self.max_iter = 2000
         
         self.restart = False
         self.restart_file = 'restart.nc'
-
-        self.delVisc = 0.
 
         # Size of the phyiscal domain
         self.earth_radius = 6371000.0
@@ -51,7 +58,6 @@ class parameters:
         self.gravity = 9.81
 
         # Forcing
-        self.bottomDrag = 0.  #5.e-8
 
         # IO files
         self.output_file = 'output.nc'
@@ -186,11 +192,12 @@ class grid_data:
                                cols[:nEntries])), shape=(self.nCells, self.nCells))
         
         # Convert to csc sparse format
-        self.D2s = D2s_coo.tocsr( )
 
         if c.use_direct_solver:
+            self.D2s = D2s_coo.tocsc( )
             self.lu_D2s = splu(self.D2s)
         else:
+            self.D2s = D2s_coo.tocsr( )
             self.D2spd = -self.D2s
             B = np.ones((self.D2spd.shape[0],1), dtype=self.D2spd.dtype); BH = B.copy()
             self.D2spd_amg = rootnode_solver(self.D2spd, B=B, BH=BH,
@@ -225,11 +232,12 @@ class grid_data:
         E2s_coo = coo_matrix((valEntries[:nEntries]*self.areaTriangle[rows[:nEntries]], (rows[:nEntries], \
                                cols[:nEntries])), shape=(self.nVertices, self.nVertices))
         # Convert to csc sparse format
-        self.E2s = E2s_coo.tocsc( )
 
         if c.use_direct_solver:
+            self.E2s = E2s_coo.tocsc( )
             self.lu_E2s = splu(self.E2s)
         else:
+            self.E2s = E2s_coo.tocsr( )
             self.E2spd = -self.E2s
             B = np.ones((self.E2spd.shape[0],1), dtype=self.E2spd.dtype); BH = B.copy()
             self.E2spd_amg = rootnode_solver(self.E2spd, B=B, BH=BH,
@@ -567,12 +575,16 @@ class state_data:
         out.test_case = "%d" % (c.test_case)
         out.timestepping = "%s" % (c.timestepping)
         out.use_direct_solver = "%s" % (c.use_direct_solver)
+        out.err_tol = "%e" % (c.err_tol)
+        out.max_iter = "%d" % (c.max_iter)
         out.restart = "%s" % (c.restart)
         out.dt = "%f" % (c.dt)
         out.delVisc = "%e" % (c.delVisc)
         out.bottomDrag = "%e" % (c.bottomDrag)
         out.on_a_global_sphere = "%s" % (c.on_a_global_sphere)
         out.radius = "%e" % (c.earth_radius)
+        out.no_flux_BC = "%s" % (c.no_flux_BC)
+        out.no_slip_BC = "%s" % (c.no_slip_BC)
         
         out.close( )
 
@@ -611,8 +623,12 @@ class state_data:
         self.compute_psi_cell(g,c)
         self.compute_phi_cell(g,c)
 
-        #if c.delVisc > np.finfo('float32').tiny:  # It is necessary to compute the vorticity and divergence on the boundary and enforce some artificial BCs
-        #self.vorticity[:] = cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.psi_cell)
+        # Only to recalculate vorticity on the boundary to ensure zero average. Necessary for a global domain, or a bounded domain with no-slip BCs
+        if c.on_a_global_sphere or c.no_slip_BC or c.delVisc > np.finfo('float32').tiny:
+            self.vorticity[:] = cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.psi_cell)
+
+        # Only to re-calcualte divergence[0] to ensure zero average. This is absoutely necessary when there are external forcings
+        self.divergence[:] = cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.phi_cell)
             
         # Map vorticity and divergence to the dual mesh, and then compute the streamfunction and velocity potential
         # on dual mesh
@@ -620,10 +636,6 @@ class state_data:
         self.divergence_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.divergence)
 
         # Compute psi_vertex and phi_vertex from vorticity_vertex and divergence_vertex
-        #self.psi_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.psi_cell)
-        #self.psi_vertex[:] -= self.psi_vertex[0]
-        #self.phi_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.phi_cell)
-        #self.phi_vertex[:] -= self.phi_vertex[0]
         self.compute_psi_vertex(g, c)
         self.compute_phi_vertex(g, c)
         
@@ -675,13 +687,13 @@ class state_data:
                 
                 #self.psi_cell = iterative_solver(g.D2s, b, self.psi_cell, c)
                 
-                #info, nIter = cg(g.D2s, b, self.psi_cell, max_iter=c.max_iter, relres=c.err_tol)
-                #print("compute_psi_cell, nIter = %d" % nIter)
+                info, nIter = cg(g.D2s, b, self.psi_cell, max_iter=c.max_iter, relres=c.err_tol)
+                print("compute_psi_cell, nIter = %d" % nIter)
 
-                res = []
-                b = -b
-                self.psi_cell[:] = g.D2spd_amg.solve(b, x0=self.psi_cell, tol=c.err_tol, residuals=res, accel="cg", maxiter=300, cycle="V")
-                print("compute_psi_cell, nIter = %d" % len(res))
+                #res = []
+                #b = -b
+                #self.psi_cell[:] = g.D2spd_amg.solve(b, x0=self.psi_cell, tol=c.err_tol, residuals=res, accel="cg", maxiter=300, cycle="V")
+                #print("compute_psi_cell, nIter = %d" % len(res))
                 #print(res)
 
                 
@@ -714,13 +726,13 @@ class state_data:
                 
                 #self.psi_vertex = iterative_solver(g.E2s, b, self.psi_vertex, c)
                 
-                #info, nIter = cg(g.E2s, b, self.psi_vertex, max_iter=c.max_iter, relres=c.err_tol)
-                #print("compute_psi_vertex, nIter = %d" % nIter)
+                info, nIter = cg(g.E2s, b, self.psi_vertex, max_iter=c.max_iter, relres=c.err_tol)
+                print("compute_psi_vertex, nIter = %d" % nIter)
 
-                res = []
-                b = -b
-                self.psi_vertex[:] = g.E2spd_amg.solve(b, x0=self.psi_vertex, tol=c.err_tol, residuals=res, accel="cg", maxiter=300, cycle="V")
-                print("compute_psi_vertex, nIter = %d" % len(res))
+                #res = []
+                #b = -b
+                #self.psi_vertex[:] = g.E2spd_amg.solve(b, x0=self.psi_vertex, tol=c.err_tol, residuals=res, accel="cg", maxiter=300, cycle="V")
+                #print("compute_psi_vertex, nIter = %d" % len(res))
                 #print(res)
                 
             else:
@@ -758,13 +770,13 @@ class state_data:
                 
                 #self.phi_cell, err = sp.cg(g.D2s, b, x0=self.phi_cell, tol=c.err_tol)
                 
-                #info, nIter = cg(g.D2s, b, self.phi_cell, max_iter=c.max_iter, relres=c.err_tol)
-                #print("compute_phi_cell, nIter = %d" % nIter)
+                info, nIter = cg(g.D2s, b, self.phi_cell, max_iter=c.max_iter, relres=c.err_tol)
+                print("compute_phi_cell, nIter = %d" % nIter)
 
-                res = []
-                b = -b
-                self.phi_cell[:] = g.D2spd_amg.solve(b, x0=self.phi_cell, tol=c.err_tol, residuals=res, accel="cg", maxiter=300, cycle="V")
-                print("compute_phi_cell, nIter = %d" % len(res))
+                #res = []
+                #b = -b
+                #self.phi_cell[:] = g.D2spd_amg.solve(b, x0=self.phi_cell, tol=c.err_tol, residuals=res, accel="cg", maxiter=300, cycle="V")
+                #print("compute_phi_cell, nIter = %d" % len(res))
                 #print(res)
                 
             else:
@@ -800,13 +812,13 @@ class state_data:
                 
                 #self.phi_vertex, err = sp.cg(g.E2s, b, x0=self.phi_vertex, tol=c.err_tol)
                 
-                #info, nIter = cg(g.E2s, b, self.phi_vertex, max_iter=c.max_iter, relres=c.err_tol)
-                #print("compute_phi_vertex, nIter = %d" % nIter)
+                info, nIter = cg(g.E2s, b, self.phi_vertex, max_iter=c.max_iter, relres=c.err_tol)
+                print("compute_phi_vertex, nIter = %d" % nIter)
 
-                res = []
-                b = -b
-                self.phi_vertex[:] = g.E2spd_amg.solve(b, x0=self.phi_vertex, tol=c.err_tol, residuals=res, accel="cg", maxiter=300, cycle="V")
-                print("compute_phi_vertex, nIter = %d" % len(res))
+                #res = []
+                #b = -b
+                #self.phi_vertex[:] = g.E2spd_amg.solve(b, x0=self.phi_vertex, tol=c.err_tol, residuals=res, accel="cg", maxiter=300, cycle="V")
+                #print("compute_phi_vertex, nIter = %d" % len(res))
                 #print(res)
                 
             else:
