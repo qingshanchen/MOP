@@ -33,15 +33,15 @@ class parameters:
 
         # Duration, time stepping size, saving interval
         #self.dt = 1440.   #1440 for 480km
-        self.dt = 360.   #360 for NA818
-        self.nYears = 1.
+        self.dt = 90.   #360 for NA818
+        self.nYears = 5.
         self.save_inter_days = 5
 
         # Model configuraitons, boundary conditions
-        self.delVisc = 0.
+        self.delVisc = 8.  # 80 for NA818
         self.bottomDrag =  5.e-8
         self.no_flux_BC = True  # Should always be on
-        self.no_slip_BC = False
+        self.no_slip_BC = True
         
         # Solver config
         self.use_direct_solver = True
@@ -490,7 +490,7 @@ class state_data:
             self.divWind_cell[:] = 0.
 
         elif c.test_case == 12:
-            # One gyre with no forcing and drag, for a bounded domain over NA
+            # One gyre with no forcing, for a bounded domain over NA
             d = np.sqrt(32*(g.latCell[:] - latmid)**2/latwidth**2 + 4*(g.lonCell[:]-(-1.1))**2/.3**2)
             f0 = np.mean(g.fCell)
             self.psi_cell[:] = 2*np.exp(-d**2) * 0.5*(1-np.tanh(20*(d-1.5)))
@@ -507,11 +507,11 @@ class state_data:
             self.divWind_cell[:] = 0.
 
             # Eliminate bottom drag
-            c.bottomDrag = 0.
+            #c.bottomDrag = 0.
 
             # Eliminate lateral diffusion
-            c.delVisc = 0.
-            c.del2Visc = 0.
+            #c.delVisc = 0.
+            #c.del2Visc = 0.
             
             
         else:
@@ -795,7 +795,7 @@ class state_data:
             if c.use_direct_solver:
                 self.phi_vertex[:] = g.lu_E2s.solve(b)
             else:
-                raise ValueError("Indirector for solver is not valid. Abort.")
+                raise ValueError("Indicator for solver is not valid. Abort.")
 
         else:
             # A global domain with no boundary
