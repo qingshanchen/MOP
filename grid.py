@@ -143,18 +143,18 @@ class grid_data:
             self.lu_D2s = splu(self.D2s)
         else:
             self.D2s = D2s_coo.tocsr( )
-            self.D2spd = -self.D2s
-            B = np.ones((self.D2spd.shape[0],1), dtype=self.D2spd.dtype); BH = B.copy()
-            self.D2spd_amg = rootnode_solver(self.D2spd, B=B, BH=BH,
-                strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
-                smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
-                improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), None, None, None, None, None, None, None, None, None, None, None, None, None, None],
-                aggregate="standard",
-                presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-                postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-                max_levels=15,
-                max_coarse=300,
-                coarse_solver="pinv")
+#            self.D2spd = -self.D2s
+#            B = np.ones((self.D2spd.shape[0],1), dtype=self.D2spd.dtype); BH = B.copy()
+#            self.D2spd_amg = rootnode_solver(self.D2spd, B=B, BH=BH,
+#                strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
+#                smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
+#                improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), None, None, None, None, None, None, None, None, None, None, None, None, None, None],
+#                aggregate="standard",
+#                presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+#                postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+#                max_levels=15,
+#                max_coarse=300,
+#                coarse_solver="pinv")
 
         if not c.on_a_global_sphere:
             # Construct matrix for discrete Laplacian on the triangles, corresponding to
@@ -183,18 +183,18 @@ class grid_data:
             self.lu_E2s = splu(self.E2s)
         else:
             self.E2s = E2s_coo.tocsr( )
-            self.E2spd = -self.E2s
-            B = np.ones((self.E2spd.shape[0],1), dtype=self.E2spd.dtype); BH = B.copy()
-            self.E2spd_amg = rootnode_solver(self.E2spd, B=B, BH=BH,
-                strength=('evolution', {'epsilon': 4.0, 'k': 2, 'proj_type': 'l2'}),
-                smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
-                improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), None, None, None, None, None, None, None, None, None, None, None, None, None, None],
-                aggregate="standard",
-                presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-                postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-                max_levels=15,
-                max_coarse=300,
-                coarse_solver="pinv")
+#            self.E2spd = -self.E2s
+#            B = np.ones((self.E2spd.shape[0],1), dtype=self.E2spd.dtype); BH = B.copy()
+#            self.E2spd_amg = rootnode_solver(self.E2spd, B=B, BH=BH,
+#                strength=('evolution', {'epsilon': 4.0, 'k': 2, 'proj_type': 'l2'}),
+#                smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
+#                improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), None, None, None, None, None, None, None, None, None, None, None, None, None, None],
+#                aggregate="standard",
+#                presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+#                postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+#                max_levels=15,
+#                max_coarse=300,
+#                coarse_solver="pinv")
 
         # Make a copy of grid file
         os.system('cp %s %s' % (netcdf_file, c.output_file))

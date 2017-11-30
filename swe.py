@@ -19,17 +19,17 @@ class parameters:
     def __init__(self):
 
         ### Parameters essential
-        self.test_case = 11
-        self.on_a_global_sphere = False
+        self.test_case = 5
+        self.on_a_global_sphere = True
 
         ### Parameters secondary
         # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
         self.timestepping = 'RK4'
 
         # Duration, time stepping size, saving interval
-        #self.dt = 1440.   #1440 for 480km
-        self.dt = 360.   #360 for NA818
-        self.nYears = .05
+        self.dt = 1440.   #1440 for 480km
+#        self.dt = 360.   #360 for NA818
+        self.nYears = 1./360
         self.save_inter_days = 5
 
         # Model configuraitons, boundary conditions
@@ -414,7 +414,7 @@ class state_data:
         self.thickness_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.thickness)
         
         self.compute_psi_cell(g, vc, c)
-        self.compute_phi_cell(g,c)
+        self.compute_phi_cell(g, vc, c)
 
         # Only to recalculate vorticity on the boundary to ensure zero average. Necessary for a global domain, or a bounded domain with no-slip BCs
         if c.on_a_global_sphere or c.no_slip_BC or c.delVisc > np.finfo('float32').tiny:
@@ -429,8 +429,8 @@ class state_data:
         self.divergence_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.divergence)
 
         # Compute psi_vertex and phi_vertex from vorticity_vertex and divergence_vertex
-        self.compute_psi_vertex(g, c)
-        self.compute_phi_vertex(g, c)
+        self.compute_psi_vertex(g, vc, c)
+        self.compute_phi_vertex(g, vc, c)
         
         # compute the normal and tangential velocity components
         self.nVelocity = cmp.compute_normal_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_cell, self.psi_vertex)
@@ -474,7 +474,8 @@ class state_data:
 
             if c.use_direct_solver:
                 b *= g.areaCell[:]
-                self.psi_cell[:] = g.lu_D2s.solve(b)
+#                self.psi_cell[:] = g.lu_D2s.solve(b)
+                vc.invLaplace_prime_neumann(self.vorticity, self.psi_cell)
             elif not c.use_direct_solver:
                 b *= g.areaCell[:]
                 self.psi_cell[:] -= self.psi_cell[0]
@@ -497,13 +498,15 @@ class state_data:
         return 0
 
 
-    def compute_psi_vertex(self, g, c):
+    def compute_psi_vertex(self, g, vc, c):
         # To compute the psi_cell using the elliptic equation on the
         # interior cells
 
         if not c.on_a_global_sphere or np.max(g.boundaryCellMark[:]) > 0:
             if c.use_direct_solver:
-                self.psi_vertex[:] = g.lu_E1.solve(self.vorticity_vertex[:])
+#                self.psi_vertex[:] = g.lu_E1.solve(self.vorticity_vertex[:])
+                vc.invLaplace_dual_dirich(self.vorticity_vertex, self.psi_vertex)
+                
             else:
                 raise ValueError("Indirector for direct solver is not valid. Abort.")
 
@@ -514,7 +517,8 @@ class state_data:
             b *= g.areaTriangle[:]
 
             if c.use_direct_solver:
-                self.psi_vertex[:] = g.lu_E2s.solve(b)
+#                self.psi_vertex[:] = g.lu_E2s.solve(b)
+                vc.invLaplace_dual_neumann(self.vorticity_vertex, self.psi_vertex)
             elif not c.use_direct_solver:
                 self.psi_vertex[:] -= self.psi_vertex[0]
                 
@@ -535,7 +539,7 @@ class state_data:
         return 0
     
     
-    def compute_phi_cell(self, g, c):
+    def compute_phi_cell(self, g, vc, c):
         # To compute the phi_cell from divergence
 
         if not c.on_a_global_sphere or np.max(g.boundaryCellMark[:]) > 0:
@@ -544,9 +548,9 @@ class state_data:
             b *= g.areaCell[:]
 
             if c.use_direct_solver:
-                self.phi_cell[:] = g.lu_D2s.solve( b )
-            elif not c.use_direct_solver:
-                self.phi_cell = iterative_solver(g.D2s, b, self.phi_cell, c)
+#                self.phi_cell[:] = g.lu_D2s.solve( b )
+                vc.invLaplace_prime_neumann(self.divergence, self.phi_cell)
+                
             else:
                 raise ValueError("Indicator for solver is not valid. Abort.")
 
@@ -556,7 +560,8 @@ class state_data:
             b *= g.areaCell[:]
 
             if c.use_direct_solver:
-                self.phi_cell[:] = g.lu_D2s.solve( b )
+#                self.phi_cell[:] = g.lu_D2s.solve( b )
+                vc.invLaplace_prime_neumann(self.divergence, self.phi_cell)
             elif not c.use_direct_solver:
                 self.phi_cell[:] -= self.phi_cell[0]
                 
@@ -578,7 +583,7 @@ class state_data:
             
         return 0
 
-    def compute_phi_vertex(self, g, c):
+    def compute_phi_vertex(self, g, vc, c):
         # To compute the phi_cell from divergence
 
         if not c.on_a_global_sphere or np.max(g.boundaryCellMark[:]) > 0:
@@ -587,7 +592,8 @@ class state_data:
             b[1:] = self.divergence_vertex[1:]
             b *= g.areaTriangle[:]
             if c.use_direct_solver:
-                self.phi_vertex[:] = g.lu_E2s.solve(b)
+#                self.phi_vertex[:] = g.lu_E2s.solve(b)
+                vc.invLaplace_dual_neumann(self.divergence_vertex, self.phi_vertex)
             else:
                 raise ValueError("Indicator for solver is not valid. Abort.")
 
@@ -598,7 +604,9 @@ class state_data:
             b *= g.areaTriangle[:]
 
             if c.use_direct_solver:
-                self.phi_vertex[:] = g.lu_E2s.solve(b)
+                #self.phi_vertex[:] = g.lu_E2s.solve(b)
+                vc.invLaplace_dual_neumann(self.divergence_vertex, self.phi_vertex)
+                
             elif not c.use_direct_solver:
                 self.phi_vertex[:] -= self.phi_vertex[0]
                 
@@ -621,19 +629,6 @@ class state_data:
         return 0
     
 
-    def compute_kinetic_energy(self, g, c):
-
-        kenergy_edge = 0.5 * 0.5 * (self.nVelocity * self.nVelocity + self.tVelocity * self.tVelocity ) * g.dvEdge * g.dcEdge
-        self.kinetic_energy[:] = 0.
-        for iEdge in xrange(g.nEdges):
-            cell0 = g.cellsOnEdge[iEdge, 0]-1
-            cell1 = g.cellsOnEdge[iEdge, 1]-1
-            self.kinetic_energy[cell0] += 0.5 * kenergy_edge[iEdge]
-            self.kinetic_energy[cell1] += 0.5 * kenergy_edge[iEdge]
-
-        self.kinetic_energy /= g.areaCell
-
-        
     def save(self, c, g, k):
         # Open the output file to save current data data
         out = nc.Dataset(c.output_file, 'a', format='NETCDF3_64BIT')

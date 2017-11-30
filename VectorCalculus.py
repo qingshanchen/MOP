@@ -10,6 +10,12 @@ class VectorCalculus:
         else:
             self.solver_choice = 'cg'
 
+        self.areaCell = g.areaCell.copy()
+        self.areaTriangle = g.areaTriangle.copy()
+
+        self.scalar_cell = np.zeros(g.nCells)
+        self.scalar_vertex = np.zeros(g.nVertices)
+
         if not c.on_a_global_sphere:
             # Collect non-boundary (interior) cells and put into a vector,
             # and boundary cells into a separate vector
@@ -55,18 +61,18 @@ class VectorCalculus:
             self.lu_D2s = splu(self.D2s)
         else:
             self.D2s = D2s_coo.tocsr( )
-            self.D2spd = -self.D2s
-            B = np.ones((self.D2spd.shape[0],1), dtype=self.D2spd.dtype); BH = B.copy()
-            self.D2spd_amg = rootnode_solver(self.D2spd, B=B, BH=BH,
-                strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
-                smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
-                improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), None, None, None, None, None, None, None, None, None, None, None, None, None, None],
-                aggregate="standard",
-                presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-                postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-                max_levels=15,
-                max_coarse=300,
-                coarse_solver="pinv")
+#            self.D2spd = -self.D2s
+#            B = np.ones((self.D2spd.shape[0],1), dtype=self.D2spd.dtype); BH = B.copy()
+#            self.D2spd_amg = rootnode_solver(self.D2spd, B=B, BH=BH,
+#                strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
+#                smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
+#                improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), None, None, None, None, None, None, None, None, None, None, None, None, None, None],
+#                aggregate="standard",
+#                presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+#                postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+#                max_levels=15,
+#                max_coarse=300,
+#                coarse_solver="pinv")
 
         if not c.on_a_global_sphere:
             # Construct matrix for discrete Laplacian on the triangles, corresponding to
@@ -95,18 +101,18 @@ class VectorCalculus:
             self.lu_E2s = splu(self.E2s)
         else:
             self.E2s = E2s_coo.tocsr( )
-            self.E2spd = -self.E2s
-            B = np.ones((self.E2spd.shape[0],1), dtype=self.E2spd.dtype); BH = B.copy()
-            self.E2spd_amg = rootnode_solver(self.E2spd, B=B, BH=BH,
-                strength=('evolution', {'epsilon': 4.0, 'k': 2, 'proj_type': 'l2'}),
-                smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
-                improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), None, None, None, None, None, None, None, None, None, None, None, None, None, None],
-                aggregate="standard",
-                presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-                postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-                max_levels=15,
-                max_coarse=300,
-                coarse_solver="pinv")
+ #           self.E2spd = -self.E2s
+ #           B = np.ones((self.E2spd.shape[0],1), dtype=self.E2spd.dtype); BH = B.copy()
+ #           self.E2spd_amg = rootnode_solver(self.E2spd, B=B, BH=BH,
+ #               strength=('evolution', {'epsilon': 4.0, 'k': 2, 'proj_type': 'l2'}),
+ #               smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
+ #               improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), None, None, None, None, None, None, None, None, None, None, None, None, None, None],
+ #               aggregate="standard",
+ #               presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+ #               postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+ #               max_levels=15,
+ #               max_coarse=300,
+ #               coarse_solver="pinv")
         
 
     def invLaplace_prime_dirich(self, b, x):
@@ -116,4 +122,34 @@ class VectorCalculus:
             x[self.cellInterior[:]-1] = self.lu_D1.solve(b[self.cellInterior[:]-1])
         else:
             raise ValueError("Indicator for solver is not valid. Abort.")
-            
+
+
+    def invLaplace_prime_neumann(self, b, x):
+        self.scalar_cell = self.areaCell * b
+        self.scalar_cell[0] = 0.
+
+        if self.solver_choice is 'direct':
+            x[:] = self.lu_D2s.solve(self.scalar_cell)
+
+        else:
+            raise ValueError("Indicator for solver is not valid. Abort.")
+        
+
+    def invLaplace_dual_dirich(self, b, x):
+
+        if self.solver_choice is 'direct':
+            x[:] = self.lu_E1.solve(b)
+        else:
+            raise ValueError("Indicator for solver is not valid. Abort.")
+        
+
+    def invLaplace_dual_neumann(self, b, x):
+        self.scalar_vertex[:] = self.areaTriangle * b   #Scaling
+        self.scalar_vertex[0] = 0.
+
+        if self.solver_choice is 'direct':
+            x[:] = self.lu_E2s.solve(self.scalar_vertex)
+
+        else:
+            raise ValueError("Indicator for solver is not valid. Abort.")
+        
