@@ -33,14 +33,14 @@ class parameters:
         self.save_inter_days = 5
 
         # Model configuraitons, boundary conditions
-        self.delVisc = 8.  # 80 for NA818
-        self.bottomDrag =  5.e-8
+        self.delVisc = 0.  # 80 for NA818
+        self.bottomDrag =  0. #5.e-8
         self.no_flux_BC = True  # Should always be on
         self.no_slip_BC = True
         
         # Solver config
-        self.use_direct_solver = True
-        self.err_tol = 1e-5
+        self.use_direct_solver = False
+        self.err_tol = 1e-6
         self.max_iter = 2000
         
         self.restart = False
@@ -462,39 +462,10 @@ class state_data:
 
         if not c.on_a_global_sphere or np.max(g.boundaryCellMark[:]) > 0:
             # A bounded domain
-            #self.psi_cell[:] = 0.
-            #x = g.lu_D1.solve(self.vorticity[g.cellInterior[:]-1])
-            #self.psi_cell[g.cellInterior[:]-1] = x[:]
-            vc.invLaplace_prime_dirich(self.vorticity, self.psi_cell)
-            
+             vc.invLaplace_prime_dirich(self.vorticity, self.psi_cell)
         else:
             # A global domain with no boundary
-            b = np.zeros(g.nCells)
-            b[1:] = self.vorticity[1:]
-
-            if c.use_direct_solver:
-                b *= g.areaCell[:]
-#                self.psi_cell[:] = g.lu_D2s.solve(b)
-                vc.invLaplace_prime_neumann(self.vorticity, self.psi_cell)
-            elif not c.use_direct_solver:
-                b *= g.areaCell[:]
-                self.psi_cell[:] -= self.psi_cell[0]
-                
-                #self.psi_cell = iterative_solver(g.D2s, b, self.psi_cell, c)
-                
-                info, nIter = cg(g.D2s, b, self.psi_cell, max_iter=c.max_iter, relres=c.err_tol)
-                print("compute_psi_cell, nIter = %d" % nIter)
-
-                #res = []
-                #b = -b
-                #self.psi_cell[:] = g.D2spd_amg.solve(b, x0=self.psi_cell, tol=c.err_tol, residuals=res, accel="cg", maxiter=300, cycle="V")
-                #print("compute_psi_cell, nIter = %d" % len(res))
-                #print(res)
-
-                
-            else:
-                raise ValueError("Indicator for solver is not valid. Abort.")
-
+            vc.invLaplace_prime_neumann(self.vorticity, self.psi_cell)
         return 0
 
 
@@ -512,29 +483,7 @@ class state_data:
 
         else:
             # A global domain with no boundary
-            b = np.zeros(g.nVertices)
-            b[1:] = self.vorticity_vertex[1:]
-            b *= g.areaTriangle[:]
-
-            if c.use_direct_solver:
-#                self.psi_vertex[:] = g.lu_E2s.solve(b)
-                vc.invLaplace_dual_neumann(self.vorticity_vertex, self.psi_vertex)
-            elif not c.use_direct_solver:
-                self.psi_vertex[:] -= self.psi_vertex[0]
-                
-                #self.psi_vertex = iterative_solver(g.E2s, b, self.psi_vertex, c)
-                
-                info, nIter = cg(g.E2s, b, self.psi_vertex, max_iter=c.max_iter, relres=c.err_tol)
-                print("compute_psi_vertex, nIter = %d" % nIter)
-
-                #res = []
-                #b = -b
-                #self.psi_vertex[:] = g.E2spd_amg.solve(b, x0=self.psi_vertex, tol=c.err_tol, residuals=res, accel="cg", maxiter=300, cycle="V")
-                #print("compute_psi_vertex, nIter = %d" % len(res))
-                #print(res)
-                
-            else:
-                raise ValueError("Indicator for director is not valid. Abort.")
+            vc.invLaplace_dual_neumann(self.vorticity_vertex, self.psi_vertex)
             
         return 0
     
@@ -543,44 +492,15 @@ class state_data:
         # To compute the phi_cell from divergence
 
         if not c.on_a_global_sphere or np.max(g.boundaryCellMark[:]) > 0:
-            b = np.zeros(g.nCells)
-            b[1:] = self.divergence[1:]
-            b *= g.areaCell[:]
-
             if c.use_direct_solver:
-#                self.phi_cell[:] = g.lu_D2s.solve( b )
                 vc.invLaplace_prime_neumann(self.divergence, self.phi_cell)
                 
             else:
                 raise ValueError("Indicator for solver is not valid. Abort.")
 
         else:
-            b = np.zeros(g.nCells)
-            b[1:] = self.divergence[1:]
-            b *= g.areaCell[:]
+            vc.invLaplace_prime_neumann(self.divergence, self.phi_cell)
 
-            if c.use_direct_solver:
-#                self.phi_cell[:] = g.lu_D2s.solve( b )
-                vc.invLaplace_prime_neumann(self.divergence, self.phi_cell)
-            elif not c.use_direct_solver:
-                self.phi_cell[:] -= self.phi_cell[0]
-                
-                #self.phi_cell = iterative_solver(g.D2s, b, self.phi_cell, c)
-                
-                #self.phi_cell, err = sp.cg(g.D2s, b, x0=self.phi_cell, tol=c.err_tol)
-                
-                info, nIter = cg(g.D2s, b, self.phi_cell, max_iter=c.max_iter, relres=c.err_tol)
-                print("compute_phi_cell, nIter = %d" % nIter)
-
-                #res = []
-                #b = -b
-                #self.phi_cell[:] = g.D2spd_amg.solve(b, x0=self.phi_cell, tol=c.err_tol, residuals=res, accel="cg", maxiter=300, cycle="V")
-                #print("compute_phi_cell, nIter = %d" % len(res))
-                #print(res)
-                
-            else:
-                raise ValueError("Indicator for solver is not valid. Abort.")
-            
         return 0
 
     def compute_phi_vertex(self, g, vc, c):
@@ -599,32 +519,7 @@ class state_data:
 
         else:
             # A global domain with no boundary
-            b = np.zeros(g.nVertices)
-            b[1:] = self.divergence_vertex[1:]
-            b *= g.areaTriangle[:]
-
-            if c.use_direct_solver:
-                #self.phi_vertex[:] = g.lu_E2s.solve(b)
-                vc.invLaplace_dual_neumann(self.divergence_vertex, self.phi_vertex)
-                
-            elif not c.use_direct_solver:
-                self.phi_vertex[:] -= self.phi_vertex[0]
-                
-                #self.phi_vertex = iterative_solver(g.E2s, b, self.phi_vertex, c)
-                
-                #self.phi_vertex, err = sp.cg(g.E2s, b, x0=self.phi_vertex, tol=c.err_tol)
-                
-                info, nIter = cg(g.E2s, b, self.phi_vertex, max_iter=c.max_iter, relres=c.err_tol)
-                print("compute_phi_vertex, nIter = %d" % nIter)
-
-                #res = []
-                #b = -b
-                #self.phi_vertex[:] = g.E2spd_amg.solve(b, x0=self.phi_vertex, tol=c.err_tol, residuals=res, accel="cg", maxiter=300, cycle="V")
-                #print("compute_phi_vertex, nIter = %d" % len(res))
-                #print(res)
-                
-            else:
-                raise ValueError("Indicator solver for is not valid. Abort.")
+            vc.invLaplace_dual_neumann(self.divergence_vertex, self.phi_vertex)
 
         return 0
     

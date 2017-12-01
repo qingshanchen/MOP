@@ -2,6 +2,8 @@ import numpy as np
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 from scipy.sparse.linalg import spsolve, splu
 from swe_comp import swe_comp as cmp
+from LinearAlgebra import cg
+from pyamg import rootnode_solver
 
 class VectorCalculus:
     def __init__(self, g, c):
@@ -9,6 +11,9 @@ class VectorCalculus:
             self.solver_choice = 'direct'
         else:
             self.solver_choice = 'cg'
+
+        self.max_iter = c.max_iter
+        self.err_tol = c.err_tol
 
         self.areaCell = g.areaCell.copy()
         self.areaTriangle = g.areaTriangle.copy()
@@ -56,23 +61,27 @@ class VectorCalculus:
         
         # Convert to csc sparse format
 
-        if c.use_direct_solver:
+        if self.solver_choice is 'direct':
             self.D2s = D2s_coo.tocsc( )
             self.lu_D2s = splu(self.D2s)
-        else:
+        elif self.solver_choice is 'cg':
             self.D2s = D2s_coo.tocsr( )
-#            self.D2spd = -self.D2s
-#            B = np.ones((self.D2spd.shape[0],1), dtype=self.D2spd.dtype); BH = B.copy()
-#            self.D2spd_amg = rootnode_solver(self.D2spd, B=B, BH=BH,
-#                strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
-#                smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
-#                improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), None, None, None, None, None, None, None, None, None, None, None, None, None, None],
-#                aggregate="standard",
-#                presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-#                postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-#                max_levels=15,
-#                max_coarse=300,
-#                coarse_solver="pinv")
+        elif self.solver_choice is 'amg':
+            D2s = D2s_coo.tocsr( )
+            D2s = -D2s
+            B = np.ones((D2s.shape[0],1), dtype=D2s.dtype); BH = B.copy()
+            self.D2spd_amg = rootnode_solver(D2s, B=B, BH=BH,
+                strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
+                smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
+                improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
+                                    None, None, None, None, None, None, None, None, None, None, \
+                                    None, None, None, None],
+                aggregate="standard",
+                presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                max_levels=15,
+                max_coarse=300,
+                coarse_solver="pinv")
 
         if not c.on_a_global_sphere:
             # Construct matrix for discrete Laplacian on the triangles, corresponding to
@@ -96,23 +105,29 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nVertices, g.nVertices))
         # Convert to csc sparse format
 
-        if c.use_direct_solver:
+        if self.solver_choice is 'direct':
             self.E2s = E2s_coo.tocsc( )
             self.lu_E2s = splu(self.E2s)
-        else:
+        elif self.solver_choice is 'cg':
             self.E2s = E2s_coo.tocsr( )
- #           self.E2spd = -self.E2s
- #           B = np.ones((self.E2spd.shape[0],1), dtype=self.E2spd.dtype); BH = B.copy()
- #           self.E2spd_amg = rootnode_solver(self.E2spd, B=B, BH=BH,
- #               strength=('evolution', {'epsilon': 4.0, 'k': 2, 'proj_type': 'l2'}),
- #               smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
- #               improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), None, None, None, None, None, None, None, None, None, None, None, None, None, None],
- #               aggregate="standard",
- #               presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
- #               postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
- #               max_levels=15,
- #               max_coarse=300,
- #               coarse_solver="pinv")
+        elif self.solver_choice is 'amg':
+            E2s = E2s_coo.tocsr( )
+            E2s = -E2s
+            B = np.ones((E2s.shape[0],1), dtype=E2s.dtype); BH = B.copy()
+            self.E2spd_amg = rootnode_solver(E2s, B=B, BH=BH,
+                strength=('evolution', {'epsilon': 4.0, 'k': 2, 'proj_type': 'l2'}),
+                smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
+                improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
+                                    None, None, None, None, None, None, None, None, None, None, None, \
+                                    None, None, None],
+                aggregate="standard",
+                presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                max_levels=15,
+                max_coarse=300,
+                coarse_solver="pinv")
+        else:
+            raise ValueError("Invalid solver choice!")
         
 
     def invLaplace_prime_dirich(self, b, x):
@@ -125,15 +140,25 @@ class VectorCalculus:
 
 
     def invLaplace_prime_neumann(self, b, x):
-        self.scalar_cell = self.areaCell * b
+        self.scalar_cell[:] = self.areaCell * b
         self.scalar_cell[0] = 0.
 
         if self.solver_choice is 'direct':
             x[:] = self.lu_D2s.solve(self.scalar_cell)
 
+        elif self.solver_choice is 'cg':
+            x[:] -= x[0]
+            info, nIter = cg(self.D2s, self.scalar_cell, x, max_iter=self.max_iter, relres = self.err_tol)
+
         else:
             raise ValueError("Indicator for solver is not valid. Abort.")
-        
+
+        #### For AMG solver:
+                #res = []
+                #b = -b
+                #self.psi_cell[:] = g.D2spd_amg.solve(b, x0=self.psi_cell, tol=c.err_tol, residuals=res, accel="cg", maxiter=300, cycle="V")
+                #print("compute_psi_cell, nIter = %d" % len(res))
+                #print(res)
 
     def invLaplace_dual_dirich(self, b, x):
 
@@ -149,7 +174,10 @@ class VectorCalculus:
 
         if self.solver_choice is 'direct':
             x[:] = self.lu_E2s.solve(self.scalar_vertex)
+        elif self.solver_choice is 'cg':
+            x[:] -= x[0]
+            info, nIter = cg(self.E2s, self.scalar_vertex, x, max_iter=self.max_iter, relres = self.err_tol)
 
         else:
-            raise ValueError("Indicator for solver is not valid. Abort.")
+            raise ValueError("Invalid solver choice.")
         
