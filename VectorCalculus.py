@@ -18,9 +18,6 @@ class VectorCalculus:
         self.areaCell = g.areaCell.copy()
         self.areaTriangle = g.areaTriangle.copy()
 
-        self.scalar_cell = np.zeros(g.nCells)
-        self.scalar_vertex = np.zeros(g.nVertices)
-
         if not c.on_a_global_sphere:
             # Collect non-boundary (interior) cells and put into a vector,
             # and boundary cells into a separate vector
@@ -42,14 +39,19 @@ class VectorCalculus:
                         g.areaCell)
             D1_augmented_coo = coo_matrix((valEntries[:nEntries], (rows[:nEntries], \
                                    cols[:nEntries])), shape=(nCellsInterior, g.nCells))
+            D1s_augmented_coo = coo_matrix((valEntries[:nEntries]*self.areaCell[g.cellInterior[rows[:nEntries]]-1], (rows[:nEntries], \
+                                   cols[:nEntries])), shape=(nCellsInterior, g.nCells))
             # Convert to csc sparse format
             self.D1_augmented = D1_augmented_coo.tocsc( )
+            self.D1s_augmented = D1s_augmented_coo.tocsc( )
 
             # Construct a square matrix corresponding to the interior primary cells.
             self.D1 = self.D1_augmented[:, g.cellInterior[:]-1]
             self.D1_bdry = self.D1_augmented[:, g.cellBoundary[:]-1]
+            self.D1s = self.D1s_augmented[:, g.cellInterior[:]-1]
 
             self.lu_D1 = splu(self.D1)
+            self.lu_D1s = splu(self.D1s)
 
         # Construct matrix for discrete Laplacian on all cells, corresponding to the
         # Poisson problem with Neumann BC's, or to the Poisson problem on a global sphere (no boundary)
@@ -91,10 +93,15 @@ class VectorCalculus:
                             g.verticesOnEdge, g.dvEdge, g.dcEdge, g.areaTriangle)
             E1_coo = coo_matrix((valEntries[:nEntries], (rows[:nEntries], \
                                    cols[:nEntries])), shape=(g.nVertices, g.nVertices))
+            E1s_coo = coo_matrix((valEntries[:nEntries]*self.areaTriangle[rows[:nEntries]], \
+                                  (rows[:nEntries], cols[:nEntries])), shape=(g.nVertices, g.nVertices))
+                                   
             # Convert to csc sparse format
             self.E1 = E1_coo.tocsc( )
+            self.E1s = E1s_coo.tocsc( )
 
             self.lu_E1 = splu(self.E1)
+            self.lu_E1s = splu(self.E1s)
 
         # Construct matrix for discrete Laplacian on the triangles, corresponding to the
         # Poisson problem with Neumann BC's, or to the Poisson problem on a global sphere (no boundary)
@@ -130,18 +137,35 @@ class VectorCalculus:
             raise ValueError("Invalid solver choice!")
         
 
+        self.scalar_cell = np.zeros(g.nCells)
+        self.scalar_vertex = np.zeros(g.nVertices)
+        if not c.on_a_global_sphere:
+            self.scalar_cell_interior = np.zeros(nCellsInterior)
+
+
+        
     def invLaplace_prime_dirich(self, b, x):
 
+        self.scalar_cell[:] = b*self.areaCell
+        
         if self.solver_choice is 'direct':
-            x[:] = 0.    # Homogeneous Dirichlet BC
-            x[self.cellInterior[:]-1] = self.lu_D1.solve(b[self.cellInterior[:]-1])
+            x[self.cellInterior[:]-1] = self.lu_D1s.solve(self.scalar_cell[self.cellInterior[:]-1])
+            x[self.cellBoundary[:]-1] = 0.              # Re-enforce the Dirichlet BC
+        
+        elif self.solver_choice is 'cg':
+            self.scalar_cell_interior[:] = x[self.cellInterior[:]-1].copy( )   # Copy over initial guesses
+            info, nIter = cg(self.D1s, self.scalar_cell[self.cellInterior[:]-1], \
+                             self.scalar_cell_interior, max_iter=self.max_iter, relres = self.err_tol)
+            x[self.cellInterior[:]-1] = self.scalar_cell_interior[:]
+            x[self.cellBoundary[:]-1] = 0.              # Re-enforce the Dirichlet BC
+
         else:
             raise ValueError("Indicator for solver is not valid. Abort.")
 
 
     def invLaplace_prime_neumann(self, b, x):
         self.scalar_cell[:] = self.areaCell * b
-        self.scalar_cell[0] = 0.
+        self.scalar_cell[0] = 0.    # Set to zero to make x[0] zero
 
         if self.solver_choice is 'direct':
             x[:] = self.lu_D2s.solve(self.scalar_cell)
@@ -162,15 +186,22 @@ class VectorCalculus:
 
     def invLaplace_dual_dirich(self, b, x):
 
+        self.scalar_vertex[:] = b * self.areaTriangle
+        
         if self.solver_choice is 'direct':
-            x[:] = self.lu_E1.solve(b)
+            x[:] = self.lu_E1s.solve(self.scalar_vertex)
+            
+        elif self.solver_choice is 'cg':
+            info, nIter = cg(self.E1s, self.scalar_vertex, \
+                             x, max_iter=self.max_iter, relres = self.err_tol)
+            
         else:
             raise ValueError("Indicator for solver is not valid. Abort.")
         
 
     def invLaplace_dual_neumann(self, b, x):
         self.scalar_vertex[:] = self.areaTriangle * b   #Scaling
-        self.scalar_vertex[0] = 0.
+        self.scalar_vertex[0] = 0.   #Set to zero to make x[0] zero
 
         if self.solver_choice is 'direct':
             x[:] = self.lu_E2s.solve(self.scalar_vertex)

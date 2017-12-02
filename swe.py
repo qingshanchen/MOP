@@ -40,7 +40,7 @@ class parameters:
         
         # Solver config
         self.use_direct_solver = False
-        self.err_tol = 1e-6
+        self.err_tol = 1e-10
         self.max_iter = 2000
         
         self.restart = False
@@ -413,8 +413,8 @@ class state_data:
 
         self.thickness_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.thickness)
         
-        self.compute_psi_cell(g, vc, c)
-        self.compute_phi_cell(g, vc, c)
+        self.compute_psi_cell(vc, c)
+        self.compute_phi_cell(vc, c)
 
         # Only to recalculate vorticity on the boundary to ensure zero average. Necessary for a global domain, or a bounded domain with no-slip BCs
         if c.on_a_global_sphere or c.no_slip_BC or c.delVisc > np.finfo('float32').tiny:
@@ -429,8 +429,8 @@ class state_data:
         self.divergence_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.divergence)
 
         # Compute psi_vertex and phi_vertex from vorticity_vertex and divergence_vertex
-        self.compute_psi_vertex(g, vc, c)
-        self.compute_phi_vertex(g, vc, c)
+        self.compute_psi_vertex(vc, c)
+        self.compute_phi_vertex(vc, c)
         
         # compute the normal and tangential velocity components
         self.nVelocity = cmp.compute_normal_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_cell, self.psi_vertex)
@@ -456,11 +456,11 @@ class state_data:
 
 
         
-    def compute_psi_cell(self, g, vc, c):
+    def compute_psi_cell(self, vc, c):
         # To compute the psi_cell using the elliptic equation on the
         # interior cells
 
-        if not c.on_a_global_sphere or np.max(g.boundaryCellMark[:]) > 0:
+        if not c.on_a_global_sphere:
             # A bounded domain
              vc.invLaplace_prime_dirich(self.vorticity, self.psi_cell)
         else:
@@ -469,18 +469,12 @@ class state_data:
         return 0
 
 
-    def compute_psi_vertex(self, g, vc, c):
+    def compute_psi_vertex(self, vc, c):
         # To compute the psi_cell using the elliptic equation on the
         # interior cells
 
-        if not c.on_a_global_sphere or np.max(g.boundaryCellMark[:]) > 0:
-            if c.use_direct_solver:
-#                self.psi_vertex[:] = g.lu_E1.solve(self.vorticity_vertex[:])
-                vc.invLaplace_dual_dirich(self.vorticity_vertex, self.psi_vertex)
-                
-            else:
-                raise ValueError("Indirector for direct solver is not valid. Abort.")
-
+        if not c.on_a_global_sphere:
+            vc.invLaplace_dual_dirich(self.vorticity_vertex, self.psi_vertex)
         else:
             # A global domain with no boundary
             vc.invLaplace_dual_neumann(self.vorticity_vertex, self.psi_vertex)
@@ -488,39 +482,16 @@ class state_data:
         return 0
     
     
-    def compute_phi_cell(self, g, vc, c):
+    def compute_phi_cell(self, vc, c):
         # To compute the phi_cell from divergence
 
-        if not c.on_a_global_sphere or np.max(g.boundaryCellMark[:]) > 0:
-            if c.use_direct_solver:
-                vc.invLaplace_prime_neumann(self.divergence, self.phi_cell)
-                
-            else:
-                raise ValueError("Indicator for solver is not valid. Abort.")
-
-        else:
-            vc.invLaplace_prime_neumann(self.divergence, self.phi_cell)
-
+        vc.invLaplace_prime_neumann(self.divergence, self.phi_cell)
         return 0
 
-    def compute_phi_vertex(self, g, vc, c):
+    def compute_phi_vertex(self, vc, c):
         # To compute the phi_cell from divergence
 
-        if not c.on_a_global_sphere or np.max(g.boundaryCellMark[:]) > 0:
-            # A bounded domain
-            b = np.zeros(g.nVertices)
-            b[1:] = self.divergence_vertex[1:]
-            b *= g.areaTriangle[:]
-            if c.use_direct_solver:
-#                self.phi_vertex[:] = g.lu_E2s.solve(b)
-                vc.invLaplace_dual_neumann(self.divergence_vertex, self.phi_vertex)
-            else:
-                raise ValueError("Indicator for solver is not valid. Abort.")
-
-        else:
-            # A global domain with no boundary
-            vc.invLaplace_dual_neumann(self.divergence_vertex, self.phi_vertex)
-
+        vc.invLaplace_dual_neumann(self.divergence_vertex, self.phi_vertex)
         return 0
     
 
