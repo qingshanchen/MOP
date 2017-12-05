@@ -1,5 +1,5 @@
 import numpy as np
-from grid import grid_data
+from Grid import grid_data
 from VectorCalculus import VectorCalculus
 from LinearAlgebra import cg
 import netCDF4 as nc
