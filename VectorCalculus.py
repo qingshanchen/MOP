@@ -7,10 +7,8 @@ from pyamg import rootnode_solver
 
 class VectorCalculus:
     def __init__(self, g, c):
-        if c.use_direct_solver:
-            self.solver_choice = 'direct'
-        else:
-            self.solver_choice = 'cg'
+
+        self.linear_solver = c.linear_solver
 
         self.max_iter = c.max_iter
         self.err_tol = c.err_tol
@@ -63,12 +61,12 @@ class VectorCalculus:
         
         # Convert to csc sparse format
 
-        if self.solver_choice is 'direct':
+        if self.linear_solver is 'lu':
             self.D2s = D2s_coo.tocsc( )
             self.lu_D2s = splu(self.D2s)
-        elif self.solver_choice is 'cg':
+        elif self.linear_solver is 'cg':
             self.D2s = D2s_coo.tocsr( )
-        elif self.solver_choice is 'amg':
+        elif self.linear_solver is 'amg':
             D2s = D2s_coo.tocsr( )
             D2s = -D2s
             B = np.ones((D2s.shape[0],1), dtype=D2s.dtype); BH = B.copy()
@@ -84,6 +82,8 @@ class VectorCalculus:
                 max_levels=15,
                 max_coarse=300,
                 coarse_solver="pinv")
+        else:
+            raise ValueError("Invalid solver choice.")
 
         if not c.on_a_global_sphere:
             # Construct matrix for discrete Laplacian on the triangles, corresponding to
@@ -112,12 +112,12 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nVertices, g.nVertices))
         # Convert to csc sparse format
 
-        if self.solver_choice is 'direct':
+        if self.linear_solver is 'lu':
             self.E2s = E2s_coo.tocsc( )
             self.lu_E2s = splu(self.E2s)
-        elif self.solver_choice is 'cg':
+        elif self.linear_solver is 'cg':
             self.E2s = E2s_coo.tocsr( )
-        elif self.solver_choice is 'amg':
+        elif self.linear_solver is 'amg':
             E2s = E2s_coo.tocsr( )
             E2s = -E2s
             B = np.ones((E2s.shape[0],1), dtype=E2s.dtype); BH = B.copy()
@@ -148,11 +148,11 @@ class VectorCalculus:
 
         self.scalar_cell[:] = b*self.areaCell
         
-        if self.solver_choice is 'direct':
+        if self.linear_solver is 'lu':
             x[self.cellInterior[:]-1] = self.lu_D1s.solve(self.scalar_cell[self.cellInterior[:]-1])
             x[self.cellBoundary[:]-1] = 0.              # Re-enforce the Dirichlet BC
         
-        elif self.solver_choice is 'cg':
+        elif self.linear_solver is 'cg':
             self.scalar_cell_interior[:] = x[self.cellInterior[:]-1].copy( )   # Copy over initial guesses
             info, nIter = cg(self.D1s, self.scalar_cell[self.cellInterior[:]-1], \
                              self.scalar_cell_interior, max_iter=self.max_iter, relres = self.err_tol)
@@ -160,17 +160,17 @@ class VectorCalculus:
             x[self.cellBoundary[:]-1] = 0.              # Re-enforce the Dirichlet BC
 
         else:
-            raise ValueError("Indicator for solver is not valid. Abort.")
+            raise ValueError("Invalid solver choice.")
 
 
     def invLaplace_prime_neumann(self, b, x):
         self.scalar_cell[:] = self.areaCell * b
         self.scalar_cell[0] = 0.    # Set to zero to make x[0] zero
 
-        if self.solver_choice is 'direct':
+        if self.linear_solver is 'lu':
             x[:] = self.lu_D2s.solve(self.scalar_cell)
 
-        elif self.solver_choice is 'cg':
+        elif self.linear_solver is 'cg':
             x[:] -= x[0]
             info, nIter = cg(self.D2s, self.scalar_cell, x, max_iter=self.max_iter, relres = self.err_tol)
 
@@ -188,10 +188,10 @@ class VectorCalculus:
 
         self.scalar_vertex[:] = b * self.areaTriangle
         
-        if self.solver_choice is 'direct':
+        if self.linear_solver is 'lu':
             x[:] = self.lu_E1s.solve(self.scalar_vertex)
             
-        elif self.solver_choice is 'cg':
+        elif self.linear_solver is 'cg':
             info, nIter = cg(self.E1s, self.scalar_vertex, \
                              x, max_iter=self.max_iter, relres = self.err_tol)
             
@@ -203,9 +203,9 @@ class VectorCalculus:
         self.scalar_vertex[:] = self.areaTriangle * b   #Scaling
         self.scalar_vertex[0] = 0.   #Set to zero to make x[0] zero
 
-        if self.solver_choice is 'direct':
+        if self.linear_solver is 'lu':
             x[:] = self.lu_E2s.solve(self.scalar_vertex)
-        elif self.solver_choice is 'cg':
+        elif self.linear_solver is 'cg':
             x[:] -= x[0]
             info, nIter = cg(self.E2s, self.scalar_vertex, x, max_iter=self.max_iter, relres = self.err_tol)
 

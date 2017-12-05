@@ -39,7 +39,7 @@ class parameters:
         self.no_slip_BC = True
         
         # Solver config
-        self.use_direct_solver = False
+        self.linear_solver = 'cg'      # lu, cg,
         self.err_tol = 1e-10
         self.max_iter = 2000
         
@@ -367,7 +367,7 @@ class state_data:
         # Record parameters used for this simulation
         out.test_case = "%d" % (c.test_case)
         out.timestepping = "%s" % (c.timestepping)
-        out.use_direct_solver = "%s" % (c.use_direct_solver)
+        out.linear_solver = "%s" % (c.linear_solver)
         out.err_tol = "%e" % (c.err_tol)
         out.max_iter = "%d" % (c.max_iter)
         out.restart = "%s" % (c.restart)
