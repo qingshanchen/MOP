@@ -5,6 +5,7 @@ def cg(A, b, x0, max_iter=1000, relres=1e-5):
 
     r = b - A.dot(x0)
     p = r.copy()
+    Ap = np.zeros(np.size(p))
     r2 = np.dot(r,r)
     res0 = np.sqrt(np.sum(np.dot(b,b)))
     res = np.sqrt(np.sum(r2))
@@ -22,7 +23,7 @@ def cg(A, b, x0, max_iter=1000, relres=1e-5):
         # Punch the attendance card
         counter += 1
 
-        Ap = A.dot(p)
+        Ap[:] = A.dot(p[:])
         alpha = r2 / np.dot(p, Ap)
         x0 += alpha*p
         r -= alpha*Ap
