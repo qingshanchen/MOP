@@ -33,20 +33,20 @@ class VectorCalculus:
             nEntries, rows, cols, valEntries = \
               cmp.construct_discrete_laplace_interior(g.boundaryEdgeMark[:], \
                         g.cellsOnEdge, g.boundaryCellMark, \
-                        g.cellRankInterior, g.dvEdge, g.dcEdge, \
+                        self.cellRankInterior, g.dvEdge, g.dcEdge, \
                         g.areaCell)
             D1_augmented_coo = coo_matrix((valEntries[:nEntries], (rows[:nEntries], \
                                    cols[:nEntries])), shape=(nCellsInterior, g.nCells))
-            D1s_augmented_coo = coo_matrix((valEntries[:nEntries]*self.areaCell[g.cellInterior[rows[:nEntries]]-1], (rows[:nEntries], \
+            D1s_augmented_coo = coo_matrix((valEntries[:nEntries]*self.areaCell[self.cellInterior[rows[:nEntries]]-1], (rows[:nEntries], \
                                    cols[:nEntries])), shape=(nCellsInterior, g.nCells))
             # Convert to csc sparse format
             self.D1_augmented = D1_augmented_coo.tocsc( )
             self.D1s_augmented = D1s_augmented_coo.tocsc( )
 
             # Construct a square matrix corresponding to the interior primary cells.
-            self.D1 = self.D1_augmented[:, g.cellInterior[:]-1]
-            self.D1_bdry = self.D1_augmented[:, g.cellBoundary[:]-1]
-            self.D1s = self.D1s_augmented[:, g.cellInterior[:]-1]
+            self.D1 = self.D1_augmented[:, self.cellInterior[:]-1]
+            self.D1_bdry = self.D1_augmented[:, self.cellBoundary[:]-1]
+            self.D1s = self.D1s_augmented[:, self.cellInterior[:]-1]
 
             self.lu_D1 = splu(self.D1)
             self.lu_D1s = splu(self.D1s)

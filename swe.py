@@ -19,16 +19,16 @@ class parameters:
     def __init__(self):
 
         ### Parameters essential
-        self.test_case = 5
-        self.on_a_global_sphere = True
+        self.test_case = 11
+        self.on_a_global_sphere = False
 
         ### Parameters secondary
         # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
         self.timestepping = 'RK4'
 
         # Duration, time stepping size, saving interval
-        self.dt = 1440.   #1440 for 480km
-#        self.dt = 360.   #360 for NA818
+#        self.dt = 1440.   #1440 for 480km
+        self.dt = 360.   #360 for NA818
         self.nYears = 1./360
         self.save_inter_days = 5
 
@@ -39,7 +39,7 @@ class parameters:
         self.no_slip_BC = True
         
         # Solver config
-        self.linear_solver = 'cg'      # lu, cg,
+        self.linear_solver = 'lu'      # lu, cg,
         self.err_tol = 1e-10
         self.max_iter = 2000
         
@@ -180,8 +180,8 @@ class state_data:
                 psi_true -= psi_true[0]
                 u_true = u0 * np.cos(g.latEdge)
 
-                print("Max in nVelocity: %e" % np.max(self.nVelocity))
-                print("Max in u_true: %e" % np.max(u_true))
+                print(("Max in nVelocity: %e" % np.max(self.nVelocity)))
+                print(("Max in u_true: %e" % np.max(u_true)))
                 edgeInd = np.argmax(self.nVelocity)
                 cell0 = g.cellsOnEdge[edgeInd, 0] - 1
                 cell1 = g.cellsOnEdge[edgeInd, 1] - 1
@@ -191,31 +191,31 @@ class state_data:
                 nVector /= np.sqrt(np.sum(nVector**2))
                 hVector = np.array([-g.yEdge[edgeInd], g.xEdge[edgeInd], 0])
                 hVector /= np.sqrt(np.sum(hVector**2))
-                print("latEdge[%d] = %e" % (edgeInd, g.latEdge[edgeInd])) 
-                print("lonEdge[%d] = %e" % (edgeInd, g.lonEdge[edgeInd])) 
-                print("Actual horizontal velocity at edge %d: %e" % (edgeInd, u_true[edgeInd]))
-                print("Actual normal velocity component: %e" % (u_true[edgeInd]*np.dot(nVector, hVector)))
-                print("Approximate normal velocity component: %e" % (self.nVelocity[edgeInd],))
-                print("Actual psi at vertex %d: %e" % (vertex0, -a*u0*np.sin(g.latVertex[vertex0]) + a*u0*np.sin(g.latCell[0])))
-                print("Approximate psi at vertex %d: %e" % (vertex0, self.psi_vertex[vertex0]))
-                print("Actual psi at vertex %d: %e" % (vertex1, -a*u0*np.sin(g.latVertex[vertex1]) + a*u0*np.sin(g.latCell[0])))
-                print("Approximate psi at vertex %d: %e" % (vertex1, self.psi_vertex[vertex1]))
-                print("dvEdge[%d] = %e" % (edgeInd, g.dvEdge[edgeInd]))
+                print(("latEdge[%d] = %e" % (edgeInd, g.latEdge[edgeInd]))) 
+                print(("lonEdge[%d] = %e" % (edgeInd, g.lonEdge[edgeInd]))) 
+                print(("Actual horizontal velocity at edge %d: %e" % (edgeInd, u_true[edgeInd])))
+                print(("Actual normal velocity component: %e" % (u_true[edgeInd]*np.dot(nVector, hVector))))
+                print(("Approximate normal velocity component: %e" % (self.nVelocity[edgeInd],)))
+                print(("Actual psi at vertex %d: %e" % (vertex0, -a*u0*np.sin(g.latVertex[vertex0]) + a*u0*np.sin(g.latCell[0]))))
+                print(("Approximate psi at vertex %d: %e" % (vertex0, self.psi_vertex[vertex0])))
+                print(("Actual psi at vertex %d: %e" % (vertex1, -a*u0*np.sin(g.latVertex[vertex1]) + a*u0*np.sin(g.latCell[0]))))
+                print(("Approximate psi at vertex %d: %e" % (vertex1, self.psi_vertex[vertex1])))
+                print(("dvEdge[%d] = %e" % (edgeInd, g.dvEdge[edgeInd])))
                 print("")
 
 
-                print("Max in tVelocity: %e" % np.max(self.tVelocity))
-                print("Max in u_true: %e" % np.max(u_true))
+                print(("Max in tVelocity: %e" % np.max(self.tVelocity)))
+                print(("Max in u_true: %e" % np.max(u_true)))
                 print("")
 
-                print("Max in psi: %e" % np.max(self.psi_cell))
-                print("Max in psi_vertex: %e" % np.max(self.psi_vertex))
-                print("L-infinity error in psi: %e" % (np.max(np.abs(self.psi_cell - psi_true)) / np.max(np.abs(psi_true)),) )
-                print("L-infinity error in psi_vertex: %e" % (np.max(np.abs(self.psi_vertex - psi_vertex_true)) / np.max(np.abs(psi_vertex_true)),) )
+                print(("Max in psi: %e" % np.max(self.psi_cell)))
+                print(("Max in psi_vertex: %e" % np.max(self.psi_vertex)))
+                print(("L-infinity error in psi: %e" % (np.max(np.abs(self.psi_cell - psi_true)) / np.max(np.abs(psi_true)),) ))
+                print(("L-infinity error in psi_vertex: %e" % (np.max(np.abs(self.psi_vertex - psi_vertex_true)) / np.max(np.abs(psi_vertex_true)),) ))
                 print("")
 
-                print("Max in phi: %e" % np.max(self.phi_cell))
-                print("Max in phi_vertex: %e" % np.max(self.phi_vertex))
+                print(("Max in phi: %e" % np.max(self.phi_cell)))
+                print(("Max in phi_vertex: %e" % np.max(self.phi_vertex)))
                 print("")
 
                 raise ValueError("Abort after testing in start_from_function")
@@ -532,8 +532,8 @@ def pysparse_iterative_solver(A, b, x, K, c):
         raise ValueError("Convergence not achieved after %d iterations. Error code %d." % (iter, info))
     else:
         #print("x[1001] = %e" % x[1001])
-        print("iter = %d" % iter)
-        print("relres = %e" % relres)
+        print(("iter = %d" % iter))
+        print(("relres = %e" % relres))
         return info
     
 def timestepping_rk4_z_hex(s, s_pre, s_old, g, vc, c):
@@ -551,7 +551,7 @@ def timestepping_rk4_z_hex(s, s_pre, s_old, g, vc, c):
     s.thickness[:] = s_pre.thickness[:]
     s.vorticity[:] = s_pre.vorticity[:]
     s.divergence[:] = s_pre.divergence[:]
-    for i in xrange(4):
+    for i in range(4):
 
         # Compute the tendencies
         s_intm.compute_tendencies(g, c)
@@ -648,8 +648,8 @@ def main( ):
     vc = VectorCalculus(g, c)
     s = state_data(g, c)
 
-#    from testing import run_tests
-#    run_tests(g, c, s)
+#    from Testing import run_tests
+#    run_tests(g, vc, c, s)
 #    raise ValueError("Just for testing.")
 
     s.initialization(g, vc, c)
@@ -675,8 +675,8 @@ def main( ):
     pv_min[0] = np.min(s.pv_cell)
 
 
-    print("Running test case \#%d" % c.test_case)
-    print("K-nergy, p-energy, t-energy, p-enstrophy, mass: %e, %e, %e, %e, %e" % (kenergy[0], penergy[0], total_energy[0], penstrophy[0], mass[0]))
+    print(("Running test case \#%d" % c.test_case))
+    print(("K-nergy, p-energy, t-energy, p-enstrophy, mass: %e, %e, %e, %e, %e" % (kenergy[0], penergy[0], total_energy[0], penstrophy[0], mass[0])))
 
     error1 = np.zeros((c.nTimeSteps+1, 3)); error1[0,:] = 0.
     error2 = np.zeros((c.nTimeSteps+1, 3)); error2[0,:] = 0.
@@ -690,9 +690,9 @@ def main( ):
     s_pre = deepcopy(s)
     s_old = deepcopy(s)
     
-    for iStep in xrange(c.nTimeSteps):
+    for iStep in range(c.nTimeSteps):
 
-        print "Doing step %d " % iStep
+        print(("Doing step %d " % iStep))
 
         if c.timestepping == 'RK4':
             timestepping_rk4_z_hex(s, s_pre, s_old, g, vc, c)
@@ -711,8 +711,8 @@ def main( ):
         pv_min[iStep+1] = np.min(s.pv_cell)
 #        aVorticity_total[iStep+1] = np.sum(g.areaCell * s.eta[:])
         
-        print("K-nergy, p-energy, t-energy, p-enstrophy, mass: %e, %e, %e, %e, %e" % \
-              (kenergy[iStep+1], penergy[iStep+1], total_energy[iStep+1], penstrophy[iStep+1], mass[iStep+1]))
+        print(("K-nergy, p-energy, t-energy, p-enstrophy, mass: %e, %e, %e, %e, %e" % \
+              (kenergy[iStep+1], penergy[iStep+1], total_energy[iStep+1], penstrophy[iStep+1], mass[iStep+1])))
 
         if kenergy[iStep+1] != kenergy[iStep+1]:
             raise ValueError("Exceptions detected in energy. Stop now")
@@ -770,7 +770,7 @@ def main( ):
     plt.ylabel('Enstrophy')
     #plt.ylim(0.74, 0.78)
     plt.savefig('enstrophy.png', format='PNG')
-    print("Change in potential enstrophy = %e " % (penstrophy[-1] - penstrophy[0]))
+    print(("Change in potential enstrophy = %e " % (penstrophy[-1] - penstrophy[0])))
 
     plt.figure(5)
     plt.plot(days, mass)
@@ -828,11 +828,11 @@ def main( ):
         plt.savefig('error-divergence.png', format='PNG')
 
         print("Final l2 errors for thickness, vorticity, and divergence:")
-        print("                    %e,        %e,     %e" % (error2[-1,0], error2[-1,1], error2[-1,2]))
+        print(("                    %e,        %e,     %e" % (error2[-1,0], error2[-1,1], error2[-1,2])))
         
 
-    print 'CPU time used: %f seconds' % (t1-t0)
-    print 'Walltime used: %f seconds' % (t1a-t0a)
+    print(('CPU time used: %f seconds' % (t1-t0)))
+    print(('Walltime used: %f seconds' % (t1a-t0a)))
 
         
 if __name__ == '__main__':

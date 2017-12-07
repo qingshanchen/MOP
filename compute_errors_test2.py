@@ -12,7 +12,7 @@ vorticity = out.variables['vorticity_cell'][:]
 divergence = out.variables['divergence'][:]
 nSteps = np.size(thickness, 0)
 
-for k in xrange(nSteps):
+for k in range(nSteps):
     out.variables['errThickness'][k,:,:] = thickness[k,:,:] - thickness[0,:,:]
     out.variables['errVorticity'][k,:,:] = vorticity[k,:,:] - vorticity[0,:,:]
     out.variables['errDivergence'][k,:,:] = divergence[k,:,:] - divergence[0,:,:]
