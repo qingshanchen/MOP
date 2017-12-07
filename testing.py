@@ -4,33 +4,32 @@ from LinearAlgebra import cg
 from pyamg import rootnode_solver
 from pyamg.util.linalg import norm
 from numpy import ones, array, arange, zeros, abs, random
-#from scipy import rand, ravel, log10, kron, eye
-#from scipy.io import loadmat
 from scipy.sparse import isspmatrix_bsr, isspmatrix_csr
 from solver_diagnostics import solver_diagnostics
+from accelerate import cuda
 
-def run_tests(g, c, s):
+def run_tests(g, vc, c, s):
 
     if False:   # Test the linear solver the Lapace equation on the interior cells with homogeneous Dirichlet BC's
-        psi_cell_true = np.random.rand(g.nCells)
-        psi_cell_true[g.cellBoundary[:]-1] = 0.0
+        psi_cell_true = np.random.rand(vc.nCells)
+        psi_cell_true[vc.cellBoundary[:]-1] = 0.0
 
         vorticity_cell = cmp.discrete_laplace_cell(g.cellsOnEdge, \
             g.dcEdge, g.dvEdge, g.areaCell, psi_cell_true)
 
-        #compte psi_cell using g.A and linear solver
-        x = g.lu_D1.solve(vorticity_cell[g.cellInterior[:]-1])
+        #compte psi_cell using vc.A and linear solver
+        x = vc.lu_D1.solve(vorticity_cell[vc.cellInterior[:]-1])
         psi_cell = np.zeros(g.nCells)
-        psi_cell[g.cellInterior[:]-1] = x[:]
+        psi_cell[vc.cellInterior[:]-1] = x[:]
 
         # Compute the errors
         l8 = np.max(np.abs(psi_cell_true[:] - psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
-        l2 = np.sum(np.abs(psi_cell_true[:] - psi_cell[:])**2 * g.areaCell[:])
-        l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
+        l2 = np.sum(np.abs(psi_cell_true[:] - psi_cell[:])**2 * vc.areaCell[:])
+        l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * vc.areaCell[:])
         l2 = np.sqrt(l2)
-        print "Errors for linear solver"
-        print "L infinity error = ", l8
-        print "L^2 error        = ", l2        
+        print("Errors for linear solver")
+        print("L infinity error = ", l8)
+        print("L^2 error        = ", l2)        
         
     if False:
         # Test the linear solver the Lapace equation on the whole domain
@@ -42,22 +41,22 @@ def run_tests(g, c, s):
         psi_cell_true[0] = 0.
         
         vorticity_cell = cmp.discrete_laplace_cell(g.cellsOnEdge, \
-            g.dcEdge, g.dvEdge, g.areaCell, psi_cell_true)
+            g.dcEdge, g.dvEdge, vc.areaCell, psi_cell_true)
 
         # Artificially set vorticity_cell[0] to 0
         vorticity_cell[0] = 0.
 
-        #compte psi_cell using g.A and linear solver
-        psi_cell = g.lu_D2.solve(vorticity_cell[:])
+        #compte psi_cell using vc.A and linear solver
+        psi_cell = vc.lu_D2.solve(vorticity_cell[:])
 
         # Compute the errors
         l8 = np.max(np.abs(psi_cell_true[:] - psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
         l2 = np.sum(np.abs(psi_cell_true[:] - psi_cell[:])**2 * g.areaCell[:])
         l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
         l2 = np.sqrt(l2)
-        print "Errors for linear solver"
-        print "L infinity error = ", l8
-        print "L^2 error        = ", l2        
+        print("Errors for linear solver")
+        print("L infinity error = ", l8)
+        print("L^2 error        = ", l2)        
 
     if False:   # Test the linear solver for the Poisson equation on the triangles with homogeneous Dirichlet BC's
         psi_vertex_true = np.random.rand(g.nVertices)
@@ -66,16 +65,16 @@ def run_tests(g, c, s):
                          g.dcEdge, g.dvEdge, g.areaTriangle, psi_vertex_true, 0)
 
         #compte psi_vertex using linear solver
-        psi_vertex = g.lu_E1.solve(vorticity_vertex)
+        psi_vertex = vc.lu_E1.solve(vorticity_vertex)
 
         # Compute the errors
         l8 = np.max(np.abs(psi_vertex_true[:] - psi_vertex[:])) / np.max(np.abs(psi_vertex_true[:]))
         l2 = np.sum(np.abs(psi_vertex_true[:] - psi_vertex[:])**2 * g.areaTriangle[:])
         l2 /=  np.sum(np.abs(psi_vertex_true[:])**2 * g.areaTriangle[:])
         l2 = np.sqrt(l2)
-        print "Errors for the solver for the Poisson with Neumann BC's"
-        print "L infinity error = ", l8
-        print "L^2 error        = ", l2        
+        print("Errors for the solver for the Poisson with Neumann BC's")
+        print("L infinity error = ", l8)
+        print("L^2 error        = ", l2)        
 
     if False:
         # Test the linear solver for the Poisson equation on the triangles with homogeneous Neumann BC's
@@ -90,16 +89,16 @@ def run_tests(g, c, s):
         b[0] = 0.
 
         #compte psi_vertex using linear solver
-        psi_vertex = g.lu_E2.solve(vorticity_vertex)
+        psi_vertex = vc.lu_E2.solve(vorticity_vertex)
 
         # Compute the errors
         l8 = np.max(np.abs(psi_vertex_true[:] - psi_vertex[:])) / np.max(np.abs(psi_vertex_true[:]))
         l2 = np.sum(np.abs(psi_vertex_true[:] - psi_vertex[:])**2 * g.areaTriangle[:])
         l2 /=  np.sum(np.abs(psi_vertex_true[:])**2 * g.areaTriangle[:])
         l2 = np.sqrt(l2)
-        print "Errors for the solver for the Poisson with Neumann BC's"
-        print "L infinity error = ", l8
-        print "L^2 error        = ", l2        
+        print("Errors for the solver for the Poisson with Neumann BC's")
+        print("L infinity error = ", l8)
+        print("L^2 error        = ", l2)        
 
     if False:
         # To test and compare direct and iterative linear solvers for systems on the primary mesh
@@ -107,39 +106,39 @@ def run_tests(g, c, s):
         
         sol = np.random.rand(g.nCells)
         sol[0] = 0.
-        b = g.D2s.dot(sol)
+        b = vc.D2s.dot(sol)
 
         t0 = time.clock( )
         x1 = np.zeros(g.nCells)
-        x1[:] = g.lu_D2s.solve(b)
+        x1[:] = vc.lu_D2s.solve(b)
         t1 = time.clock( )
-        print("rel error = %f" % (np.sqrt(np.sum((x1-sol)**2))))
-        print("CPU time for the direct method: %f" % (t1-t0,))
+        print(("rel error = %f" % (np.sqrt(np.sum((x1-sol)**2)))))
+        print(("CPU time for the direct method: %f" % (t1-t0,)))
         
         t0 = time.clock( )
         x2 = np.zeros(g.nCells)
-        x2, info = sp.cg(g.D2s, b, x2, tol=c.err_tol)
+        x2, info = sp.cg(vc.D2s, b, x2, tol=c.err_tol)
         t1 = time.clock( )
-        print("info = %d" % info)
-        print("rel error = %f" % (np.sqrt(np.sum((x2-sol)**2))/np.sqrt(np.sum(sol*sol))))
-        print("CPU time for scipy cg solver: %f" % (t1-t0,))
+        print(("info = %d" % info))
+        print(("rel error = %f" % (np.sqrt(np.sum((x2-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+        print(("CPU time for scipy cg solver: %f" % (t1-t0,)))
 
 
         t0 = time.clock( )
         x4 = np.zeros(g.nCells)
-        A = g.D2s.tocsr( )
+        A = vc.D2s.tocsr( )
         info, nIter = cg(A, b, x4, relres=c.err_tol)
         t1 = time.clock( )
-        print("info = %d" % info)
-        print("nIter = %d" % nIter)
-        print("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol))))
-        print("CPU time for cg solver: %f" % (t1-t0,))
+        print(("info = %d" % info))
+        print(("nIter = %d" % nIter))
+        print(("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+        print(("CPU time for cg solver: %f" % (t1-t0,)))
 
     if False:
         # To run solver_diagnostics for the AMG
         print("To run solver_diagnostics for the AMG")
         
-        A = -1 * g.D2s
+        A = -1 * vc.D2s
         A = A.tocsr( )
 
         solver_diagnostics(A, fname='D2s', 
@@ -148,7 +147,7 @@ def run_tests(g, c, s):
                        definiteness='positive',
                        solver=rootnode_solver)
 
-        A = -1 * g.E2s 
+        A = -1 * vc.E2s 
         A = A.tocsr( )
 
         solver_diagnostics(A, fname='E2s', 
@@ -157,7 +156,7 @@ def run_tests(g, c, s):
                        definiteness='positive',
                        solver=rootnode_solver)
         
-    if True:
+    if False:
         # Timing tests for AMG solvers
         print("Timing tests for AMG solvers ")
 
@@ -165,13 +164,13 @@ def run_tests(g, c, s):
         
         sol = np.random.rand(g.nCells)
         sol[0] = 0.
-        A = -1 * g.D2s
+        A = -1 * vc.D2s
         A = A.tocsr( )
         b = A.dot(sol)
 
 #        x1 = np.zeros(g.nCells)
 #        t0 = time.clock( )
-#        x1[:] = g.lu_D2s.solve(b)
+#        x1[:] = vc.lu_D2s.solve(b)
 #        t1 = time.clock( )
 #        print("rel error = %f" % (np.sqrt(np.sum((x1+sol)**2))/np.sqrt(np.sum(sol*sol))))
 #        print("CPU time for the direct method: %f" % (t1-t0,))
@@ -180,10 +179,10 @@ def run_tests(g, c, s):
         t0 = time.clock( )
         info, nIter = cg(A, b, x4, relres=c.err_tol)
         t1 = time.clock( )
-        print("info = %d" % info)
-        print("nIter = %d" % nIter)
-        print("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol))))
-        print("CPU time for cg solver: %f" % (t1-t0,))
+        print(("info = %d" % info))
+        print(("nIter = %d" % nIter))
+        print(("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+        print(("CPU time for cg solver: %f" % (t1-t0,)))
 
         # Generate B
         B = ones((A.shape[0],1), dtype=A.dtype); BH = B.copy()
@@ -203,8 +202,8 @@ def run_tests(g, c, s):
         t0 = time.clock()
         x = ml.solve(b, x0=x0, tol=c.err_tol, residuals=res, accel="cg", maxiter=300, cycle="V")
         t1 = time.clock()
-        print("rel error = %f" % (np.sqrt(np.sum((x-sol)**2))/np.sqrt(np.sum(sol*sol))))
-        print("CPU time for AMG cg solver: %f" % (t1-t0,))
+        print(("rel error = %f" % (np.sqrt(np.sum((x-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+        print(("CPU time for AMG cg solver: %f" % (t1-t0,)))
 
         
     if False:
@@ -212,33 +211,33 @@ def run_tests(g, c, s):
         
         sol = np.random.rand(g.nCells)
         sol[0] = 0.
-        b = g.D2s.dot(sol)
+        b = vc.D2s.dot(sol)
 
         t0 = time.clock( )
         x1 = np.zeros(g.nCells)
-        x1[:] = g.lu_D2s.solve(b)
+        x1[:] = vc.lu_D2s.solve(b)
         t1 = time.clock( )
-        print("rel error = %f" % (np.sqrt(np.sum((x1-sol)**2))))
-        print("CPU time for the direct method: %f" % (t1-t0,))
+        print(("rel error = %f" % (np.sqrt(np.sum((x1-sol)**2)))))
+        print(("CPU time for the direct method: %f" % (t1-t0,)))
         
         t0 = time.clock( )
         x2 = np.zeros(g.nCells)
-        x2, info = sp.cg(g.D2s, b, x2, tol=c.err_tol)
+        x2, info = sp.cg(vc.D2s, b, x2, tol=c.err_tol)
         t1 = time.clock( )
-        print("info = %d" % info)
-        print("rel error = %f" % (np.sqrt(np.sum((x2-sol)**2))/np.sqrt(np.sum(sol*sol))))
-        print("CPU time for scipy cg solver: %f" % (t1-t0,))
+        print(("info = %d" % info))
+        print(("rel error = %f" % (np.sqrt(np.sum((x2-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+        print(("CPU time for scipy cg solver: %f" % (t1-t0,)))
 
 
         t0 = time.clock( )
         x4 = np.zeros(g.nCells)
-        A = g.D2s.tocsr( )
+        A = vc.D2s.tocsr( )
         info, nIter = cg(A, b, x4, relres=c.err_tol)
         t1 = time.clock( )
-        print("info = %d" % info)
-        print("nIter = %d" % nIter)
-        print("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol))))
-        print("CPU time for cg solver: %f" % (t1-t0,))
+        print(("info = %d" % info))
+        print(("nIter = %d" % nIter))
+        print(("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+        print(("CPU time for cg solver: %f" % (t1-t0,)))
         
 
     if False:
@@ -247,33 +246,33 @@ def run_tests(g, c, s):
         
         sol = np.random.rand(g.nVertices)
         sol[0] = 0.
-        b = g.E2s.dot(sol)
+        b = vc.E2s.dot(sol)
 
         t0 = time.clock( )
         x1 = np.zeros(g.nVertices)
-        x1[:] = g.lu_E2s.solve(b)
+        x1[:] = vc.lu_E2s.solve(b)
         t1 = time.clock( )
-        print("rel error = %f" % (np.sqrt(np.sum((x1-sol)**2))))
-        print("CPU time for the direct method: %f" % (t1-t0,))
+        print(("rel error = %f" % (np.sqrt(np.sum((x1-sol)**2)))))
+        print(("CPU time for the direct method: %f" % (t1-t0,)))
         
         t0 = time.clock( )
         x2 = np.zeros(g.nVertices)
-        x2, info = sp.cg(g.E2s, b, x2, tol=c.err_tol)
+        x2, info = sp.cg(vc.E2s, b, x2, tol=c.err_tol)
         t1 = time.clock( )
-        print("info = %d" % info)
-        print("rel error = %f" % (np.sqrt(np.sum((x2-sol)**2))/np.sqrt(np.sum(sol*sol))))
-        print("CPU time for scipy cg solver: %f" % (t1-t0,))
+        print(("info = %d" % info))
+        print(("rel error = %f" % (np.sqrt(np.sum((x2-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+        print(("CPU time for scipy cg solver: %f" % (t1-t0,)))
 
 
-        A = g.E2s.tocsr( )
+        A = vc.E2s.tocsr( )
         t0 = time.clock( )
         x4 = np.zeros(g.nVertices)
-        info, nIter = cg(g.E2s, b, x4, relres=c.err_tol)
+        info, nIter = cg(vc.E2s, b, x4, relres=c.err_tol)
         t1 = time.clock( )
-        print("info = %d" % info)
-        print("nIter = %d" % nIter)
-        print("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol))))
-        print("CPU time for cg solver: %f" % (t1-t0,))
+        print(("info = %d" % info))
+        print(("nIter = %d" % nIter))
+        print(("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+        print(("CPU time for cg solver: %f" % (t1-t0,)))
 
 
     if False:
@@ -293,34 +292,34 @@ def run_tests(g, c, s):
         b_cell = vort_cell[:] * g.areaCell[:]
         b_cell[0] = 0.
         t0 = time.clock( )
-        info, nIter = cg(g.D2s, b_cell, x_cell, relres=c.err_tol)
+        info, nIter = cg(vc.D2s, b_cell, x_cell, relres=c.err_tol)
         t1 = time.clock( )
-        print("info = %d" % info)
-        print("nIter = %d" % nIter)
-        print("rel error = %f" % (np.sqrt(np.sum((x_cell-sol_cell)**2))/np.sqrt(np.sum(sol_cell*sol_cell))))
-        print("CPU time for cg solver on primary mesh: %f" % (t1-t0,))
+        print(("info = %d" % info))
+        print(("nIter = %d" % nIter))
+        print(("rel error = %f" % (np.sqrt(np.sum((x_cell-sol_cell)**2))/np.sqrt(np.sum(sol_cell*sol_cell)))))
+        print(("CPU time for cg solver on primary mesh: %f" % (t1-t0,)))
 
         x_vertex = np.zeros(g.nVertices)
         b_vertex = vort_vertex[:] * g.areaTriangle[:]
         b_vertex[0] = 0.
         t0 = time.clock( )
-        info, nIter = cg(g.E2s, b_vertex, x_vertex, relres=c.err_tol)
+        info, nIter = cg(vc.E2s, b_vertex, x_vertex, relres=c.err_tol)
         t1 = time.clock( )
-        print("info = %d" % info)
-        print("nIter = %d" % nIter)
-        print("rel error = %f" % (np.sqrt(np.sum((x_vertex-sol_vertex)**2))/np.sqrt(np.sum(sol_vertex*sol_vertex))))
-        print("CPU time for cg solver on dual mesh with generic initialization: %f" % (t1-t0,))
+        print(("info = %d" % info))
+        print(("nIter = %d" % nIter))
+        print(("rel error = %f" % (np.sqrt(np.sum((x_vertex-sol_vertex)**2))/np.sqrt(np.sum(sol_vertex*sol_vertex)))))
+        print(("CPU time for cg solver on dual mesh with generic initialization: %f" % (t1-t0,)))
 
         x_vertex = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, sol_cell)
         x_vertex[:] -= x_vertex[0]
-        print("Initial guess, rel error = %f" % (np.sqrt(np.sum((x_vertex-sol_vertex)**2))/np.sqrt(np.sum(sol_vertex*sol_vertex))))
+        print(("Initial guess, rel error = %f" % (np.sqrt(np.sum((x_vertex-sol_vertex)**2))/np.sqrt(np.sum(sol_vertex*sol_vertex)))))
         t0 = time.clock( )
-        info, nIter = cg(g.E2s, b_vertex, x_vertex, relres=c.err_tol)
+        info, nIter = cg(vc.E2s, b_vertex, x_vertex, relres=c.err_tol)
         t1 = time.clock( )
-        print("info = %d" % info)
-        print("nIter = %d" % nIter)
-        print("rel error = %f" % (np.sqrt(np.sum((x_vertex-sol_vertex)**2))/np.sqrt(np.sum(sol_vertex*sol_vertex))))
-        print("CPU time for cg solver on dual mesh with proper initialization: %f" % (t1-t0,))
+        print(("info = %d" % info))
+        print(("nIter = %d" % nIter))
+        print(("rel error = %f" % (np.sqrt(np.sum((x_vertex-sol_vertex)**2))/np.sqrt(np.sum(sol_vertex*sol_vertex)))))
+        print(("CPU time for cg solver on dual mesh with proper initialization: %f" % (t1-t0,)))
         
 
     if False:
@@ -336,34 +335,34 @@ def run_tests(g, c, s):
         b_cell = s.vorticity[:] * g.areaCell[:]
         b_cell[0] = 0.
         t0 = time.clock( )
-        info, nIter = cg(g.D2s, b_cell, x_cell, max_iter=2000, relres=c.err_tol)
+        info, nIter = cg(vc.D2s, b_cell, x_cell, max_iter=2000, relres=c.err_tol)
         t1 = time.clock( )
-        print("info = %d" % info)
-        print("nIter = %d" % nIter)
-        print("rel error = %f" % (np.sqrt(np.sum((x_cell-sol_cell)**2))/np.sqrt(np.sum(sol_cell*sol_cell))))
-        print("CPU time for cg solver on primary mesh: %f" % (t1-t0,))
+        print(("info = %d" % info))
+        print(("nIter = %d" % nIter))
+        print(("rel error = %f" % (np.sqrt(np.sum((x_cell-sol_cell)**2))/np.sqrt(np.sum(sol_cell*sol_cell)))))
+        print(("CPU time for cg solver on primary mesh: %f" % (t1-t0,)))
 
         x_vertex = np.zeros(g.nVertices)
         b_vertex = s.vorticity_vertex[:] * g.areaTriangle[:]
         b_vertex[0] = 0.
         t0 = time.clock( )
-        info, nIter = cg(g.E2s, b_vertex, x_vertex, max_iter=2000, relres=c.err_tol)
+        info, nIter = cg(vc.E2s, b_vertex, x_vertex, max_iter=2000, relres=c.err_tol)
         t1 = time.clock( )
-        print("info = %d" % info)
-        print("nIter = %d" % nIter)
-        print("rel error = %f" % (np.sqrt(np.sum((x_vertex-sol_vertex)**2))/np.sqrt(np.sum(sol_vertex*sol_vertex))))
-        print("CPU time for cg solver on dual mesh with generic initialization: %f" % (t1-t0,))
+        print(("info = %d" % info))
+        print(("nIter = %d" % nIter))
+        print(("rel error = %f" % (np.sqrt(np.sum((x_vertex-sol_vertex)**2))/np.sqrt(np.sum(sol_vertex*sol_vertex)))))
+        print(("CPU time for cg solver on dual mesh with generic initialization: %f" % (t1-t0,)))
 
         x_vertex = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, sol_cell)
         x_vertex[:] -= x_vertex[0]
-        print("Initial guess, rel error = %f" % (np.sqrt(np.sum((x_vertex-sol_vertex)**2))/np.sqrt(np.sum(sol_vertex*sol_vertex))))
+        print(("Initial guess, rel error = %f" % (np.sqrt(np.sum((x_vertex-sol_vertex)**2))/np.sqrt(np.sum(sol_vertex*sol_vertex)))))
         t0 = time.clock( )
-        info, nIter = cg(g.E2s, b_vertex, x_vertex, max_iter=c.max_iter, relres=c.err_tol)
+        info, nIter = cg(vc.E2s, b_vertex, x_vertex, max_iter=c.max_iter, relres=c.err_tol)
         t1 = time.clock( )
-        print("info = %d" % info)
-        print("nIter = %d" % nIter)
-        print("rel error = %f" % (np.sqrt(np.sum((x_vertex-sol_vertex)**2))/np.sqrt(np.sum(sol_vertex*sol_vertex))))
-        print("CPU time for cg solver on dual mesh with proper initialization: %f" % (t1-t0,))
+        print(("info = %d" % info))
+        print(("nIter = %d" % nIter))
+        print(("rel error = %f" % (np.sqrt(np.sum((x_vertex-sol_vertex)**2))/np.sqrt(np.sum(sol_vertex*sol_vertex)))))
+        print(("CPU time for cg solver on dual mesh with proper initialization: %f" % (t1-t0,)))
         
         
     if False:
@@ -374,10 +373,37 @@ def run_tests(g, c, s):
 
         x0 = np.array([0.,0.,0.])
         x, info = cg_scipy(A, b, x0=x0, maxiter = 200)
-        print("cg_scipy: info = %d" % info)
+        print(("cg_scipy: info = %d" % info))
         print(x)
         info, nIter = cg(A, b, x0, max_iter = 100)
-        print("nIter = %d" % nIter)
+        print(("nIter = %d" % nIter))
         print("x = ")
         print(x0)
 
+
+    if True:
+        print("To test cg with incomplete cholesky as preconditioner")
+        
+        sol = np.random.rand(g.nCells)
+        sol[0] = 0.
+        b = vc.D2s.dot(sol)
+
+        t0 = time.clock( )
+        x1 = np.zeros(g.nCells)
+        x1[:] = vc.lu_D2s.solve(b)
+        t1 = time.clock( )
+        print(("rel error = %e" % (np.sqrt(np.sum((x1-sol)**2)))))
+        print(("CPU time for the direct method: %f" % (t1-t0,)))
+        
+        t0 = time.clock( )
+        x4 = np.zeros(g.nCells)
+        A = vc.D2s.tocsr( )
+        info, nIter = cg(A, b, x4, relres=c.err_tol)
+        t1 = time.clock( )
+        print(("info = %d" % info))
+        print(("nIter = %d" % nIter))
+        print(("rel error = %e" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+        print(("CPU time for cg solver: %f" % (t1-t0,)))
+
+        
+        raise ValueError("Stop for checking.")
