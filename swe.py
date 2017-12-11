@@ -19,16 +19,16 @@ class parameters:
     def __init__(self):
 
         ### Parameters essential
-        self.test_case = 11
-        self.on_a_global_sphere = False
+        self.test_case = 5
+        self.on_a_global_sphere = True
 
         ### Parameters secondary
         # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
         self.timestepping = 'RK4'
 
         # Duration, time stepping size, saving interval
-#        self.dt = 1440.   #1440 for 480km
-        self.dt = 360.   #360 for NA818
+        self.dt = 1440.   #1440 for 480km
+#        self.dt = 360.   #360 for NA818
         self.nYears = 1./360
         self.save_inter_days = 5
 
@@ -648,9 +648,9 @@ def main( ):
     vc = VectorCalculus(g, c)
     s = state_data(g, c)
 
-#    from Testing import run_tests
-#    run_tests(g, vc, c, s)
-#    raise ValueError("Just for testing.")
+    from Testing import run_tests
+    run_tests(g, vc, c, s)
+    raise ValueError("Just for testing.")
 
     s.initialization(g, vc, c)
     
@@ -711,7 +711,7 @@ def main( ):
         pv_min[iStep+1] = np.min(s.pv_cell)
 #        aVorticity_total[iStep+1] = np.sum(g.areaCell * s.eta[:])
         
-        print(("K-nergy, p-energy, t-energy, p-enstrophy, mass: %e, %e, %e, %e, %e" % \
+        print(("K-nergy, p-energy, t-energy, p-enstrophy, mass: %.15e, %.15e, %.15e, %.15e, %.15e" % \
               (kenergy[iStep+1], penergy[iStep+1], total_energy[iStep+1], penstrophy[iStep+1], mass[iStep+1])))
 
         if kenergy[iStep+1] != kenergy[iStep+1]:
@@ -770,7 +770,7 @@ def main( ):
     plt.ylabel('Enstrophy')
     #plt.ylim(0.74, 0.78)
     plt.savefig('enstrophy.png', format='PNG')
-    print(("Change in potential enstrophy = %e " % (penstrophy[-1] - penstrophy[0])))
+    print(("Change in potential enstrophy = %.15e " % (penstrophy[-1] - penstrophy[0])))
 
     plt.figure(5)
     plt.plot(days, mass)

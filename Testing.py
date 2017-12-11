@@ -5,8 +5,11 @@ from pyamg import rootnode_solver
 from pyamg.util.linalg import norm
 from numpy import ones, array, arange, zeros, abs, random
 from scipy.sparse import isspmatrix_bsr, isspmatrix_csr
-from solver_diagnostics import solver_diagnostics
+from scipy.sparse.linalg import spsolve_triangular, factorized, splu
+#from solver_diagnostics import solver_diagnostics
 from accelerate import cuda
+from copy import deepcopy as deepcopy
+import numba
 
 def run_tests(g, vc, c, s):
 
@@ -383,21 +386,80 @@ def run_tests(g, vc, c, s):
 
     if True:
         print("To test cg with incomplete cholesky as preconditioner")
-        
+
         sol = np.random.rand(g.nCells)
         sol[0] = 0.
         b = vc.D2s.dot(sol)
+        
+        A = vc.D2s.tocsr( )
+        A.eliminate_zeros( )
+        A_t = deepcopy(A)
+        A_t.data = np.where(A_t.nonzero()[0] >= A_t.nonzero()[1], A_t.data, 0.)
+        A_t.eliminate_zeros( )
+        R = A_t.copy( )
+        R = -R
 
+        
+        cuSparse = cuda.sparse.Sparse()
+        D2s_descr = cuSparse.matdescr(matrixtype='S', fillmode='L')
+        info = cuSparse.csrsv_analysis(trans='N', m=R.shape[0], nnz=R.nnz, \
+                                       descr=D2s_descr, csrVal=R.data, \
+                                       csrRowPtr=R.indptr, csrColInd=R.indices)
+        cuSparse.csric0(trans='N', m=R.shape[0], \
+                        descr=D2s_descr, csrValM=R.data, csrRowPtrA=R.indptr,\
+                        csrColIndA=R.indices, info=info)
+#        cuSparse.csrilu0(trans='N', m=R.shape[0], \
+#                        descr=D2s_descr, csrValM=R.data, csrRowPtrA=R.indptr,\
+#                        csrColIndA=R.indices, info=info)
+        
+        # Test triangular solver 
+        b1 = R.dot(sol)
+        Rsolve = factorized(R)
+#        lu_R = splu(R, permc_spec='NATURAL')
         t0 = time.clock( )
+        #x = spsolve_triangular(R, b1, lower=True, overwrite_b=False, overwrite_A=False)
+        x = Rsolve(b1)
+        #x = lu_R.solve(b1)
+        t1 = time.clock( )
+        print(("rel error for triangular solver = %e" % (np.sqrt(np.sum((x-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+        print(("CPU time for a direct solver for triangular solver: %f" % (t1-t0,)))
+
+
+        Rdata = numba.cuda.to_device(R.data)
+        Rptr = numba.cuda.to_device(R.indptr)
+        Rind = numba.cuda.to_device(R.indices)
+        R_descr = cuSparse.matdescr(matrixtype='T', fillmode='L')
+#        info = cuSparse.csrsv_analysis(trans='N', m=R.shape[0], nnz=R.nnz, \
+#                                       descr=R_descr, csrVal=R.data, \
+#                                       csrRowPtr=R.indptr, csrColInd=R.indices)
+        info = cuSparse.csrsv_analysis(trans='N', m=R.shape[0], nnz=R.nnz, \
+                                       descr=R_descr, csrVal=Rdata, \
+                                       csrRowPtr=Rptr, csrColInd=Rind)        
+        b1 = R.dot(sol)
+        x = np.zeros(np.size(b1))
+        t0 = time.clock( )
+#        cuSparse.csrsv_solve(trans='N', m=R.shape[0], alpha=1.0, \
+#                             descr=R_descr, csrVal=R.data, \
+#                             csrRowPtr=R.indptr, csrColInd=R.indices, info=info, x=b1, y=x)
+        cuSparse.csrsv_solve(trans='N', m=R.shape[0], alpha=1.0, \
+                             descr=R_descr, csrVal=Rdata, \
+                             csrRowPtr=Rptr, csrColInd=Rind, info=info, x=b1, y=x)
+        t1 = time.clock( )
+        print(("rel error for triangular solver = %e" % (np.sqrt(np.sum((x-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+        print(("CPU time for a cuda solver for triangular solver: %f" % (t1-t0,)))
+
+        
+        D2s_solve = factorized(vc.D2s)
         x1 = np.zeros(g.nCells)
-        x1[:] = vc.lu_D2s.solve(b)
+        t0 = time.clock( )
+        #x1[:] = vc.lu_D2s.solve(b)
+        x1[:] = D2s_solve(b)
         t1 = time.clock( )
         print(("rel error = %e" % (np.sqrt(np.sum((x1-sol)**2)))))
         print(("CPU time for the direct method: %f" % (t1-t0,)))
         
-        t0 = time.clock( )
         x4 = np.zeros(g.nCells)
-        A = vc.D2s.tocsr( )
+        t0 = time.clock( )
         info, nIter = cg(A, b, x4, relres=c.err_tol)
         t1 = time.clock( )
         print(("info = %d" % info))

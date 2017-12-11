@@ -1,9 +1,12 @@
 import numpy as np
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
-from scipy.sparse.linalg import spsolve, splu
+from scipy.sparse.linalg import spsolve, splu, factorized
 from swe_comp import swe_comp as cmp
-from LinearAlgebra import cg
-from pyamg import rootnode_solver
+from LinearAlgebra import cg, pcg
+#from pyamg import rootnode_solver
+from accelerate import cuda
+cuSparse = cuda.sparse.Sparse( )
+
 
 class VectorCalculus:
     def __init__(self, g, c):
@@ -58,6 +61,7 @@ class VectorCalculus:
                     g.areaCell)
         D2s_coo = coo_matrix((valEntries[:nEntries]*g.areaCell[rows[:nEntries]], (rows[:nEntries], \
                                cols[:nEntries])), shape=(g.nCells, g.nCells))
+        D2s_coo.eliminate_zeros( )
         
         # Convert to csc sparse format
 
@@ -66,6 +70,26 @@ class VectorCalculus:
             self.lu_D2s = splu(self.D2s)
         elif self.linear_solver is 'cg':
             self.D2s = D2s_coo.tocsr( )
+        elif self.linear_solver is 'pcg':
+            self.D2s = D2s_coo.tocsr( )
+            self.D2s = -self.D2s
+            D2s_t = self.D2s.copy( )
+            D2s_t.data = np.where(D2s_t.nonzero()[0] >= D2s_t.nonzero()[1], D2s_t.data, 0.)
+            D2s_t.eliminate_zeros( )
+            D2s_t_descr = cuSparse.matdescr(matrixtype='S', fillmode='L')
+            info = cuSparse.csrsv_analysis(trans='N', m=D2s_t.shape[0], nnz=D2s_t.nnz, \
+                                       descr=D2s_t_descr, csrVal=D2s_t.data, \
+                                       csrRowPtr=D2s_t.indptr, csrColInd=D2s_t.indices)
+            cuSparse.csric0(trans='N', m=D2s_t.shape[0], \
+                        descr=D2s_descr, csrValM=D2s_t.data, csrRowPtrA=D2s_t.indptr,\
+                        csrColIndA=D2s_t.indices, info=info)
+            self.D2sL = D2s_t
+            self.D2sL_solve = factorized(self.D2sL)
+            self.D2sLT = self.D2sL.transpose( )
+            self.D2sLT.tocsr( )
+            self.D2sLT_solve = factorized(self.D2sLT)
+
+            
         elif self.linear_solver is 'amg':
             D2s = D2s_coo.tocsr( )
             D2s = -D2s
@@ -173,6 +197,13 @@ class VectorCalculus:
         elif self.linear_solver is 'cg':
             x[:] -= x[0]
             info, nIter = cg(self.D2s, self.scalar_cell, x, max_iter=self.max_iter, relres = self.err_tol)
+            print("D2s, nIter = %d" % nIter)
+
+        elif self.linear_solver is 'pcg':
+            x[:] -= x[0]
+            self.scalar_cell = -self.scalar_cell
+            info, nIter = pcg(self.D2s, self.D2sL, self.D2sLT, self.scalar_cell, x, max_iter=self.max_iter, relres = self.err_tol)
+            print("D2s, nIter = %d" % nIter)
 
         else:
             raise ValueError("Indicator for solver is not valid. Abort.")
