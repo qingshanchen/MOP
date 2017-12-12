@@ -39,7 +39,7 @@ class parameters:
         self.no_slip_BC = True
         
         # Solver config
-        self.linear_solver = 'lu'      # lu, cg,
+        self.linear_solver = 'cg'      # lu, cg,
         self.err_tol = 1e-10
         self.max_iter = 2000
         

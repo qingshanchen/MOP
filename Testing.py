@@ -384,7 +384,7 @@ def run_tests(g, vc, c, s):
         print(x0)
 
 
-    if True:
+    if False:
         print("To test cg with incomplete cholesky as preconditioner")
 
         sol = np.random.rand(g.nCells)
@@ -469,3 +469,48 @@ def run_tests(g, vc, c, s):
 
         
         raise ValueError("Stop for checking.")
+
+    elif True:
+        from scipy.sparse import tril
+
+        x = np.random.rand(g.nCells)
+
+        cuSparse = cuda.sparse.Sparse()
+        #D2s = tril(vc.D2s, format='csr')
+        D2s = vc.D2s
+        data = numba.cuda.to_device(D2s.data)
+        ptr = numba.cuda.to_device(D2s.indptr)
+        ind = numba.cuda.to_device(D2s.indices)
+        #D2s_descr = cuSparse.matdescr(matrixtype='S', fillmode='L')
+        D2s_descr = cuSparse.matdescr( )
+
+        t0a = time.clock( )
+        t0b = time.time( )
+        y = vc.D2s.dot(x)
+        t1a = time.clock( )
+        t1b = time.time( )
+        print(("CPU time for dot: %f" % (t1a-t0a,)))
+        print(("Wall time for dot: %f" % (t1b-t0b,)))
+
+        xd = numba.cuda.to_device(x)
+        y1 = np.zeros(np.size(x))
+        d_y1 = numba.cuda.to_device(y1)
+        t0a = time.clock( )
+        t0b = time.time( )
+        cuSparse.csrmv(trans='N', m=D2s.shape[0], n=D2s.shape[1], nnz=D2s.nnz, alpha=1.0, \
+                             descr=D2s_descr, csrVal=data, \
+                             csrRowPtr=ptr, csrColInd=ind, x=xd, beta=0., y=d_y1)
+        t1a = time.clock( )
+        t1b = time.time( )
+        d_y1.copy_to_host(y1)
+        print(("CPU time for cuda-mv: %f" % (t1a-t0a,)))
+        print(("Wall time for cuda-mv: %f" % (t1b-t0b,)))
+        print(("rel error = %e" % (np.sqrt(np.sum((y1-y)**2))/np.sqrt(np.sum(y*y)))))
+
+        
+        
+#        t0 = time.clock( )
+#        t1 = time.clock( )
+#        print(("rel error for triangular solver = %e" % (np.sqrt(np.sum((x-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+#        print(("CPU time for a cuda solver for triangular solver: %f" % (t1-t0,)))
+        
