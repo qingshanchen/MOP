@@ -471,6 +471,8 @@ def run_tests(g, vc, c, s):
         raise ValueError("Stop for checking.")
 
     elif True:
+        # Compare scipy dot with cuda mv.
+        
         from scipy.sparse import tril
 
         x = np.random.rand(g.nCells)
@@ -492,9 +494,13 @@ def run_tests(g, vc, c, s):
         print(("CPU time for dot: %f" % (t1a-t0a,)))
         print(("Wall time for dot: %f" % (t1b-t0b,)))
 
+        # Create arrays on host, and transfer them to device
         xd = numba.cuda.to_device(x)
         y1 = np.zeros(np.size(x))
+        t0b = time.time()
         d_y1 = numba.cuda.to_device(y1)
+        t1b = time.time()
+        print(("Wall time for transfering vector to device: %f" % (t1b-t0b,)))
         t0a = time.clock( )
         t0b = time.time( )
         cuSparse.csrmv(trans='N', m=D2s.shape[0], n=D2s.shape[1], nnz=D2s.nnz, alpha=1.0, \
@@ -502,15 +508,35 @@ def run_tests(g, vc, c, s):
                              csrRowPtr=ptr, csrColInd=ind, x=xd, beta=0., y=d_y1)
         t1a = time.clock( )
         t1b = time.time( )
-        d_y1.copy_to_host(y1)
         print(("CPU time for cuda-mv: %f" % (t1a-t0a,)))
         print(("Wall time for cuda-mv: %f" % (t1b-t0b,)))
+        t0b = time.time( )
+        d_y1.copy_to_host(y1)
+        t1b = time.time( )
+        print(("Wall time for transfering back to host: %f" % (t1b-t0b,)))
         print(("rel error = %e" % (np.sqrt(np.sum((y1-y)**2))/np.sqrt(np.sum(y*y)))))
 
+        # Create arrays on device, and transfer them to host
+        xd = numba.cuda.to_device(x)
+        t0b = time.time()
+        d_y1 = numba.cuda.device_array_like(x)
+        t1b = time.time()
+        print(("Wall time for creating an array on device: %f" % (t1b-t0b,)))
+        t0a = time.clock( )
+        t0b = time.time( )
+        cuSparse.csrmv(trans='N', m=D2s.shape[0], n=D2s.shape[1], nnz=D2s.nnz, alpha=1.0, \
+                             descr=D2s_descr, csrVal=data, \
+                             csrRowPtr=ptr, csrColInd=ind, x=xd, beta=0., y=d_y1)
+        t1a = time.clock( )
+        t1b = time.time( )
+        print(("CPU time for cuda-mv: %f" % (t1a-t0a,)))
+        print(("Wall time for cuda-mv: %f" % (t1b-t0b,)))
+        t0b = time.time( )
+        d_y1.copy_to_host(y1)
+        t1b = time.time( )
+        print(("Wall time for transfering back to host: %f" % (t1b-t0b,)))
+        print(("rel error = %e" % (np.sqrt(np.sum((y1-y)**2))/np.sqrt(np.sum(y*y)))))
         
         
-#        t0 = time.clock( )
-#        t1 = time.clock( )
-#        print(("rel error for triangular solver = %e" % (np.sqrt(np.sum((x-sol)**2))/np.sqrt(np.sum(sol*sol)))))
-#        print(("CPU time for a cuda solver for triangular solver: %f" % (t1-t0,)))
+        
         

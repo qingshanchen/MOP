@@ -1,5 +1,11 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve_triangular
+from accelerate.cuda.sparse import Sparse as cuSparseClass
+cuSparse = cuSparseClass( )
+from accelerate.cuda.blas import Blas as cuBlasClass
+cuBlas = cuBlasClass( )
+from numba import cuda
+
 
 def cg(A, b, x0, max_iter=1000, relres=1e-5):
 
@@ -40,6 +46,82 @@ def cg(A, b, x0, max_iter=1000, relres=1e-5):
             raise ValueError("Maximum number of iteration exceeded. Number of iters: %d. relres = %e" % (counter, res/res0))
         
         r2 = r2_new
+
+
+def cudaCG(PO, b, x, max_iter=1000, relres=1e-5):
+
+    dr = cuda.to_device(b)
+    dx = cuda.to_device(x)
+    dp = cuda.device_array_like(b)
+    dAp = cuda.device_array_like(b)
+#    dData = PO.ddata
+#    dPtr = PO.dPtr
+#    dInd = PO.dInd
+#    descr = PO.descr
+    
+    #r = b - A.dot(x)
+    res0 = cuBlas.nrm2(dr)
+    
+    cuSparse.csrmv(trans='N', m=PO.A.shape[0], n=PO.A.shape[1], nnz=PO.A.nnz, alpha = -1., descr=PO.cuSparseDescr, \
+                   csrVal=PO.dData, csrRowPtr=PO.dPtr, csrColInd=PO.dInd, x=dx, beta=1., y=dr)
+    #p = r.copy()
+    cuBlas.axpy(1., dr, dp)
+    
+#    Ap = np.zeros(np.size(p))
+
+#    r2 = np.dot(r,r)
+#    res0 = np.sqrt(np.sum(np.dot(b,b)))
+#    res = np.sqrt(np.sum(r2))
+    res = cuBlas.nrm2(dr)
+    r2 = res * res
+
+    if res0 < np.finfo('float32').tiny:
+        # Zero right-hand; the solution should be zero
+        x[:] = 0.
+        return 0, 0
+    elif res/res0 < relres:
+        # Initial guess close enough to the true solution
+        return 0, 0
+
+    counter = 0
+    while True:
+        # Punch the attendance card
+        counter += 1
+
+        #Ap[:] = A.dot(p[:])
+        cuSparse.csrmv(trans='N', m=PO.A.shape[0], n=PO.A.shape[1], nnz=PO.A.nnz, alpha = 1., descr=PO.cuSparseDescr, \
+                       csrVal=PO.dData, csrRowPtr=PO.dPtr, csrColInd=PO.dInd, x=dp, beta=0., y=dAp)
+
+#        alpha = r2 / np.dot(p, Ap)
+        alpha = r2 / cuBlas.dot(dp, dAp)
+        
+        #x += alpha*p
+        cuBlas.axpy(alpha, dp, dx)
+        
+        #r -= alpha*Ap
+        cuBlas.axpy(-alpha, dAp, dr)
+        
+        #r2_new = np.dot(r,r)
+        res = cuBlas.nrm2(dr)
+        r2_new = res*res
+        
+        beta = r2_new / r2
+        
+        #p = r + beta * p
+        cuBlas.scal(beta, dp)
+        cuBlas.axpy(1., dr, dp)
+
+        # Check if the target tol has been reached
+        #res = np.sqrt(np.sum(r2_new))
+        if res/res0 < relres:
+            dx.copy_to_host(x)
+            return 0, counter
+        
+        if counter > max_iter:
+            raise ValueError("Maximum number of iteration exceeded. Number of iters: %d. relres = %e" % (counter, res/res0))
+        
+        r2 = r2_new
+
     
 
 def pcg(A, L, L_solve, LT, LT_solve, b, x, max_iter=1000, relres=1e-5):

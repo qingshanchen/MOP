@@ -2,11 +2,21 @@ import numpy as np
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 from scipy.sparse.linalg import spsolve, splu, factorized
 from swe_comp import swe_comp as cmp
-from LinearAlgebra import cg, pcg
+from LinearAlgebra import cg, pcg, cudaCG
 #from pyamg import rootnode_solver
 from accelerate import cuda
 cuSparse = cuda.sparse.Sparse( )
+from numba import cuda
+import time
 
+class Poisson:
+    def __init__(self, A):
+        self.A = A.copy( )
+        self.dData = cuda.to_device(self.A.data)
+        self.dPtr = cuda.to_device(self.A.indptr)
+        self.dInd = cuda.to_device(self.A.indices)
+        self.cuSparseDescr = cuSparse.matdescr( )
+        
 
 class VectorCalculus:
     def __init__(self, g, c):
@@ -70,6 +80,8 @@ class VectorCalculus:
             self.lu_D2s = splu(self.D2s)
         elif self.linear_solver is 'cg':
             self.D2s = D2s_coo.tocsr( )
+            self.POpn = Poisson(self.D2s)
+            
         elif self.linear_solver is 'pcg':
             self.D2s = D2s_coo.tocsr( )
             self.D2s = -self.D2s
@@ -196,8 +208,12 @@ class VectorCalculus:
 
         elif self.linear_solver is 'cg':
             x[:] -= x[0]
+#            t0 = time.time( )
             info, nIter = cg(self.D2s, self.scalar_cell, x, max_iter=self.max_iter, relres = self.err_tol)
+#            info, nIter = cudaCG(self.POpn, self.scalar_cell, x, max_iter=self.max_iter, relres = self.err_tol)
+#            t1 = time.time( )
             print("D2s, nIter = %d" % nIter)
+#            print("Wall time: %f " % (t1-t0))
 
         elif self.linear_solver is 'pcg':
             x[:] -= x[0]

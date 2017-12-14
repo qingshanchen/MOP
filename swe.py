@@ -27,9 +27,9 @@ class parameters:
         self.timestepping = 'RK4'
 
         # Duration, time stepping size, saving interval
-        self.dt = 1440.   #1440 for 480km
+        self.dt = 360.   #1440 for 480km
 #        self.dt = 360.   #360 for NA818
-        self.nYears = 1./360
+        self.nYears = .1/360
         self.save_inter_days = 5
 
         # Model configuraitons, boundary conditions
@@ -648,9 +648,9 @@ def main( ):
     vc = VectorCalculus(g, c)
     s = state_data(g, c)
 
-    from Testing import run_tests
-    run_tests(g, vc, c, s)
-    raise ValueError("Just for testing.")
+#    from Testing import run_tests
+#    run_tests(g, vc, c, s)
+#    raise ValueError("Just for testing.")
 
     s.initialization(g, vc, c)
     
