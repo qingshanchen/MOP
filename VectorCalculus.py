@@ -208,11 +208,12 @@ class VectorCalculus:
 
         elif self.linear_solver is 'cg':
             x[:] -= x[0]
-#            t0 = time.time( )
-            info, nIter = cg(self.D2s, self.scalar_cell, x, max_iter=self.max_iter, relres = self.err_tol)
-#            info, nIter = cudaCG(self.POpn, self.scalar_cell, x, max_iter=self.max_iter, relres = self.err_tol)
-#            t1 = time.time( )
-            print("D2s, nIter = %d" % nIter)
+            
+            t0 = time.time( )
+#            info, nIter = cg(self.D2s, self.scalar_cell, x, max_iter=self.max_iter, relres = self.err_tol)
+            info, nIter = cudaCG(self.POpn, self.scalar_cell, x, max_iter=self.max_iter, relres = self.err_tol)
+            t1 = time.time( )
+            print("D2s, nIter & walltime = %d, %f" % (nIter,t1-t0))
 #            print("Wall time: %f " % (t1-t0))
 
         elif self.linear_solver is 'pcg':

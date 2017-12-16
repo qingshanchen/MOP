@@ -5,6 +5,7 @@ cuSparse = cuSparseClass( )
 from accelerate.cuda.blas import Blas as cuBlasClass
 cuBlas = cuBlasClass( )
 from numba import cuda
+import time
 
 
 def cg(A, b, x0, max_iter=1000, relres=1e-5):
@@ -50,28 +51,28 @@ def cg(A, b, x0, max_iter=1000, relres=1e-5):
 
 def cudaCG(PO, b, x, max_iter=1000, relres=1e-5):
 
+    # Initial copying data from host to device
     dr = cuda.to_device(b)
     dx = cuda.to_device(x)
+
+    # Generate two local variables on device
     dp = cuda.device_array_like(b)
+    cuBlas.scal(0., dp)       # Initialize to zero
     dAp = cuda.device_array_like(b)
-#    dData = PO.ddata
-#    dPtr = PO.dPtr
-#    dInd = PO.dInd
-#    descr = PO.descr
-    
-    #r = b - A.dot(x)
+    cuBlas.scal(0., dAp)
+
+
+    # Compute the l2 norm of the right-hand side
     res0 = cuBlas.nrm2(dr)
-    
+
+    # Compute r = r - A.x
     cuSparse.csrmv(trans='N', m=PO.A.shape[0], n=PO.A.shape[1], nnz=PO.A.nnz, alpha = -1., descr=PO.cuSparseDescr, \
                    csrVal=PO.dData, csrRowPtr=PO.dPtr, csrColInd=PO.dInd, x=dx, beta=1., y=dr)
-    #p = r.copy()
-    cuBlas.axpy(1., dr, dp)
-    
-#    Ap = np.zeros(np.size(p))
 
-#    r2 = np.dot(r,r)
-#    res0 = np.sqrt(np.sum(np.dot(b,b)))
-#    res = np.sqrt(np.sum(r2))
+    # Compute p = r
+    cuBlas.axpy(1., dr, dp)
+
+    # compute l2 norm of the initial residual
     res = cuBlas.nrm2(dr)
     r2 = res * res
 
@@ -79,41 +80,45 @@ def cudaCG(PO, b, x, max_iter=1000, relres=1e-5):
         # Zero right-hand; the solution should be zero
         x[:] = 0.
         return 0, 0
+    
     elif res/res0 < relres:
-        # Initial guess close enough to the true solution
+        # Initial guess close enough to the true solution; nothing to do
         return 0, 0
 
+    # reset the counter
     counter = 0
     while True:
+        
         # Punch the attendance card
         counter += 1
 
-        #Ap[:] = A.dot(p[:])
+        # Compute Ap = A.p
         cuSparse.csrmv(trans='N', m=PO.A.shape[0], n=PO.A.shape[1], nnz=PO.A.nnz, alpha = 1., descr=PO.cuSparseDescr, \
                        csrVal=PO.dData, csrRowPtr=PO.dPtr, csrColInd=PO.dInd, x=dp, beta=0., y=dAp)
 
-#        alpha = r2 / np.dot(p, Ap)
+        # Compute alpha
         alpha = r2 / cuBlas.dot(dp, dAp)
-        
-        #x += alpha*p
+
+        # Compute x = x + alpha.p
         cuBlas.axpy(alpha, dp, dx)
-        
-        #r -= alpha*Ap
+
+        # Compute r = r - alpha.Ap
         cuBlas.axpy(-alpha, dAp, dr)
-        
-        #r2_new = np.dot(r,r)
+
+        # Compute l2 norm of the residual
         res = cuBlas.nrm2(dr)
         r2_new = res*res
-        
+
+        # Compute beta
         beta = r2_new / r2
-        
-        #p = r + beta * p
+
+        # Compute p = beta*p + r
         cuBlas.scal(beta, dp)
         cuBlas.axpy(1., dr, dp)
 
         # Check if the target tol has been reached
-        #res = np.sqrt(np.sum(r2_new))
         if res/res0 < relres:
+
             dx.copy_to_host(x)
             return 0, counter
         
