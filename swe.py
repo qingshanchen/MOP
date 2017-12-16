@@ -41,7 +41,7 @@ class parameters:
         # Solver config
         self.linear_solver = 'cg'      # lu, cg,
         self.err_tol = 1e-10
-        self.max_iter = 2000
+        self.max_iter = 5000
         
         self.restart = False
         self.restart_file = 'restart.nc'
@@ -648,9 +648,9 @@ def main( ):
     vc = VectorCalculus(g, c)
     s = state_data(g, c)
 
-#    from Testing import run_tests
-#    run_tests(g, vc, c, s)
-#    raise ValueError("Just for testing.")
+    from Testing import run_tests
+    run_tests(g, vc, c, s)
+    raise ValueError("Just for testing.")
 
     s.initialization(g, vc, c)
 #    raise ValueError("Just for testing.")

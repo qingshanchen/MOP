@@ -137,7 +137,7 @@ def run_tests(g, vc, c, s):
         print(("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol)))))
         print(("CPU time for cg solver: %f" % (t1-t0,)))
 
-    if True:
+    if False:
         # To test and compare cg and cudaCG for systems on the primary mesh
         print("To test and compare cg and cudaCG for systems on the primary mesh")
         
@@ -150,19 +150,19 @@ def run_tests(g, vc, c, s):
 
         t0 = time.clock( )
         x4 = np.zeros(g.nCells)
-        A = vc.D2s.tocsr( )
-        info, nIter = cg(A, b, x4, relres=c.err_tol)
-        t1 = time.clock( )
+#        A = vc.D2s.tocsr( )
+#        info, nIter = cg(A, b, x4, relres=c.err_tol, max_iter=c.max_iter)
+#        t1 = time.clock( )
 #        raise ValueError
-        print(("info = %d" % info))
-        print(("nIter = %d" % nIter))
-        print(("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol)))))
-        print(("CPU time for cg solver: %f" % (t1-t0,)))
+#        print(("info = %d" % info))
+#        print(("nIter = %d" % nIter))
+#        print(("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+#        print(("CPU time for cg solver: %f" % (t1-t0,)))
 #        raise ValueError
 
         t0 = time.clock( )
         x2 = np.zeros(g.nCells)
-        info, nIter = cudaCG(vc.POpn, b, x2, relres=c.err_tol)
+        info, nIter = cudaCG(vc.POpn, b, x2, relres=c.err_tol, max_iter=c.max_iter)
         t1 = time.clock( )
         print(("info = %d" % info))
         print(("nIter = %d" % nIter))
@@ -503,7 +503,7 @@ def run_tests(g, vc, c, s):
         
         raise ValueError("Stop for checking.")
 
-    elif False:
+    elif True:
         # Compare scipy dot with cuda mv.
         
         from scipy.sparse import tril
@@ -534,6 +534,7 @@ def run_tests(g, vc, c, s):
         d_y1 = numba.cuda.to_device(y1)
         t1b = time.time()
         print(("Wall time for transfering vector to device: %f" % (t1b-t0b,)))
+        
         t0a = time.clock( )
         t0b = time.time( )
         cuSparse.csrmv(trans='N', m=D2s.shape[0], n=D2s.shape[1], nnz=D2s.nnz, alpha=1.0, \
