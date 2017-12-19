@@ -1,6 +1,6 @@
 import numpy as np
 import time
-from LinearAlgebra import cg, cudaCG
+from LinearAlgebra import cg, cudaCG, cudaPCG
 from pyamg import rootnode_solver
 from pyamg.util.linalg import norm
 from numpy import ones, array, arange, zeros, abs, random
@@ -137,7 +137,7 @@ def run_tests(g, vc, c, s):
         print(("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol)))))
         print(("CPU time for cg solver: %f" % (t1-t0,)))
 
-    if False:
+    if True:
         # To test and compare cg and cudaCG for systems on the primary mesh
         print("To test and compare cg and cudaCG for systems on the primary mesh")
         
@@ -150,15 +150,13 @@ def run_tests(g, vc, c, s):
 
         t0 = time.clock( )
         x4 = np.zeros(g.nCells)
-#        A = vc.D2s.tocsr( )
-#        info, nIter = cg(A, b, x4, relres=c.err_tol, max_iter=c.max_iter)
-#        t1 = time.clock( )
-#        raise ValueError
-#        print(("info = %d" % info))
-#        print(("nIter = %d" % nIter))
-#        print(("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol)))))
-#        print(("CPU time for cg solver: %f" % (t1-t0,)))
-#        raise ValueError
+        A = vc.D2s.tocsr( )
+        info, nIter = cg(A, b, x4, relres=c.err_tol, max_iter=c.max_iter)
+        t1 = time.clock( )
+        print(("info = %d" % info))
+        print(("nIter = %d" % nIter))
+        print(("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+        print(("CPU time for cg solver: %f" % (t1-t0,)))
 
         t0 = time.clock( )
         x2 = np.zeros(g.nCells)
@@ -168,6 +166,17 @@ def run_tests(g, vc, c, s):
         print(("nIter = %d" % nIter))
         print(("rel error = %f" % (np.sqrt(np.sum((x2-sol)**2))/np.sqrt(np.sum(sol*sol)))))
         print(("CPU time for cudaCG solver: %f" % (t1-t0,)))
+
+        t0 = time.clock( )
+        x1 = np.zeros(g.nCells)
+        b = -b
+        info, nIter = cudaPCG(vc.POpnSPD, b, x1, relres=c.err_tol, max_iter=c.max_iter)
+        t1 = time.clock( )
+        print(("info = %d" % info))
+        print(("nIter = %d" % nIter))
+        print(("rel error = %f" % (np.sqrt(np.sum((x1-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+        print(("CPU time for cudaPCG solver: %f" % (t1-t0,)))
+
         raise ValueError
         
     if False:
@@ -503,7 +512,7 @@ def run_tests(g, vc, c, s):
         
         raise ValueError("Stop for checking.")
 
-    elif True:
+    elif False:
         # Compare scipy dot with cuda mv.
         
         from scipy.sparse import tril

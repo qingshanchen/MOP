@@ -16,8 +16,51 @@ class Poisson:
         self.dPtr = cuda.to_device(self.A.indptr)
         self.dInd = cuda.to_device(self.A.indices)
         self.cuSparseDescr = cuSparse.matdescr( )
+
+
+class PoissonSPD:
+    def __init__(self, A):
+        self.A = A.copy( )
+        self.Adata = cuda.to_device(self.A.data)
+        self.Aptr = cuda.to_device(self.A.indptr)
+        self.Aind = cuda.to_device(self.A.indices)
+        self.Adescr = cuSparse.matdescr( )
+        
+        A_t = self.A.copy( )
+        A_t.data = np.where(A_t.nonzero()[0] >= A_t.nonzero()[1], A_t.data, 0.)
+        A_t.eliminate_zeros( )
+        A_t_descr = cuSparse.matdescr(matrixtype='S', fillmode='L')
+        info = cuSparse.csrsv_analysis(trans='N', m=A_t.shape[0], nnz=A_t.nnz, \
+                                   descr=A_t_descr, csrVal=A_t.data, \
+                                   csrRowPtr=A_t.indptr, csrColInd=A_t.indices)
+        cuSparse.csric0(trans='N', m=A_t.shape[0], \
+                    descr=A_t_descr, csrValM=A_t.data, csrRowPtrA=A_t.indptr,\
+                    csrColIndA=A_t.indices, info=info)
+
+        self.L = A_t
+        self.Lmv_descr = cuSparse.matdescr( )
+        self.Lsv_descr = cuSparse.matdescr(matrixtype='T', fillmode='L')
+        self.Ldata = cuda.to_device(self.L.data)
+        self.Lptr = cuda.to_device(self.L.indptr)
+        self.Lind = cuda.to_device(self.L.indices)
+        self.Lsv_info = cuSparse.csrsv_analysis(trans='N', m=self.L.shape[0], \
+                nnz=self.L.nnz,  descr=self.Lsv_descr, csrVal=self.Ldata, \
+                csrRowPtr=self.Lptr, csrColInd=self.Lind)        
+        
+        
+        self.LT = self.L.transpose( )
+        self.LT.tocsr( )
+        self.LTmv_descr = cuSparse.matdescr( )
+        self.LTsv_descr = cuSparse.matdescr(matrixtype='T', fillmode='U')
+        self.LTdata = cuda.to_device(self.LT.data)
+        self.LTptr = cuda.to_device(self.LT.indptr)
+        self.LTind = cuda.to_device(self.LT.indices)
+        self.LTsv_info = cuSparse.csrsv_analysis(trans='N', m=self.LT.shape[0], \
+                 nnz=self.LT.nnz, descr=self.LTsv_descr, csrVal=self.LTdata, \
+                 csrRowPtr=self.LTptr, csrColInd=self.LTind)        
         
 
+            
 class VectorCalculus:
     def __init__(self, g, c):
 
@@ -81,7 +124,7 @@ class VectorCalculus:
         elif self.linear_solver is 'cg':
             self.D2s = D2s_coo.tocsr( )
             self.POpn = Poisson(self.D2s)
-            
+            self.POpnSPD = PoissonSPD(-self.D2s)
         elif self.linear_solver is 'pcg':
             self.D2s = D2s_coo.tocsr( )
             self.D2s = -self.D2s
