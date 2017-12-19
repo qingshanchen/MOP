@@ -143,7 +143,6 @@ def cudaPCG(PO, b, x, max_iter=1000, relres=1e-5):
                    x=x, beta=0., y=dx)
 
     # Set db = L\b
-    #info = PO.Lsv_info.copy( )
     cuSparse.csrsv_solve(trans='N', m=PO.L.shape[0], alpha=1.0, \
                          descr=PO.Lsv_descr, csrVal=PO.Ldata, \
                          csrRowPtr=PO.Lptr, csrColInd=PO.Lind, info=PO.Lsv_info, x=b, y=db)
@@ -160,10 +159,11 @@ def cudaPCG(PO, b, x, max_iter=1000, relres=1e-5):
     res0 = cuBlas.nrm2(db)
 
     # Compute dr = db - L\ A. LT\ dx
-#    info = PO.LTsv_info.copy( )
-    cuSparse.csrsv_solve(trans='N', m=PO.LT.shape[0], alpha=1.0, \
-                         descr=PO.LTsv_descr, csrVal=PO.LTdata, \
-                         csrRowPtr=PO.LTptr, csrColInd=PO.LTind, info=PO.LTsv_info, x=dx, y=dp)  # dp temporarily used here
+    cuSparse.csrsv_solve(trans='T', m=PO.L.shape[0], alpha=1.0, \
+                         descr=PO.Lsv_descr, csrVal=PO.Ldata, \
+                         csrRowPtr=PO.Lptr, csrColInd=PO.Lind, info=PO.LTsv_info, x=dx, y=dp)  # dp temporarily used here
+#    raise ValueError
+
     cuSparse.csrmv(trans='N', m=PO.A.shape[0], n=PO.A.shape[1], nnz=PO.A.nnz, alpha = 1., \
                    descr=PO.Adescr, csrVal=PO.Adata, csrRowPtr=PO.Aptr, csrColInd=PO.Aind, x=dp, \
                    beta=0., y=dAp)   # dAp temporarily used here
@@ -174,7 +174,8 @@ def cudaPCG(PO, b, x, max_iter=1000, relres=1e-5):
     cuBlas.scal(-1, dr)
     cuBlas.axpy(1., db, dr)
 
-    # Compute p = r
+    # Set p = r
+    cuBlas.scal(0., dp)
     cuBlas.axpy(1., dr, dp)
 
     # compute l2 norm of the initial residual
@@ -199,9 +200,14 @@ def cudaPCG(PO, b, x, max_iter=1000, relres=1e-5):
 
         # Compute Ap = L\ A. LT\ dp
 #        info = PO.LTsv_info.copy( )
-        cuSparse.csrsv_solve(trans='N', m=PO.LT.shape[0], alpha=1.0, \
-                             descr=PO.LTsv_descr, csrVal=PO.LTdata, \
-                             csrRowPtr=PO.LTptr, csrColInd=PO.LTind, info=PO.LTsv_info, x=dp, y=dAp)   
+#        cuBlas.scal(0., dAp)
+#        cuSparse.csrsv_solve(trans='N', m=PO.LT.shape[0], alpha=1.0, \
+#                             descr=PO.LTsv_descr, csrVal=PO.LTdata, \
+#                             csrRowPtr=PO.LTptr, csrColInd=PO.LTind, info=PO.LTsv_info, x=dp, y=dAp)   
+        cuSparse.csrsv_solve(trans='T', m=PO.L.shape[0], alpha=1.0, \
+                             descr=PO.Lsv_descr, csrVal=PO.Ldata, \
+                             csrRowPtr=PO.Lptr, csrColInd=PO.Lind, info=PO.LTsv_info, x=dp, y=dAp)   
+#        raise ValueError
         cuSparse.csrmv(trans='N', m=PO.A.shape[0], n=PO.A.shape[1], nnz=PO.A.nnz, alpha = 1., \
                        descr=PO.Adescr, csrVal=PO.Adata, csrRowPtr=PO.Aptr, csrColInd=PO.Aind, \
                        x=dAp, beta=0., y=db)     # db used as a temp variable
@@ -210,7 +216,6 @@ def cudaPCG(PO, b, x, max_iter=1000, relres=1e-5):
                              descr=PO.Lsv_descr, csrVal=PO.Ldata, csrRowPtr=PO.Lptr, csrColInd=PO.Lind, \
                              info=PO.Lsv_info, x=db, y=dAp)
 
-        raise ValueError
 
         # Compute alpha
         alpha = r2 / cuBlas.dot(dp, dAp)
@@ -232,12 +237,15 @@ def cudaPCG(PO, b, x, max_iter=1000, relres=1e-5):
         cuBlas.scal(beta, dp)
         cuBlas.axpy(1., dr, dp)
 
+        if res != res:
+            raise ValueError("Exceptions detected in cudaPCG")
+
         # Check if the target tol has been reached
         if res/res0 < relres:
 #            info = PO.LTsv_info.copy( )
-            cuSparse.csrsv_solve(trans='N', m=PO.LT.shape[0], alpha=1.0, \
-                                 descr=PO.LTsv_descr, csrVal=PO.LTdata, \
-                                 csrRowPtr=PO.LTptr, csrColInd=PO.LTind, info=PO.LTsv_info, x=dx, y=x)
+            cuSparse.csrsv_solve(trans='T', m=PO.L.shape[0], alpha=1.0, \
+                                 descr=PO.Lsv_descr, csrVal=PO.Ldata, \
+                                 csrRowPtr=PO.Lptr, csrColInd=PO.Lind, info=PO.LTsv_info, x=dx, y=x)
             return 0, counter
         
         if counter > max_iter:
@@ -249,22 +257,21 @@ def cudaPCG(PO, b, x, max_iter=1000, relres=1e-5):
 
 def pcg(A, L, L_solve, LT, LT_solve, b, x, max_iter=1000, relres=1e-5):
 
-    x = LT.dot(x)
-#    b = spsolve_triangular(L, b)
-    b = L_solve(b)
+    X = LT.dot(x)    # Use a new variable; x will be used to take the solution back
+    B = L_solve(b)   # Use a new variable; b is unchanged.
     
     #r = b - A.dot(x)
     #r = spsolve_triangular(LT, x, lower=False)
-    r = LT_solve(x)
+    r = LT_solve(X)
     r = A.dot(r)
     #r = spsolve_triangular(L, r)
     r = L_solve(r)
-    r = b - r
+    r = B - r
 
     p = r.copy()
     Ap = np.zeros(np.size(p))
     r2 = np.dot(r,r)
-    res0 = np.sqrt(np.sum(np.dot(b,b)))
+    res0 = np.sqrt(np.sum(np.dot(B,B)))
     res = np.sqrt(np.sum(r2))
 
     if res0 < np.finfo('float32').tiny:
@@ -288,7 +295,7 @@ def pcg(A, L, L_solve, LT, LT_solve, b, x, max_iter=1000, relres=1e-5):
         Ap = L_solve(Ap)
         
         alpha = r2 / np.dot(p, Ap)
-        x += alpha*p
+        X += alpha*p
         r -= alpha*Ap
         r2_new = np.dot(r,r)
         beta = r2_new / r2
@@ -296,9 +303,10 @@ def pcg(A, L, L_solve, LT, LT_solve, b, x, max_iter=1000, relres=1e-5):
 
         # Check if the target tol has been reached
         res = np.sqrt(np.sum(r2_new))
+
         if res/res0 < relres:
             #x = spsolve_triangular(LT, x, lower=False)
-            x = LT_solve(x)
+            x[:] = LT_solve(X)
             return 0, counter
         
         if counter > max_iter:

@@ -1,6 +1,6 @@
 import numpy as np
 import time
-from LinearAlgebra import cg, cudaCG, cudaPCG
+from LinearAlgebra import cg, cudaCG, cudaPCG, pcg
 from pyamg import rootnode_solver
 from pyamg.util.linalg import norm
 from numpy import ones, array, arange, zeros, abs, random
@@ -142,11 +142,17 @@ def run_tests(g, vc, c, s):
         print("To test and compare cg and cudaCG for systems on the primary mesh")
         
         sol = np.random.rand(g.nCells)
+#        sol = np.ones(g.nCells)
         sol[0] = 0.
         b = vc.D2s.dot(sol)
-#        print("size of sol: %d" % sol.size)
-#        print("size of b: %d" % b.size)
-#        raise ValueError
+
+
+        x1 = np.zeros(g.nCells)
+        t0 = time.clock( )
+        x1[:] = vc.lu_D2s.solve(b)
+        t1 = time.clock( )
+        print(("rel error = %f" % (np.sqrt(np.sum((x1-sol)**2)))))
+        print(("CPU time for the direct method: %f" % (t1-t0,)))
 
         t0 = time.clock( )
         x4 = np.zeros(g.nCells)
@@ -158,6 +164,19 @@ def run_tests(g, vc, c, s):
         print(("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol)))))
         print(("CPU time for cg solver: %f" % (t1-t0,)))
 
+
+#        t0 = time.clock( )
+#        x4 = np.zeros(g.nCells)
+#        A = vc.D2s.tocsr( )
+#        A = -A
+#        b = -b
+#        info, nIter = pcg(A, vc.D2sL, vc.D2sL_solve, vc.D2sLT, vc.D2sLT_solve, b, x4, max_iter=c.max_iter, relres = c.err_tol)
+#        t1 = time.clock( )
+#        print(("info = %d" % info))
+#        print(("nIter = %d" % nIter))
+#        print(("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+#        print(("CPU time for pcg solver: %f" % (t1-t0,)))
+
         t0 = time.clock( )
         x2 = np.zeros(g.nCells)
         info, nIter = cudaCG(vc.POpn, b, x2, relres=c.err_tol, max_iter=c.max_iter)
@@ -166,6 +185,7 @@ def run_tests(g, vc, c, s):
         print(("nIter = %d" % nIter))
         print(("rel error = %f" % (np.sqrt(np.sum((x2-sol)**2))/np.sqrt(np.sum(sol*sol)))))
         print(("CPU time for cudaCG solver: %f" % (t1-t0,)))
+
 
         t0 = time.clock( )
         x1 = np.zeros(g.nCells)

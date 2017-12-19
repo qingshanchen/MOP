@@ -41,7 +41,7 @@ class parameters:
         # Solver config
         self.linear_solver = 'cg'      # lu, cg,
         self.err_tol = 1e-10
-        self.max_iter = 1000
+        self.max_iter = 5000
         
         self.restart = False
         self.restart_file = 'restart.nc'

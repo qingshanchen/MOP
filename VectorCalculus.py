@@ -39,7 +39,8 @@ class PoissonSPD:
 
         self.L = A_t
         self.Lmv_descr = cuSparse.matdescr( )
-        self.Lsv_descr = cuSparse.matdescr(matrixtype='T', fillmode='L')
+#        self.Lsv_descr = cuSparse.matdescr(matrixtype='T', fillmode='L')
+        self.Lsv_descr = cuSparse.matdescr(matrixtype='T')
         self.Ldata = cuda.to_device(self.L.data)
         self.Lptr = cuda.to_device(self.L.indptr)
         self.Lind = cuda.to_device(self.L.indices)
@@ -52,12 +53,16 @@ class PoissonSPD:
         self.LT.tocsr( )
         self.LTmv_descr = cuSparse.matdescr( )
         self.LTsv_descr = cuSparse.matdescr(matrixtype='T', fillmode='U')
+        self.LTsv_descr = cuSparse.matdescr()
         self.LTdata = cuda.to_device(self.LT.data)
         self.LTptr = cuda.to_device(self.LT.indptr)
         self.LTind = cuda.to_device(self.LT.indices)
-        self.LTsv_info = cuSparse.csrsv_analysis(trans='N', m=self.LT.shape[0], \
-                 nnz=self.LT.nnz, descr=self.LTsv_descr, csrVal=self.LTdata, \
-                 csrRowPtr=self.LTptr, csrColInd=self.LTind)        
+#        self.LTsv_info = cuSparse.csrsv_analysis(trans='N', m=self.LT.shape[0], \
+#                 nnz=self.LT.nnz, descr=self.LTsv_descr, csrVal=self.LTdata, \
+#                 csrRowPtr=self.LTptr, csrColInd=self.LTind)        
+        self.LTsv_info = cuSparse.csrsv_analysis(trans='T', m=self.L.shape[0], \
+                nnz=self.L.nnz,  descr=self.Lsv_descr, csrVal=self.Ldata, \
+                csrRowPtr=self.Lptr, csrColInd=self.Lind)        
         
 
             
@@ -125,6 +130,29 @@ class VectorCalculus:
             self.D2s = D2s_coo.tocsr( )
             self.POpn = Poisson(self.D2s)
             self.POpnSPD = PoissonSPD(-self.D2s)
+
+            # For testing direct solver. Can be removed
+            self.D2s = D2s_coo.tocsc( )
+            self.lu_D2s = splu(self.D2s)
+
+            # This is for test pcg only. Can be removed totally
+#            D2s_t = self.D2s.copy( )
+#            D2s_t = -D2s_t
+#            D2s_t.data = np.where(D2s_t.nonzero()[0] >= D2s_t.nonzero()[1], D2s_t.data, 0.)
+#            D2s_t.eliminate_zeros( )
+#            D2s_t_descr = cuSparse.matdescr(matrixtype='S', fillmode='L')
+#            info = cuSparse.csrsv_analysis(trans='N', m=D2s_t.shape[0], nnz=D2s_t.nnz, \
+#                                       descr=D2s_t_descr, csrVal=D2s_t.data, \
+#                                       csrRowPtr=D2s_t.indptr, csrColInd=D2s_t.indices)
+#            cuSparse.csric0(trans='N', m=D2s_t.shape[0], \
+#                        descr=D2s_t_descr, csrValM=D2s_t.data, csrRowPtrA=D2s_t.indptr,\
+#                        csrColIndA=D2s_t.indices, info=info)
+#            self.D2sL = D2s_t
+#            self.D2sL_solve = factorized(self.D2sL)
+#            self.D2sLT = self.D2sL.transpose( )
+#            self.D2sLT.tocsr( )
+#            self.D2sLT_solve = factorized(self.D2sLT)
+            
         elif self.linear_solver is 'pcg':
             self.D2s = D2s_coo.tocsr( )
             self.D2s = -self.D2s
