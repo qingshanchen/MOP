@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.sparse.linalg import spsolve_triangular
+#from scipy.sparse.linalg import spsolve_triangular
 from accelerate.cuda.sparse import Sparse as cuSparseClass
 cuSparse = cuSparseClass( )
 from accelerate.cuda.blas import Blas as cuBlasClass

@@ -10,7 +10,7 @@ import time
 from swe_comp import swe_comp as cmp
 import os
 from copy import deepcopy as deepcopy
-from pyamg import rootnode_solver
+#from pyamg import rootnode_solver
 
 max_int = np.iinfo('int32').max
 
