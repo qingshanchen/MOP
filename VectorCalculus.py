@@ -3,71 +3,78 @@ from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 from scipy.sparse.linalg import spsolve, splu, factorized
 from swe_comp import swe_comp as cmp
 from LinearAlgebra import cg, pcg, cudaCG
+#from LinearAlgebra import LinearAlgebra
 #from pyamg import rootnode_solver
-from accelerate import cuda
-cuSparse = cuda.sparse.Sparse( )
-from numba import cuda
-import time
+#import time
 
 class Poisson:
-    def __init__(self, A):
+    def __init__(self, A, linear_solver, env):
         self.A = A.copy( )
-        self.dData = cuda.to_device(self.A.data)
-        self.dPtr = cuda.to_device(self.A.indptr)
-        self.dInd = cuda.to_device(self.A.indices)
-        self.cuSparseDescr = cuSparse.matdescr( )
+
+        if linear_solver in ['cg', 'cudaCG']:
+#            from accelerate import cuda
+#            cuSparse = cuda.sparse.Sparse( )
+ #           from numba import cuda
+            
+            self.dData = env.cuda.to_device(self.A.data)
+            self.dPtr = env.cuda.to_device(self.A.indptr)
+            self.dInd = env.cuda.to_device(self.A.indices)
+            self.cuSparseDescr = env.cuSparse.matdescr( )
 
 
 class PoissonSPD:
-    def __init__(self, A):
+    def __init__(self, A, linear_solver, env):
         self.A = A.copy( )
-        self.Adata = cuda.to_device(self.A.data)
-        self.Aptr = cuda.to_device(self.A.indptr)
-        self.Aind = cuda.to_device(self.A.indices)
-        self.Adescr = cuSparse.matdescr( )
-        
-        A_t = self.A.copy( )
-        A_t.data = np.where(A_t.nonzero()[0] >= A_t.nonzero()[1], A_t.data, 0.)
-        A_t.eliminate_zeros( )
-        A_t_descr = cuSparse.matdescr(matrixtype='S', fillmode='L')
-        info = cuSparse.csrsv_analysis(trans='N', m=A_t.shape[0], nnz=A_t.nnz, \
-                                   descr=A_t_descr, csrVal=A_t.data, \
-                                   csrRowPtr=A_t.indptr, csrColInd=A_t.indices)
-        cuSparse.csric0(trans='N', m=A_t.shape[0], \
-                    descr=A_t_descr, csrValM=A_t.data, csrRowPtrA=A_t.indptr,\
-                    csrColIndA=A_t.indices, info=info)
 
-        self.L = A_t
-        self.Lmv_descr = cuSparse.matdescr( )
-#        self.Lsv_descr = cuSparse.matdescr(matrixtype='T', fillmode='L')
-        self.Lsv_descr = cuSparse.matdescr(matrixtype='T')
-        self.Ldata = cuda.to_device(self.L.data)
-        self.Lptr = cuda.to_device(self.L.indptr)
-        self.Lind = cuda.to_device(self.L.indices)
-        self.Lsv_info = cuSparse.csrsv_analysis(trans='N', m=self.L.shape[0], \
-                nnz=self.L.nnz,  descr=self.Lsv_descr, csrVal=self.Ldata, \
-                csrRowPtr=self.Lptr, csrColInd=self.Lind)        
+        if linear_solver in ['cg', 'cudaCG', 'cudaPCG']:
+#            from accelerate import cuda
+#            cuSparse = cuda.sparse.Sparse( )
+#            from numba import cuda
         
-        
-        self.LT = self.L.transpose( )
-        self.LT.tocsr( )
-        self.LTmv_descr = cuSparse.matdescr( )
-        self.LTsv_descr = cuSparse.matdescr(matrixtype='T', fillmode='U')
-        self.LTsv_descr = cuSparse.matdescr()
-        self.LTdata = cuda.to_device(self.LT.data)
-        self.LTptr = cuda.to_device(self.LT.indptr)
-        self.LTind = cuda.to_device(self.LT.indices)
-#        self.LTsv_info = cuSparse.csrsv_analysis(trans='N', m=self.LT.shape[0], \
-#                 nnz=self.LT.nnz, descr=self.LTsv_descr, csrVal=self.LTdata, \
-#                 csrRowPtr=self.LTptr, csrColInd=self.LTind)        
-        self.LTsv_info = cuSparse.csrsv_analysis(trans='T', m=self.L.shape[0], \
-                nnz=self.L.nnz,  descr=self.Lsv_descr, csrVal=self.Ldata, \
-                csrRowPtr=self.Lptr, csrColInd=self.Lind)        
+            self.Adata = env.cuda.to_device(self.A.data)
+            self.Aptr = env.cuda.to_device(self.A.indptr)
+            self.Aind = env.cuda.to_device(self.A.indices)
+            self.Adescr = env.cuSparse.matdescr( )
+
+            A_t = self.A.copy( )
+            A_t.data = np.where(A_t.nonzero()[0] >= A_t.nonzero()[1], A_t.data, 0.)
+            A_t.eliminate_zeros( )
+            A_t_descr = env.cuSparse.matdescr(matrixtype='S', fillmode='L')
+            info = env.cuSparse.csrsv_analysis(trans='N', m=A_t.shape[0], nnz=A_t.nnz, \
+                                       descr=A_t_descr, csrVal=A_t.data, \
+                                       csrRowPtr=A_t.indptr, csrColInd=A_t.indices)
+            env.cuSparse.csric0(trans='N', m=A_t.shape[0], \
+                        descr=A_t_descr, csrValM=A_t.data, csrRowPtrA=A_t.indptr,\
+                        csrColIndA=A_t.indices, info=info)
+
+            self.L = A_t
+            self.Lmv_descr = env.cuSparse.matdescr( )
+    #        self.Lsv_descr = cuSparse.matdescr(matrixtype='T', fillmode='L')
+            self.Lsv_descr = env.cuSparse.matdescr(matrixtype='T')
+            self.Ldata = env.cuda.to_device(self.L.data)
+            self.Lptr = env.cuda.to_device(self.L.indptr)
+            self.Lind = env.cuda.to_device(self.L.indices)
+            self.Lsv_info = env.cuSparse.csrsv_analysis(trans='N', m=self.L.shape[0], \
+                    nnz=self.L.nnz,  descr=self.Lsv_descr, csrVal=self.Ldata, \
+                    csrRowPtr=self.Lptr, csrColInd=self.Lind)        
+
+
+            self.LT = self.L.transpose( )
+            self.LT.tocsr( )
+            self.LTmv_descr = env.cuSparse.matdescr( )
+            self.LTsv_descr = env.cuSparse.matdescr(matrixtype='T', fillmode='U')
+            self.LTsv_descr = env.cuSparse.matdescr()
+            self.LTdata = env.cuda.to_device(self.LT.data)
+            self.LTptr = env.cuda.to_device(self.LT.indptr)
+            self.LTind = env.cuda.to_device(self.LT.indices)
+            self.LTsv_info = env.cuSparse.csrsv_analysis(trans='T', m=self.L.shape[0], \
+                    nnz=self.L.nnz,  descr=self.Lsv_descr, csrVal=self.Ldata, \
+                    csrRowPtr=self.Lptr, csrColInd=self.Lind)        
         
 
             
 class VectorCalculus:
-    def __init__(self, g, c):
+    def __init__(self, g, c, env):
 
         self.linear_solver = c.linear_solver
 
@@ -128,8 +135,8 @@ class VectorCalculus:
             self.lu_D2s = splu(self.D2s)
         elif self.linear_solver is 'cg':
             self.D2s = D2s_coo.tocsr( )
-            self.POpn = Poisson(self.D2s)
-            self.POpnSPD = PoissonSPD(-self.D2s)
+            self.POpn = Poisson(self.D2s, self.linear_solver, env)
+            self.POpnSPD = PoissonSPD(-self.D2s, self.linear_solver, env)
 
             # For testing direct solver. Can be removed
             self.D2s = D2s_coo.tocsc( )
@@ -159,6 +166,9 @@ class VectorCalculus:
             D2s_t = self.D2s.copy( )
             D2s_t.data = np.where(D2s_t.nonzero()[0] >= D2s_t.nonzero()[1], D2s_t.data, 0.)
             D2s_t.eliminate_zeros( )
+
+            from accelerate import cuda
+            cuSparse = cuda.sparse.Sparse( )
             D2s_t_descr = cuSparse.matdescr(matrixtype='S', fillmode='L')
             info = cuSparse.csrsv_analysis(trans='N', m=D2s_t.shape[0], nnz=D2s_t.nnz, \
                                        descr=D2s_t_descr, csrVal=D2s_t.data, \
@@ -280,11 +290,11 @@ class VectorCalculus:
         elif self.linear_solver is 'cg':
             x[:] -= x[0]
             
-            t0 = time.time( )
+#            t0 = time.time( )
 #            info, nIter = cg(self.D2s, self.scalar_cell, x, max_iter=self.max_iter, relres = self.err_tol)
             info, nIter = cudaCG(self.POpn, self.scalar_cell, x, max_iter=self.max_iter, relres = self.err_tol)
-            t1 = time.time( )
-            print("D2s, nIter & walltime = %d, %f" % (nIter,t1-t0))
+#            t1 = time.time( )
+#            print("D2s, nIter & walltime = %d, %f" % (nIter,t1-t0))
 #            print("Wall time: %f " % (t1-t0))
 
         elif self.linear_solver is 'pcg':

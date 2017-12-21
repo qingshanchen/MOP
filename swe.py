@@ -1,5 +1,6 @@
 import numpy as np
 from Grid import grid_data
+from ComputeEnvironment import ComputeEnvironment
 from VectorCalculus import VectorCalculus
 from LinearAlgebra import cg
 import netCDF4 as nc
@@ -644,12 +645,13 @@ def main( ):
     # -----------------------------------------------------------
 
     c = parameters()
+    env = ComputeEnvironment(c)
     g = grid_data('grid.nc', c)
-    vc = VectorCalculus(g, c)
+    vc = VectorCalculus(g, c, env)
     s = state_data(g, c)
 
     from Testing import run_tests
-    run_tests(g, vc, c, s)
+    run_tests(env, g, vc, c, s)
     raise ValueError("Just for testing.")
 
     s.initialization(g, vc, c)

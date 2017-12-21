@@ -11,7 +11,7 @@ from accelerate import cuda
 from copy import deepcopy as deepcopy
 import numba
 
-def run_tests(g, vc, c, s):
+def run_tests(env, g, vc, c, s):
 
     if False:   # Test the linear solver the Lapace equation on the interior cells with homogeneous Dirichlet BC's
         psi_cell_true = np.random.rand(vc.nCells)
@@ -157,7 +157,7 @@ def run_tests(g, vc, c, s):
         t0 = time.clock( )
         x4 = np.zeros(g.nCells)
         A = vc.D2s.tocsr( )
-        info, nIter = cg(A, b, x4, relres=c.err_tol, max_iter=c.max_iter)
+        info, nIter = cg(env, A, b, x4, relres=c.err_tol, max_iter=c.max_iter)
         t1 = time.clock( )
         print(("info = %d" % info))
         print(("nIter = %d" % nIter))
@@ -179,7 +179,7 @@ def run_tests(g, vc, c, s):
 
         t0 = time.clock( )
         x2 = np.zeros(g.nCells)
-        info, nIter = cudaCG(vc.POpn, b, x2, relres=c.err_tol, max_iter=c.max_iter)
+        info, nIter = cudaCG(env, vc.POpn, b, x2, relres=c.err_tol, max_iter=c.max_iter)
         t1 = time.clock( )
         print(("info = %d" % info))
         print(("nIter = %d" % nIter))
@@ -190,7 +190,7 @@ def run_tests(g, vc, c, s):
         t0 = time.clock( )
         x1 = np.zeros(g.nCells)
         b = -b
-        info, nIter = cudaPCG(vc.POpnSPD, b, x1, relres=c.err_tol, max_iter=c.max_iter)
+        info, nIter = cudaPCG(env, vc.POpnSPD, b, x1, relres=c.err_tol, max_iter=c.max_iter)
         t1 = time.clock( )
         print(("info = %d" % info))
         print(("nIter = %d" % nIter))
