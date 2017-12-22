@@ -1,4 +1,5 @@
 import numpy as np
+import Parameters as c
 from Grid import grid_data
 from ComputeEnvironment import ComputeEnvironment
 from VectorCalculus import VectorCalculus
@@ -15,55 +16,55 @@ from copy import deepcopy as deepcopy
 
 max_int = np.iinfo('int32').max
 
-class parameters:
+#class parameters:
 
-    def __init__(self):
-
-        ### Parameters essential
-        self.test_case = 5
-        self.on_a_global_sphere = True
+#    def __init__(self):
+#
+#        ### Parameters essential
+#        self.test_case = 12
+#        self.on_a_global_sphere = False
 
         ### Parameters secondary
         # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
-        self.timestepping = 'RK4'
+#        self.timestepping = 'RK4'
 
         # Duration, time stepping size, saving interval
-        self.dt = 360.   #1440 for 480km
-#        self.dt = 360.   #360 for NA818
-        self.nYears = .1/360
-        self.save_inter_days = 5
+#        self.dt = 360.   #1440 for 480km
+#        self.dt = 90.   #360 for NA818
+#        self.nYears = .1/360
+#        self.save_inter_days = 5
 
         # Model configuraitons, boundary conditions
-        self.delVisc = 0.  # 80 for NA818
-        self.bottomDrag =  0. #5.e-8
-        self.no_flux_BC = True  # Should always be on
-        self.no_slip_BC = True
+#        self.delVisc = 0.  # 80 for NA818
+#        self.bottomDrag =  0. #5.e-8
+#        self.no_flux_BC = True  # Should always be on
+#        self.no_slip_BC = True
         
         # Solver config
-        self.linear_solver = 'cg'      # lu, cg,
-        self.err_tol = 1e-10
-        self.max_iter = 5000
+#        self.linear_solver = 'cg'      # lu, cg,
+#        self.err_tol = 1e-10
+#        self.max_iter = 5000
         
-        self.restart = False
-        self.restart_file = 'restart.nc'
+#        self.restart = False
+#        self.restart_file = 'restart.nc'
 
         # Size of the phyiscal domain
-        self.earth_radius = 6371000.0
-        self.Omega0 = 7.292e-5
+#        self.earth_radius = 6371000.0
+#        self.Omega0 = 7.292e-5
 
-        self.gravity = 9.81
+#        self.gravity = 9.81
 
         # Forcing
 
         # IO files
-        self.output_file = 'output.nc'
+#        self.output_file = 'output.nc'
 
-        self.nTimeSteps = np.ceil(1.*86400*360/self.dt*self.nYears).astype('int')
-        self.save_interval = np.floor(1.*86400/self.dt*self.save_inter_days).astype('int')
-        if self.save_interval < 1:
-            self.save_interval = 1
+#        self.nTimeSteps = np.ceil(1.*86400*360/self.dt*self.nYears).astype('int')
+#        self.save_interval = np.floor(1.*86400/self.dt*self.save_inter_days).astype('int')
+#        if self.save_interval < 1:
+#            self.save_interval = 1
 
-        self.max_int = np.iinfo('int32').max
+#        self.max_int = np.iinfo('int32').max
 
 
 
@@ -463,10 +464,23 @@ class state_data:
 
         if not c.on_a_global_sphere:
             # A bounded domain
-             vc.invLaplace_prime_dirich(self.vorticity, self.psi_cell)
+#             vc.invLaplace_prime_dirich(self.vorticity, self.psi_cell)
+            vc.scalar_cell[:] = self.vorticity * vc.areaCell
+            vc.scalar_cell_interior[:] = self.psi_cell[vc.cellInterior[:]-1].copy( )
+            vc.POpd.solve(vc.scalar_cell[vc.cellInterior[:]-1], vc.scalar_cell_interior, \
+                          vc.env, c.linear_solver)
+            self.psi_cell[vc.cellInterior[:]-1] = vc.scalar_cell_interior[:]
+            self.psi_cell[vc.cellBoundary[:]-1] = 0.
+
+            
         else:
             # A global domain with no boundary
-            vc.invLaplace_prime_neumann(self.vorticity, self.psi_cell)
+            #vc.invLaplace_prime_neumann(self.vorticity, self.psi_cell)
+            vc.scalar_cell[:] = self.vorticity * vc.areaCell
+            vc.scalar_cell[0] = 0.   # Set first element to zeor to make phi_cell[0] zero
+            self.psi_cell -= self.psi_cell[0]
+            vc.POpn.solve(vc.scalar_cell, self.psi_cell, vc.env, c.linear_solver)
+            
         return 0
 
 
@@ -475,10 +489,17 @@ class state_data:
         # interior cells
 
         if not c.on_a_global_sphere:
-            vc.invLaplace_dual_dirich(self.vorticity_vertex, self.psi_vertex)
+#            vc.invLaplace_dual_dirich(self.vorticity_vertex, self.psi_vertex)
+            vc.scalar_vertex[:] = self.vorticity_vertex * vc.areaTriangle
+            vc.POdd.solve(vc.scalar_vertex, self.psi_vertex, vc.env, c.linear_solver)
+            
         else:
             # A global domain with no boundary
-            vc.invLaplace_dual_neumann(self.vorticity_vertex, self.psi_vertex)
+            #vc.invLaplace_dual_neumann(self.vorticity_vertex, self.psi_vertex)
+            vc.scalar_vertex = self.vorticity_vertex * vc.areaTriangle #Scaling
+            vc.scalar_vertex[0] = 0. # Set to zero to make x[0] zero
+            self.psi_vertex -= self.psi_vertex[0]   #Prepare the initial guess
+            vc.POdn.solve(vc.scalar_vertex, self.psi_vertex, vc.env, c.linear_solver)
             
         return 0
     
@@ -486,13 +507,23 @@ class state_data:
     def compute_phi_cell(self, vc, c):
         # To compute the phi_cell from divergence
 
-        vc.invLaplace_prime_neumann(self.divergence, self.phi_cell)
+        #vc.invLaplace_prime_neumann(self.divergence, self.phi_cell)
+        vc.scalar_cell[:] = self.divergence * vc.areaCell
+        vc.scalar_cell[0] = 0.   # Set first element to zeor to make phi_cell[0] zero
+        self.phi_cell -= self.phi_cell[0]
+        
+        vc.POpn.solve(vc.scalar_cell, self.phi_cell, vc.env, c.linear_solver)
+        
         return 0
 
     def compute_phi_vertex(self, vc, c):
         # To compute the phi_cell from divergence
 
-        vc.invLaplace_dual_neumann(self.divergence_vertex, self.phi_vertex)
+        #vc.invLaplace_dual_neumann(self.divergence_vertex, self.phi_vertex)
+        vc.scalar_vertex = self.divergence_vertex * vc.areaTriangle #Scaling
+        vc.scalar_vertex[0] = 0. # Set to zero to make x[0] zero
+        self.phi_vertex -= self.phi_vertex[0]   #Prepare the initial guess
+        vc.POdn.solve(vc.scalar_vertex, self.phi_vertex, vc.env, c.linear_solver)
         return 0
     
 
@@ -644,15 +675,15 @@ def main( ):
     # Create a grid_data object, a state_data object, and a parameter object.
     # -----------------------------------------------------------
 
-    c = parameters()
+#    c = parameters()
     env = ComputeEnvironment(c)
     g = grid_data('grid.nc', c)
     vc = VectorCalculus(g, c, env)
     s = state_data(g, c)
 
-    from Testing import run_tests
-    run_tests(env, g, vc, c, s)
-    raise ValueError("Just for testing.")
+#    from Testing import run_tests
+#    run_tests(env, g, vc, c, s)
+#    raise ValueError("Just for testing.")
 
     s.initialization(g, vc, c)
 #    raise ValueError("Just for testing.")
