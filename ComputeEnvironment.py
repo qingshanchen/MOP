@@ -1,6 +1,6 @@
 class ComputeEnvironment:
     def __init__(self, c):
-        if c.linear_solver in ['cg', 'cudaCG', 'cudaPCG']:
+        if c.linear_solver in ['cudaCG', 'cudaPCG']:
             from accelerate.cuda.sparse import Sparse as cuSparseClass
             self.cuSparse = cuSparseClass( )
             from accelerate.cuda.blas import Blas as cuBlasClass
