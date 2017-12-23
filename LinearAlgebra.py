@@ -60,6 +60,8 @@ def cudaCG(env, PO, b, x, max_iter=1000, relres=1e-5):
     env.cuBlas.scal(0., dp)       # Initialize to zero
     dAp = env.cuda.device_array_like(b)
     env.cuBlas.scal(0., dAp)
+    x_incr = env.cuda.device_array_like(b)
+    env.cuBlas.scal(0., x_incr)
 
 
     # Compute the l2 norm of the right-hand side
@@ -85,6 +87,8 @@ def cudaCG(env, PO, b, x, max_iter=1000, relres=1e-5):
         # Initial guess close enough to the true solution; nothing to do
         return 0, 0
 
+    x_norm = env.cuBlas.nrm2(dx) + np.finfo('float32').tiny
+
     # reset the counter
     counter = 0
     while True:
@@ -102,6 +106,10 @@ def cudaCG(env, PO, b, x, max_iter=1000, relres=1e-5):
         # Compute x = x + alpha.p
         env.cuBlas.axpy(alpha, dp, dx)
 
+        env.cuBlas.scal(0., x_incr)
+        env.cuBlas.axpy(alpha, dp, x_incr)
+        x_incr_norm = env.cuBlas.nrm2(x_incr)
+
         # Compute r = r - alpha.Ap
         env.cuBlas.axpy(-alpha, dAp, dr)
 
@@ -117,7 +125,8 @@ def cudaCG(env, PO, b, x, max_iter=1000, relres=1e-5):
         env.cuBlas.axpy(1., dr, dp)
 
         # Check if the target tol has been reached
-        if res/res0 < relres:
+#        if res/res0 < relres:
+        if x_incr_norm / x_norm < relres:
 
             dx.copy_to_host(x)
             return 0, counter
@@ -126,6 +135,7 @@ def cudaCG(env, PO, b, x, max_iter=1000, relres=1e-5):
             raise ValueError("Maximum number of iteration exceeded. Number of iters: %d. relres = %e" % (counter, res/res0))
         
         r2 = r2_new
+        x_norm = env.cuBlas.nrm2(dx)
 
 
 def cudaPCG(env, PO, b, x, max_iter=1000, relres=1e-5):
