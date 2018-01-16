@@ -106,18 +106,22 @@ class Poisson:
         else:
             raise ValueError("Invalid solver choice.")
 
-    def solve(self, b, x, env=None, linear_solver='lu'):
+    def solve(self, b, x, env=None, linear_solver='lu', max_iter=1000, relres=1.e-8):
         
         if linear_solver is 'lu':
             x[:] = self.lu.solve(b)
         elif linear_solver is 'cg':
-            info, nIter = cg(env, self.A, b, x, max_iter=c.max_iter, relres = c.err_tol)
-            print("CG, nIter = %d" % nIter)
+            try:
+                info, nIter = cg(env, self.A, b, x, max_iter=max_iter, relres=relres)
+                print("CG, nIter = %d" % nIter)
+            except KeyError:
+                raise KeyError
+                
         elif linear_solver is 'cudaCG':
-            info, nIter = cudaCG(env, self, b, x, max_iter=c.max_iter, relres = c.err_tol)
+            info, nIter = cudaCG(env, self, b, x, max_iter=max_iter, relres = relres)
             print("cudaCG, nIter = %d" % nIter)
         elif linear_solver is 'cudaPCG':
-            info, nIter = cudaPCG(env, self, b, x, max_iter=c.max_iter, relres = c.err_tol)
+            info, nIter = cudaPCG(env, self, b, x, max_iter=max_iter, relres = relres)
             print("cudaPCG, nIter = %d" % nIter)
         else:
             raise ValueError("Invalid solver choice.")
@@ -237,13 +241,6 @@ class VectorCalculus:
             E1s_coo = coo_matrix((valEntries[:nEntries]*self.areaTriangle[rows[:nEntries]], \
                                   (rows[:nEntries], cols[:nEntries])), shape=(g.nVertices, g.nVertices))
             E1s_coo.eliminate_zeros( )
-                                   
-            # Convert to csc sparse format
-            #self.E1 = E1_coo.tocsc( )
-            #self.E1s = E1s_coo.tocsc( )
-
-            #self.lu_E1 = splu(self.E1)
-            #self.lu_E1s = splu(self.E1s)
             self.POdd = Poisson(E1s_coo, c.linear_solver, env)
 
         # Construct matrix for discrete Laplacian on the triangles, corresponding to the
@@ -254,33 +251,7 @@ class VectorCalculus:
         E2s_coo = coo_matrix((valEntries[:nEntries]*g.areaTriangle[rows[:nEntries]], (rows[:nEntries], \
                                cols[:nEntries])), shape=(g.nVertices, g.nVertices))
         E2s_coo.eliminate_zeros( )
-        # Convert to csc sparse format
-
         self.POdn = Poisson(E2s_coo, c.linear_solver, env)
-        #if self.linear_solver is 'lu':
-        #    self.E2s = E2s_coo.tocsc( )
-        #    self.lu_E2s = splu(self.E2s)
-        #elif self.linear_solver is 'cg':
-        #    self.E2s = E2s_coo.tocsr( )
-        #elif self.linear_solver is 'amg':
-        #    E2s = E2s_coo.tocsr( )
-        #    E2s = -E2s
-        #    B = np.ones((E2s.shape[0],1), dtype=E2s.dtype); BH = B.copy()
-        #    self.E2spd_amg = rootnode_solver(E2s, B=B, BH=BH,
-        #        strength=('evolution', {'epsilon': 4.0, 'k': 2, 'proj_type': 'l2'}),
-        #        smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
-        #        improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
-        #                            None, None, None, None, None, None, None, None, None, None, None, \
-        #                            None, None, None],
-        #        aggregate="standard",
-        #        presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-        #        postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-        #        max_levels=15,
-        #        max_coarse=300,
-        #        coarse_solver="pinv")
-        #else:
-        #    raise ValueError("Invalid solver choice!")
-        
 
         self.scalar_cell = np.zeros(g.nCells)
         self.scalar_vertex = np.zeros(g.nVertices)
@@ -288,91 +259,4 @@ class VectorCalculus:
             self.scalar_cell_interior = np.zeros(nCellsInterior)
 
 
-        
-#    def invLaplace_prime_dirich(self, b, x):
-
-#        self.scalar_cell[:] = b*self.areaCell
-        
-#        if self.linear_solver is 'lu':
-#            x[self.cellInterior[:]-1] = self.lu_D1s.solve(self.scalar_cell[self.cellInterior[:]-1])
-#            x[self.cellInterior[:]-1] = self.POpd.lu.solve(self.scalar_cell[self.cellInterior[:]-1])
-#            x[self.cellBoundary[:]-1] = 0.              # Re-enforce the Dirichlet BC
-        
-#        elif self.linear_solver is 'cg':
-#            self.scalar_cell_interior[:] = x[self.cellInterior[:]-1].copy( )   # Copy over initial guesses
-#            info, nIter = cg(self.D1s, self.scalar_cell[self.cellInterior[:]-1], \
-#                             self.scalar_cell_interior, max_iter=self.max_iter, relres = self.err_tol)
-#            info, nIter = cg(self.env, self.POpd.A, self.scalar_cell[self.cellInterior[:]-1], \
-#                             self.scalar_cell_interior, max_iter=self.max_iter, relres = self.err_tol)
-
-#            x[self.cellInterior[:]-1] = self.scalar_cell_interior[:]
-#            x[self.cellBoundary[:]-1] = 0.              # Re-enforce the Dirichlet BC
-
-#        else:
-#            raise ValueError("Invalid solver choice.")
-
-
-#    def invLaplace_prime_neumann(self, b, x):
-#        self.scalar_cell[:] = self.areaCell * b
-#        self.scalar_cell[0] = 0.    # Set to zero to make x[0] zero
-
-#        if self.linear_solver is 'lu':
-#            x[:] = self.POpn.lu.solve(self.scalar_cell)
-
-#        elif self.linear_solver is 'cg':
-#            x[:] -= x[0]
-            
-#            info, nIter = cg(self.env, self.POpn.A, self.scalar_cell, x, max_iter=self.max_iter, relres = self.err_tol)
-#            info, nIter = cudaCG(self.POpn, self.scalar_cell, x, max_iter=self.max_iter, relres = self.err_tol)
-#            t1 = time.time( )
-#            print("D2s, nIter & walltime = %d, %f" % (nIter,t1-t0))
-#            print("Wall time: %f " % (t1-t0))
-
-#        elif self.linear_solver is 'pcg':
-#            x[:] -= x[0]
-#            self.scalar_cell = -self.scalar_cell
-#            info, nIter = pcg(self.D2s, self.D2sL, self.D2sLT, self.scalar_cell, x, max_iter=self.max_iter, relres = self.err_tol)
-#            print("D2s, nIter = %d" % nIter)
-
-#        else:
-#            raise ValueError("Indicator for solver is not valid. Abort.")
-
-        #### For AMG solver:
-                #res = []
-                #b = -b
-                #self.psi_cell[:] = g.D2spd_amg.solve(b, x0=self.psi_cell, tol=c.err_tol, residuals=res, accel="cg", maxiter=300, cycle="V")
-                #print("compute_psi_cell, nIter = %d" % len(res))
-                #print(res)
-
-#    def invLaplace_dual_dirich(self, b, x):
-
-#        self.scalar_vertex[:] = b * self.areaTriangle
-        
-#        if self.linear_solver is 'lu':
-#            #x[:] = self.lu_E1s.solve(self.scalar_vertex)
-#            x[:] = self.POdd.lu.solve(self.scalar_vertex)
-            
-#        elif self.linear_solver is 'cg':
-#            info, nIter = cg(self.E1s, self.scalar_vertex, \
-#                             x, max_iter=self.max_iter, relres = self.err_tol)
-#            info, nIter = cg(self.env, self.POdd.A, self.scalar_vertex, \
-#                             x, max_iter=self.max_iter, relres = self.err_tol)
-            
-#        else:
-#            raise ValueError("Indicator for solver is not valid. Abort.")
-        
-
-#    def invLaplace_dual_neumann(self, b, x):
-#        self.scalar_vertex[:] = self.areaTriangle * b   #Scaling
-#        self.scalar_vertex[0] = 0.   #Set to zero to make x[0] zero
-
-#        if self.linear_solver is 'lu':
-#            #x[:] = self.lu_E2s.solve(self.scalar_vertex)
-#            x[:] = self.POdn.lu.solve(self.scalar_vertex)
-#        elif self.linear_solver is 'cg':
-#            x[:] -= x[0]
-#            info, nIter = cg(self.env, self.POdn.A, self.scalar_vertex, x, max_iter=self.max_iter, relres = self.err_tol)
-
-#        else:
-#            raise ValueError("Invalid solver choice.")
         

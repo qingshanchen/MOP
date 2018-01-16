@@ -11,7 +11,7 @@ timestepping = 'RK4'
 # Duration, time stepping size, saving interval
 dt = 360.   #1440 for 480km
 #dt = 90.   #360 for NA818
-nYears = 50./360
+nYears = .2/360
 save_inter_days = 1
 
 # Model configuraitons, boundary conditions
@@ -22,8 +22,10 @@ no_slip_BC = True
 
 # Solver config
 linear_solver = 'cg'      # lu, cg, cudaCG, cudaPCG
-err_tol = 1e-5/2.
+err_tol = 1e-6/2.
 max_iter = 5000
+max_iter_dual = 25
+dual_init = 'interpolation'    # 'extrapolation', 'interpolation'
 
 restart = False
 restart_file = 'restart.nc'

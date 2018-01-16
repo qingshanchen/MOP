@@ -1,5 +1,8 @@
 import numpy as np
 
+class MaxItersError(Exception):
+    pass
+
 def cg(env, A, b, x, max_iter=1000, relres=1e-5):
 
     r = b - A.dot(x)
@@ -42,7 +45,8 @@ def cg(env, A, b, x, max_iter=1000, relres=1e-5):
             return 0, counter
         
         if counter > max_iter:
-            raise ValueError("Maximum number of iteration exceeded. Number of iters: %d. relres = %e" % (counter, res/res0))
+#            raise ValueError("Maximum number of iteration exceeded. Number of iters: %d. relres = %e" % (counter, res/res0))
+            raise MaxItersError
         
         r2 = r2_new
         x_norm = np.sqrt(np.dot(x,x))

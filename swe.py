@@ -3,7 +3,7 @@ import Parameters as c
 from Grid import grid_data
 from ComputeEnvironment import ComputeEnvironment
 from VectorCalculus import VectorCalculus
-from LinearAlgebra import cg
+from LinearAlgebra import cg, MaxItersError
 import netCDF4 as nc
 from matplotlib import use
 use('Agg')
@@ -49,6 +49,7 @@ class state_data:
         self.divergence_vertex = np.zeros(g.nVertices)
         self.psi_cell = np.zeros(g.nCells)
         self.psi_vertex = np.zeros(g.nVertices)
+        self.psi_vertex_pred = np.zeros(g.nVertices)
         self.phi_cell = np.zeros(g.nCells)
         self.phi_vertex = np.zeros(g.nVertices)
         self.nVelocity = np.zeros(g.nEdges)
@@ -420,18 +421,17 @@ class state_data:
             vc.scalar_cell[:] = self.vorticity * vc.areaCell
             vc.scalar_cell_interior[:] = self.psi_cell[vc.cellInterior[:]-1].copy( )
             vc.POpd.solve(vc.scalar_cell[vc.cellInterior[:]-1], vc.scalar_cell_interior, \
-                          vc.env, c.linear_solver)
+                          vc.env, c.linear_solver, max_iter=c.max_iter, relres=c.err_tol)
             self.psi_cell[vc.cellInterior[:]-1] = vc.scalar_cell_interior[:]
             self.psi_cell[vc.cellBoundary[:]-1] = 0.
 
             
         else:
             # A global domain with no boundary
-            #vc.invLaplace_prime_neumann(self.vorticity, self.psi_cell)
             vc.scalar_cell[:] = self.vorticity * vc.areaCell
             vc.scalar_cell[0] = 0.   # Set first element to zeor to make phi_cell[0] zero
             self.psi_cell -= self.psi_cell[0]
-            vc.POpn.solve(vc.scalar_cell, self.psi_cell, vc.env, c.linear_solver)
+            vc.POpn.solve(vc.scalar_cell, self.psi_cell, vc.env, c.linear_solver, max_iter=c.max_iter, relres=c.err_tol)
             
         return 0
 
@@ -441,30 +441,40 @@ class state_data:
         # interior cells
 
         if not c.on_a_global_sphere:
-#            vc.invLaplace_dual_dirich(self.vorticity_vertex, self.psi_vertex)
             vc.scalar_vertex[:] = self.vorticity_vertex * vc.areaTriangle
-            vc.POdd.solve(vc.scalar_vertex, self.psi_vertex, vc.env, c.linear_solver)
+            vc.POdd.solve(vc.scalar_vertex, self.psi_vertex, vc.env, c.linear_solver, max_iter=c.max_iter, relres=c.err_tol)
             
         else:
             # A global domain with no boundary
-            #vc.invLaplace_dual_neumann(self.vorticity_vertex, self.psi_vertex)
             vc.scalar_vertex = self.vorticity_vertex * vc.areaTriangle #Scaling
             vc.scalar_vertex[0] = 0. # Set to zero to make x[0] zero
-            self.psi_vertex -= self.psi_vertex[0]   #Prepare the initial guess
-            vc.POdn.solve(vc.scalar_vertex, self.psi_vertex, vc.env, c.linear_solver)
-            
+
+            if c.dual_init == 'interpolation':
+                self.psi_vertex -= self.psi_vertex[0]   #Prepare the initial guess
+                try:
+                    vc.POdn.solve(vc.scalar_vertex, self.psi_vertex, vc.env, c.linear_solver, max_iter=c.max_iter_dual, relres=c.err_tol)
+                except MaxItersError:  # Try a different initializaton
+                    print("dual_init=interpolation did not work. Try extrapolation")
+                    self.psi_vertex[:] = self.psi_vertex_pred[:] - self.psi_vertex_pred[0]
+                    vc.POdn.solve(vc.scalar_vertex, self.psi_vertex, vc.env, c.linear_solver, max_iter=c.max_iter, relres=c.err_tol)
+                    c.dual_init = 'extrapolation'
+            elif c.dual_init == 'extrapolation':
+                self.psi_vertex[:] = self.psi_vertex_pred[:] - self.psi_vertex_pred[0]
+                vc.POdn.solve(vc.scalar_vertex, self.psi_vertex, vc.env, c.linear_solver, max_iter=c.max_iter, relres=c.err_tol)
+            else:
+                raise ValueError("Invalid value for dual_init")
+                
         return 0
     
     
     def compute_phi_cell(self, vc, c):
         # To compute the phi_cell from divergence
 
-        #vc.invLaplace_prime_neumann(self.divergence, self.phi_cell)
         vc.scalar_cell[:] = self.divergence * vc.areaCell
         vc.scalar_cell[0] = 0.   # Set first element to zeor to make phi_cell[0] zero
         self.phi_cell -= self.phi_cell[0]
         
-        vc.POpn.solve(vc.scalar_cell, self.phi_cell, vc.env, c.linear_solver)
+        vc.POpn.solve(vc.scalar_cell, self.phi_cell, vc.env, c.linear_solver, max_iter=c.max_iter, relres=c.err_tol)
         
         return 0
 
@@ -474,7 +484,7 @@ class state_data:
         vc.scalar_vertex = self.divergence_vertex * vc.areaTriangle                    #Scaling
         vc.scalar_vertex[0] = 0.                                                       #Set to zero to make x[0] zero
         self.phi_vertex -= self.phi_vertex[0]                                          #Prepare the initial guess
-        vc.POdn.solve(vc.scalar_vertex, self.phi_vertex, vc.env, c.linear_solver)
+        vc.POdn.solve(vc.scalar_vertex, self.phi_vertex, vc.env, c.linear_solver, max_iter=c.max_iter, relres=c.err_tol)
         return 0
     
 
@@ -534,6 +544,9 @@ def timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, g, vc, c):
     s.thickness[:] = s_pre.thickness[:]
     s.vorticity[:] = s_pre.vorticity[:]
     s.divergence[:] = s_pre.divergence[:]
+
+    c.dual_init = 'interpolation'
+
     for i in range(4):
 
         # Compute the tendencies
@@ -553,19 +566,19 @@ def timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, g, vc, c):
             if i == 0:
                 s_intm.psi_cell[:] = 1.5*s_pre.psi_cell[:] - 0.5*s_old.psi_cell[:]
                 s_intm.phi_cell[:] = 1.5*s_pre.phi_cell[:] - 0.5*s_old.phi_cell[:]
-#                s_intm.psi_vertex[:] = 1.5*s_pre.psi_vertex[:] - 0.5*s_old.psi_vertex[:]
+                s_intm.psi_vertex_pred[:] = 1.5*s_pre.psi_vertex[:] - 0.5*s_old.psi_vertex[:]
 #                s_intm.phi_vertex[:] = 1.5*s_pre.phi_vertex[:] - 0.5*s_old.phi_vertex[:]
 
-#            if i == 1:
+            if i == 1:
 #                s_intm.psi_cell[:] = .5*s_intm.psi_cell[:] + 0.5*(1.5*s_pre.psi_cell[:] - 0.5*s_old.psi_cell[:])
 #                s_intm.phi_cell[:] = .5*s_intm.phi_cell[:] + 0.5*(1.5*s_pre.phi_cell[:] - 0.5*s_old.phi_cell[:])
-#                s_intm.psi_vertex[:] = .5*s_intm.psi_vertex[:] + 0.5*(1.5*s_pre.psi_vertex[:] - 0.5*s_old.psi_vertex[:])
+                s_intm.psi_vertex_pred[:] = s_intm.psi_vertex
 #                s_intm.phi_vertex[:] = .5*s_intm.phi_vertex[:] + 0.5*(1.5*s_pre.phi_vertex[:] - 0.5*s_old.phi_vertex[:])
                 
             if i==2:
                 s_intm.psi_cell[:] = 2*s_intm.psi_cell[:] - s_pre.psi_cell[:]
                 s_intm.phi_cell[:] = 2*s_intm.phi_cell[:] - s_pre.phi_cell[:]
-#                s_intm.psi_vertex[:] = 2*s_intm.psi_vertex[:] - s_pre.psi_vertex[:]
+                s_intm.psi_vertex_pred[:] = 2*s_intm.psi_vertex[:] - s_pre.psi_vertex[:]
 #                s_intm.phi_vertex[:] = 2*s_intm.phi_vertex[:] - s_pre.phi_vertex[:]
 
             s_intm.compute_diagnostics(g, vc, c)
@@ -573,7 +586,7 @@ def timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, g, vc, c):
     # Prediction using the latest s_intm values
     s.psi_cell[:] = s_intm.psi_cell[:]
     s.phi_cell[:] = s_intm.phi_cell[:]
-#    s.psi_vertex[:] = s_intm.psi_vertex[:]
+    s.psi_vertex_pred[:] = s_intm.psi_vertex[:]
 #    s.phi_vertex[:] = s_intm.phi_vertex[:]
     
     s.compute_diagnostics(g, vc, c)
