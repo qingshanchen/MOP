@@ -16,74 +16,23 @@ from copy import deepcopy as deepcopy
 
 max_int = np.iinfo('int32').max
 
-#class parameters:
 
-#    def __init__(self):
-#
-#        ### Parameters essential
-#        self.test_case = 12
-#        self.on_a_global_sphere = False
+#class ILU_Precon:
+#    """
+#    A preconditioner based on an
+#    incomplete LU factorization.
 
-        ### Parameters secondary
-        # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
-#        self.timestepping = 'RK4'
+#    Input: A matrix in CSR format.
+#    Keyword argument: Drop tolerance.
+#    """
+#    def __init__(self, A, drop=1.0e-2):
+#        #self.LU = superlu.factorize(A, drop_tol=drop)
+#        self.LU = spilu(A, drop_tol=drop)
+#        self.shape = self.LU.shape
 
-        # Duration, time stepping size, saving interval
-#        self.dt = 360.   #1440 for 480km
-#        self.dt = 90.   #360 for NA818
-#        self.nYears = .1/360
-#        self.save_inter_days = 5
-
-        # Model configuraitons, boundary conditions
-#        self.delVisc = 0.  # 80 for NA818
-#        self.bottomDrag =  0. #5.e-8
-#        self.no_flux_BC = True  # Should always be on
-#        self.no_slip_BC = True
-        
-        # Solver config
-#        self.linear_solver = 'cg'      # lu, cg,
-#        self.err_tol = 1e-10
-#        self.max_iter = 5000
-        
-#        self.restart = False
-#        self.restart_file = 'restart.nc'
-
-        # Size of the phyiscal domain
-#        self.earth_radius = 6371000.0
-#        self.Omega0 = 7.292e-5
-
-#        self.gravity = 9.81
-
-        # Forcing
-
-        # IO files
-#        self.output_file = 'output.nc'
-
-#        self.nTimeSteps = np.ceil(1.*86400*360/self.dt*self.nYears).astype('int')
-#        self.save_interval = np.floor(1.*86400/self.dt*self.save_inter_days).astype('int')
-#        if self.save_interval < 1:
-#            self.save_interval = 1
-
-#        self.max_int = np.iinfo('int32').max
-
-
-
-class ILU_Precon:
-    """
-    A preconditioner based on an
-    incomplete LU factorization.
-
-    Input: A matrix in CSR format.
-    Keyword argument: Drop tolerance.
-    """
-    def __init__(self, A, drop=1.0e-2):
-        #self.LU = superlu.factorize(A, drop_tol=drop)
-        self.LU = spilu(A, drop_tol=drop)
-        self.shape = self.LU.shape
-
-    def precon(self, x, y):
-        #self.LU.solve(x,y)
-        y = self.LU.solve(x)
+#    def precon(self, x, y):
+#        #self.LU.solve(x,y)
+#        y = self.LU.solve(x)
 
 
 class state_data:
@@ -430,6 +379,9 @@ class state_data:
         self.vorticity_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.vorticity)
         self.divergence_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.divergence)
 
+        self.psi_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.psi_cell)
+        self.phi_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.phi_cell)
+
         # Compute psi_vertex and phi_vertex from vorticity_vertex and divergence_vertex
         self.compute_psi_vertex(vc, c)
         self.compute_phi_vertex(vc, c)
@@ -519,10 +471,9 @@ class state_data:
     def compute_phi_vertex(self, vc, c):
         # To compute the phi_cell from divergence
 
-        #vc.invLaplace_dual_neumann(self.divergence_vertex, self.phi_vertex)
-        vc.scalar_vertex = self.divergence_vertex * vc.areaTriangle #Scaling
-        vc.scalar_vertex[0] = 0. # Set to zero to make x[0] zero
-        self.phi_vertex -= self.phi_vertex[0]   #Prepare the initial guess
+        vc.scalar_vertex = self.divergence_vertex * vc.areaTriangle                    #Scaling
+        vc.scalar_vertex[0] = 0.                                                       #Set to zero to make x[0] zero
+        self.phi_vertex -= self.phi_vertex[0]                                          #Prepare the initial guess
         vc.POdn.solve(vc.scalar_vertex, self.phi_vertex, vc.env, c.linear_solver)
         return 0
     
@@ -568,7 +519,7 @@ class state_data:
 #        print(("relres = %e" % relres))
 #        return info
     
-def timestepping_rk4_z_hex(s, s_pre, s_old, g, vc, c):
+def timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, g, vc, c):
 
     coef = np.array([0., .5, .5, 1.])
     accum = np.array([1./6, 1./3, 1./3, 1./6])
@@ -593,15 +544,6 @@ def timestepping_rk4_z_hex(s, s_pre, s_old, g, vc, c):
         s.vorticity[:] += s_intm.tend_vorticity[:]*accum[i]*dt
         s.divergence[:] += s_intm.tend_divergence[:]*accum[i]*dt
 
-        ## Examine pot-enstrophy conservation
-        #q2 = s_intm.pv_cell * s_intm.pv_cell
-        #grad_q2 = cmp.discrete_grad_n(q2, g.cellsOnEdge, g.dcEdge)
-        #grad_q = cmp.discrete_grad_n(s_intm.pv_cell, g.cellsOnEdge, g.dcEdge)
-        #dArea = g.dcEdge * g.dvEdge * 0.5
-        #pEns_tend = np.sum(grad_q2 * s_intm.thickness_edge * s_intm.nVelocity * dArea)
-        #pEns_tend -= 2*np.sum(grad_q * s_intm.eta_edge * s_intm.nVelocity * dArea)
-        #print("pEns_tend = %e" % pEns_tend)
-
         if i < 3:
             # Advance s_intm 
             s_intm.thickness[:] = s_pre.thickness[:] + coef[i+1]*dt*s_intm.tend_thickness[:]
@@ -611,22 +553,28 @@ def timestepping_rk4_z_hex(s, s_pre, s_old, g, vc, c):
             if i == 0:
                 s_intm.psi_cell[:] = 1.5*s_pre.psi_cell[:] - 0.5*s_old.psi_cell[:]
                 s_intm.phi_cell[:] = 1.5*s_pre.phi_cell[:] - 0.5*s_old.phi_cell[:]
-                s_intm.psi_vertex[:] = 1.5*s_pre.psi_vertex[:] - 0.5*s_old.psi_vertex[:]
-                s_intm.phi_vertex[:] = 1.5*s_pre.phi_vertex[:] - 0.5*s_old.phi_vertex[:]
+#                s_intm.psi_vertex[:] = 1.5*s_pre.psi_vertex[:] - 0.5*s_old.psi_vertex[:]
+#                s_intm.phi_vertex[:] = 1.5*s_pre.phi_vertex[:] - 0.5*s_old.phi_vertex[:]
 
+#            if i == 1:
+#                s_intm.psi_cell[:] = .5*s_intm.psi_cell[:] + 0.5*(1.5*s_pre.psi_cell[:] - 0.5*s_old.psi_cell[:])
+#                s_intm.phi_cell[:] = .5*s_intm.phi_cell[:] + 0.5*(1.5*s_pre.phi_cell[:] - 0.5*s_old.phi_cell[:])
+#                s_intm.psi_vertex[:] = .5*s_intm.psi_vertex[:] + 0.5*(1.5*s_pre.psi_vertex[:] - 0.5*s_old.psi_vertex[:])
+#                s_intm.phi_vertex[:] = .5*s_intm.phi_vertex[:] + 0.5*(1.5*s_pre.phi_vertex[:] - 0.5*s_old.phi_vertex[:])
+                
             if i==2:
                 s_intm.psi_cell[:] = 2*s_intm.psi_cell[:] - s_pre.psi_cell[:]
                 s_intm.phi_cell[:] = 2*s_intm.phi_cell[:] - s_pre.phi_cell[:]
-                s_intm.psi_vertex[:] = 2*s_intm.psi_vertex[:] - s_pre.psi_vertex[:]
-                s_intm.phi_vertex[:] = 2*s_intm.phi_vertex[:] - s_pre.phi_vertex[:]
+#                s_intm.psi_vertex[:] = 2*s_intm.psi_vertex[:] - s_pre.psi_vertex[:]
+#                s_intm.phi_vertex[:] = 2*s_intm.phi_vertex[:] - s_pre.phi_vertex[:]
 
             s_intm.compute_diagnostics(g, vc, c)
 
     # Prediction using the latest s_intm values
     s.psi_cell[:] = s_intm.psi_cell[:]
     s.phi_cell[:] = s_intm.phi_cell[:]
-    s.psi_vertex[:] = s_intm.psi_vertex[:]
-    s.phi_vertex[:] = s_intm.phi_vertex[:]
+#    s.psi_vertex[:] = s_intm.psi_vertex[:]
+#    s.phi_vertex[:] = s_intm.phi_vertex[:]
     
     s.compute_diagnostics(g, vc, c)
 
@@ -723,13 +671,14 @@ def main( ):
     t0a = time.time( )
     s_pre = deepcopy(s)
     s_old = deepcopy(s)
+    s_old1 = deepcopy(s)
     
     for iStep in range(c.nTimeSteps):
 
         print(("Doing step %d " % iStep))
 
         if c.timestepping == 'RK4':
-            timestepping_rk4_z_hex(s, s_pre, s_old, g, vc, c)
+            timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, g, vc, c)
         elif c.timestepping == 'E':
             timestepping_euler(s, g, vc, c)
         else:
@@ -771,7 +720,8 @@ def main( ):
             errorInf[iStep+1, 1] = np.max(np.abs(s.vorticity[:] - s_init.vorticity[:])) / np.max(np.abs(s_init.vorticity[:]))
             errorInf[iStep+1, 2] = np.max(np.abs(s.divergence[:] - s_init.divergence[:]))
 
-        s_tmp = s_old
+        s_tmp = s_old1
+        s_old1 = s_old
         s_old = s_pre
         s_pre = s
         s = s_tmp

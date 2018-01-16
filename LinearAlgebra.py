@@ -8,7 +8,7 @@ def cg(env, A, b, x, max_iter=1000, relres=1e-5):
     dx = np.zeros(np.size(p))
     r2 = np.dot(r,r)
     res0 = np.sqrt(np.sum(np.dot(b,b)))
-    res = np.sqrt(np.sum(r2))
+    res = np.sqrt(r2)
 
     if res0 < np.finfo('float32').tiny:
         # Zero right-hand; the solution should be zero
@@ -27,7 +27,6 @@ def cg(env, A, b, x, max_iter=1000, relres=1e-5):
 
         Ap[:] = A.dot(p[:])
         alpha = r2 / np.dot(p, Ap)
-        #x += alpha*p
         dx = alpha*p
         x += dx
         r -= alpha*Ap
