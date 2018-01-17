@@ -106,22 +106,22 @@ class Poisson:
         else:
             raise ValueError("Invalid solver choice.")
 
-    def solve(self, b, x, env=None, linear_solver='lu', max_iter=1000, relres=1.e-8):
+    def solve(self, b, x, env=None, linear_solver='lu'):
         
         if linear_solver is 'lu':
             x[:] = self.lu.solve(b)
         elif linear_solver is 'cg':
             try:
-                info, nIter = cg(env, self.A, b, x, max_iter=max_iter, relres=relres)
+                info, nIter = cg(env, self.A, b, x, max_iter=c.max_iter, relres=c.err_tol)
                 print("CG, nIter = %d" % nIter)
             except KeyError:
                 raise KeyError
                 
         elif linear_solver is 'cudaCG':
-            info, nIter = cudaCG(env, self, b, x, max_iter=max_iter, relres = relres)
+            info, nIter = cudaCG(env, self, b, x, max_iter=c.max_iter, relres = c.err_tol)
             print("cudaCG, nIter = %d" % nIter)
         elif linear_solver is 'cudaPCG':
-            info, nIter = cudaPCG(env, self, b, x, max_iter=max_iter, relres = relres)
+            info, nIter = cudaPCG(env, self, b, x, max_iter=c.max_iter, relres = c.err_tol)
             print("cudaPCG, nIter = %d" % nIter)
         else:
             raise ValueError("Invalid solver choice.")

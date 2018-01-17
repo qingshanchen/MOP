@@ -17,24 +17,6 @@ from copy import deepcopy as deepcopy
 max_int = np.iinfo('int32').max
 
 
-#class ILU_Precon:
-#    """
-#    A preconditioner based on an
-#    incomplete LU factorization.
-
-#    Input: A matrix in CSR format.
-#    Keyword argument: Drop tolerance.
-#    """
-#    def __init__(self, A, drop=1.0e-2):
-#        #self.LU = superlu.factorize(A, drop_tol=drop)
-#        self.LU = spilu(A, drop_tol=drop)
-#        self.shape = self.LU.shape
-
-#    def precon(self, x, y):
-#        #self.LU.solve(x,y)
-#        y = self.LU.solve(x)
-
-
 class state_data:
     def __init__(self, g, c):
 
@@ -380,10 +362,9 @@ class state_data:
         self.vorticity_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.vorticity)
         self.divergence_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.divergence)
 
-        self.psi_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.psi_cell)
-        self.phi_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.phi_cell)
-
         # Compute psi_vertex and phi_vertex from vorticity_vertex and divergence_vertex
+        #self.psi_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.psi_cell)
+        #self.phi_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.phi_cell)
         self.compute_psi_vertex(vc, c)
         self.compute_phi_vertex(vc, c)
         
@@ -421,7 +402,7 @@ class state_data:
             vc.scalar_cell[:] = self.vorticity * vc.areaCell
             vc.scalar_cell_interior[:] = self.psi_cell[vc.cellInterior[:]-1].copy( )
             vc.POpd.solve(vc.scalar_cell[vc.cellInterior[:]-1], vc.scalar_cell_interior, \
-                          vc.env, c.linear_solver, max_iter=c.max_iter, relres=c.err_tol)
+                          vc.env, c.linear_solver)
             self.psi_cell[vc.cellInterior[:]-1] = vc.scalar_cell_interior[:]
             self.psi_cell[vc.cellBoundary[:]-1] = 0.
 
@@ -431,7 +412,7 @@ class state_data:
             vc.scalar_cell[:] = self.vorticity * vc.areaCell
             vc.scalar_cell[0] = 0.   # Set first element to zeor to make phi_cell[0] zero
             self.psi_cell -= self.psi_cell[0]
-            vc.POpn.solve(vc.scalar_cell, self.psi_cell, vc.env, c.linear_solver, max_iter=c.max_iter, relres=c.err_tol)
+            vc.POpn.solve(vc.scalar_cell, self.psi_cell, vc.env, c.linear_solver)
             
         return 0
 
@@ -442,28 +423,16 @@ class state_data:
 
         if not c.on_a_global_sphere:
             vc.scalar_vertex[:] = self.vorticity_vertex * vc.areaTriangle
-            vc.POdd.solve(vc.scalar_vertex, self.psi_vertex, vc.env, c.linear_solver, max_iter=c.max_iter, relres=c.err_tol)
+            vc.POdd.solve(vc.scalar_vertex, self.psi_vertex, vc.env, c.linear_solver)
             
         else:
             # A global domain with no boundary
             vc.scalar_vertex = self.vorticity_vertex * vc.areaTriangle #Scaling
             vc.scalar_vertex[0] = 0. # Set to zero to make x[0] zero
 
-            if c.dual_init == 'interpolation':
-                self.psi_vertex -= self.psi_vertex[0]   #Prepare the initial guess
-                try:
-                    vc.POdn.solve(vc.scalar_vertex, self.psi_vertex, vc.env, c.linear_solver, max_iter=c.max_iter_dual, relres=c.err_tol)
-                except MaxItersError:  # Try a different initializaton
-                    print("dual_init=interpolation did not work. Try extrapolation")
-                    self.psi_vertex[:] = self.psi_vertex_pred[:] - self.psi_vertex_pred[0]
-                    vc.POdn.solve(vc.scalar_vertex, self.psi_vertex, vc.env, c.linear_solver, max_iter=c.max_iter, relres=c.err_tol)
-                    c.dual_init = 'extrapolation'
-            elif c.dual_init == 'extrapolation':
-                self.psi_vertex[:] = self.psi_vertex_pred[:] - self.psi_vertex_pred[0]
-                vc.POdn.solve(vc.scalar_vertex, self.psi_vertex, vc.env, c.linear_solver, max_iter=c.max_iter, relres=c.err_tol)
-            else:
-                raise ValueError("Invalid value for dual_init")
-                
+            self.psi_vertex -= self.psi_vertex[0]   #Prepare the initial guess
+            vc.POdn.solve(vc.scalar_vertex, self.psi_vertex, vc.env, c.linear_solver)
+
         return 0
     
     
@@ -474,7 +443,7 @@ class state_data:
         vc.scalar_cell[0] = 0.   # Set first element to zeor to make phi_cell[0] zero
         self.phi_cell -= self.phi_cell[0]
         
-        vc.POpn.solve(vc.scalar_cell, self.phi_cell, vc.env, c.linear_solver, max_iter=c.max_iter, relres=c.err_tol)
+        vc.POpn.solve(vc.scalar_cell, self.phi_cell, vc.env, c.linear_solver)
         
         return 0
 
@@ -484,7 +453,7 @@ class state_data:
         vc.scalar_vertex = self.divergence_vertex * vc.areaTriangle                    #Scaling
         vc.scalar_vertex[0] = 0.                                                       #Set to zero to make x[0] zero
         self.phi_vertex -= self.phi_vertex[0]                                          #Prepare the initial guess
-        vc.POdn.solve(vc.scalar_vertex, self.phi_vertex, vc.env, c.linear_solver, max_iter=c.max_iter, relres=c.err_tol)
+        vc.POdn.solve(vc.scalar_vertex, self.phi_vertex, vc.env, c.linear_solver)
         return 0
     
 
@@ -545,8 +514,6 @@ def timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, g, vc, c):
     s.vorticity[:] = s_pre.vorticity[:]
     s.divergence[:] = s_pre.divergence[:]
 
-    c.dual_init = 'interpolation'
-
     for i in range(4):
 
         # Compute the tendencies
@@ -566,28 +533,39 @@ def timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, g, vc, c):
             if i == 0:
                 s_intm.psi_cell[:] = 1.5*s_pre.psi_cell[:] - 0.5*s_old.psi_cell[:]
                 s_intm.phi_cell[:] = 1.5*s_pre.phi_cell[:] - 0.5*s_old.phi_cell[:]
-                s_intm.psi_vertex_pred[:] = 1.5*s_pre.psi_vertex[:] - 0.5*s_old.psi_vertex[:]
-#                s_intm.phi_vertex[:] = 1.5*s_pre.phi_vertex[:] - 0.5*s_old.phi_vertex[:]
+                s_intm.psi_vertex[:] = 1.5*s_pre.psi_vertex[:] - 0.5*s_old.psi_vertex[:]
+                s_intm.phi_vertex[:] = 1.5*s_pre.phi_vertex[:] - 0.5*s_old.phi_vertex[:]
+#                s_intm.psi_vertex_pred[:] = s_intm.psi_vertex[:]
+#                s_intm.psi_cell[:] = 15./8*s_pre.psi_cell[:] - 5./4*s_old.psi_cell[:] + 3./8*s_old1.psi_cell[:]
+#                s_intm.phi_cell[:] = 15./8*s_pre.phi_cell[:] - 5./4*s_old.phi_cell[:] + 3./8*s_old1.phi_cell[:]
+#                s_intm.psi_vertex[:] = 15./8*s_pre.psi_vertex[:] - 5./4*s_old.psi_vertex[:] + 3./8*s_old1.psi_vertex[:]
+#                s_intm.phi_vertex[:] = 15./8*s_pre.phi_vertex[:] - 5./4*s_old.phi_vertex[:] + 3./8*s_old1.phi_vertex[:]
 
             if i == 1:
+                pass
 #                s_intm.psi_cell[:] = .5*s_intm.psi_cell[:] + 0.5*(1.5*s_pre.psi_cell[:] - 0.5*s_old.psi_cell[:])
 #                s_intm.phi_cell[:] = .5*s_intm.phi_cell[:] + 0.5*(1.5*s_pre.phi_cell[:] - 0.5*s_old.phi_cell[:])
-                s_intm.psi_vertex_pred[:] = s_intm.psi_vertex
+#                s_intm.psi_vertex_pred[:] = s_intm.psi_vertex[:]
 #                s_intm.phi_vertex[:] = .5*s_intm.phi_vertex[:] + 0.5*(1.5*s_pre.phi_vertex[:] - 0.5*s_old.phi_vertex[:])
                 
             if i==2:
                 s_intm.psi_cell[:] = 2*s_intm.psi_cell[:] - s_pre.psi_cell[:]
                 s_intm.phi_cell[:] = 2*s_intm.phi_cell[:] - s_pre.phi_cell[:]
-                s_intm.psi_vertex_pred[:] = 2*s_intm.psi_vertex[:] - s_pre.psi_vertex[:]
-#                s_intm.phi_vertex[:] = 2*s_intm.phi_vertex[:] - s_pre.phi_vertex[:]
+                s_intm.psi_vertex[:] = 2*s_intm.psi_vertex[:] - s_pre.psi_vertex[:]
+                s_intm.phi_vertex[:] = 2*s_intm.phi_vertex[:] - s_pre.phi_vertex[:]
+#                s_intm.psi_vertex_pred[:] = s_intm.psi_vertex[:]
+#                s_intm.psi_cell[:] = 8./3*s_intm.psi_cell[:] - 2.*s_pre.psi_cell[:] + 1./3*s_old.psi_cell[:]
+#                s_intm.phi_cell[:] = 8./3*s_intm.phi_cell[:] - 2.*s_pre.phi_cell[:] + 1./3*s_old.phi_cell[:]
+#                s_intm.psi_vertex[:] = 8./3*s_intm.psi_vertex[:] - 2.*s_pre.psi_vertex[:] + 1./3*s_old.psi_vertex[:]
+#                s_intm.phi_vertex[:] = 8./3*s_intm.phi_vertex[:] - 2.*s_pre.phi_vertex[:] + 1./3*s_old.phi_vertex[:]
 
             s_intm.compute_diagnostics(g, vc, c)
 
     # Prediction using the latest s_intm values
     s.psi_cell[:] = s_intm.psi_cell[:]
     s.phi_cell[:] = s_intm.phi_cell[:]
-    s.psi_vertex_pred[:] = s_intm.psi_vertex[:]
-#    s.phi_vertex[:] = s_intm.phi_vertex[:]
+    s.psi_vertex[:] = s_intm.psi_vertex[:]
+    s.phi_vertex[:] = s_intm.phi_vertex[:]
     
     s.compute_diagnostics(g, vc, c)
 
