@@ -203,13 +203,13 @@ def run_tests(env, g, vc, c, s):
         # To run solver_diagnostics for the AMG
         print("To run solver_diagnostics for the AMG")
         
-        solver_diagnostics(vc.POpn.A_spd, fname='p40962', 
+        solver_diagnostics(vc.POpn.A_spd, fname='p15km', 
                        cycle_list=['V'],
                        symmetry='symmetric', 
                        definiteness='positive',
                        solver=rootnode_solver)
 
-        solver_diagnostics(vc.POdn.A_spd, fname='d40962', 
+        solver_diagnostics(vc.POdn.A_spd, fname='d15km', 
                        cycle_list=['V'],
                        symmetry='symmetric', 
                        definiteness='positive',

@@ -94,18 +94,63 @@ class Poisson:
             A_spd = -A_spd
             self.A_spd = A_spd
             B = np.ones((A_spd.shape[0],1), dtype=A_spd.dtype); BH = B.copy()
-            self.A_amg = rootnode_solver(A_spd, B=B, BH=BH,
-                strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
-                smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
-                improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
-                                    None, None, None, None, None, None, None, None, None, None, \
-                                    None, None, None, None],
-                aggregate="standard",
-                presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-                postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-                max_levels=15,
-                max_coarse=300,
-                coarse_solver="pinv")
+
+            if A_spd.shape[0] in  [40962, 163842, 655362]:
+                self.A_amg = rootnode_solver(A_spd, B=B, BH=BH,
+                    strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
+                    smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
+                    improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
+                                        None, None, None, None, None, None, None, None, None, None, \
+                                        None, None, None, None],
+                    aggregate="standard",
+                    presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                    postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                    max_levels=15,
+                    max_coarse=300,
+                    coarse_solver="pinv")
+            elif A_spd.shape[0] in [81920, 327680, 1310720, 5242880]:
+                self.A_amg = rootnode_solver(A_spd, B=B, BH=BH,
+                    strength=('evolution', {'epsilon': 4.0, 'k': 2, 'proj_type': 'l2'}),
+                    smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
+                    improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
+                                        None, None, None, None, None, None, None, None, None, None, \
+                                        None, None, None, None],
+                    aggregate="standard",
+                    presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                    postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                    max_levels=15,
+                    max_coarse=300,
+                    coarse_solver="pinv")
+            elif A_spd.shape[0] in  [2621442]:
+                self.A_amg = rootnode_solver(A_spd, B=B, BH=BH,
+                    strength=('evolution', {'epsilon': 4.0, 'k': 2, 'proj_type': 'l2'}),
+                    smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 3, 'maxiter': 4}),
+                    improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
+                                        None, None, None, None, None, None, None, None, None, None, \
+                                        None, None, None, None],
+                    aggregate="standard",
+                    presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                    postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                    max_levels=15,
+                    max_coarse=300,
+                    coarse_solver="pinv")
+                
+            else:
+                print("Unknown matrix. Using a generic AMG solver")
+
+                self.A_amg = rootnode_solver(A_spd, B=B, BH=BH,
+                    strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
+                    smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
+                    improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
+                                        None, None, None, None, None, None, None, None, None, None, \
+                                        None, None, None, None],
+                    aggregate="standard",
+                    presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                    postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                    max_levels=15,
+                    max_coarse=300,
+                    coarse_solver="pinv")
+
         else:
             raise ValueError("Invalid solver choice.")
 
@@ -129,13 +174,6 @@ class Poisson:
             info, nIter = cudaPCG(env, self, b, x, max_iter=c.max_iter, relres = c.err_tol)
             print("cudaPCG, nIter = %d" % nIter)
         elif linear_solver is 'amg':
-#            print("b[:5] = ")
-#            print(b[:5])
-
-#            x2 = self.lu.solve(b)
-            
-#            print("x2[:5] = ")
-#            print(x2[:5])
             
             res = []
             x0 = -x
@@ -144,16 +182,16 @@ class Poisson:
             x[:] = self.A_amg.solve(b, x0=x0, tol=c.err_tol, residuals=res)
             x *= -1.
             
-#            if np.max(np.abs(x2)) > 1e-10:
-#                print("Diff between lu and amg: %e" % (np.sum(np.abs(x-x2))/np.sum(np.abs(x2))) )
-#            else:
-#                print("Abs diff between lu and amg: %e" % np.max(np.abs(x-x2)) )
-                
-            print("AMG, nIter, res = %d, %e" % (len(res), res[-1]))
-#            x[:] = x2[:]
+            print("AMG, nIter = %d" % (len(res),))
 
-#            print("x[:5] = ")
-#            print(x[:5])
+#            if len(res) > 100:
+#                print("res = %e, %e, %e, %e, %e" % (res[0], res[1], res[2], res[3], res[4]))
+#                print("res = ")
+#                print(res[:15])
+#                from p120km import p120km
+#                x0[:] = 0.
+#                p120km(self.A_spd, b, x0, c.err_tol)
+#                raise ValueError("Diagnosing AMG solver")
             
         else:
             raise ValueError("Invalid solver choice.")

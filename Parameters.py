@@ -9,7 +9,7 @@ on_a_global_sphere = True
 timestepping = 'RK4'
 
 # Duration, time stepping size, saving interval
-dt = 360.   #1440 for 480km
+dt = 90.   #1440 for 480km
 #dt = 90.   #360 for NA818
 nYears = .1/360
 save_inter_days = 1
