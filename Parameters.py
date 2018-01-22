@@ -21,8 +21,8 @@ no_flux_BC = True  # Should always be on
 no_slip_BC = True
 
 # Solver config
-linear_solver = 'cg'      # lu, cg, cudaCG, cudaPCG
-err_tol = 1e-9
+linear_solver = 'amg'      # lu, cg, cudaCG, cudaPCG, amg
+err_tol = 1e-8
 max_iter = 5000
 max_iter_dual = 25
 #dual_init = 'interpolation'    # 'extrapolation', 'interpolation'

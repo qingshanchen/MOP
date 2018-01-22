@@ -1,13 +1,13 @@
 import numpy as np
 import time
 from LinearAlgebra import cg, cudaCG, cudaPCG, pcg
-#from pyamg import rootnode_solver
+from pyamg import rootnode_solver
 #from pyamg.util.linalg import norm
 from numpy import ones, array, arange, zeros, abs, random
 from scipy.sparse import isspmatrix_bsr, isspmatrix_csr
 from scipy.sparse.linalg import factorized, splu
-#from solver_diagnostics import solver_diagnostics
-from accelerate import cuda
+from solver_diagnostics import solver_diagnostics
+#from accelerate import cuda
 from copy import deepcopy as deepcopy
 import numba
 
@@ -137,7 +137,7 @@ def run_tests(env, g, vc, c, s):
         print(("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol)))))
         print(("CPU time for cg solver: %f" % (t1-t0,)))
 
-    if True:
+    if False:
         # To test and compare cg and cudaCG for systems on the primary mesh
         print("To test and compare cg and cudaCG for systems on the primary mesh")
         
@@ -199,23 +199,17 @@ def run_tests(env, g, vc, c, s):
 
         raise ValueError
         
-    if False:
+    if True:
         # To run solver_diagnostics for the AMG
         print("To run solver_diagnostics for the AMG")
         
-        A = -1 * vc.D2s
-        A = A.tocsr( )
-
-        solver_diagnostics(A, fname='D2s', 
+        solver_diagnostics(vc.POpn.A_spd, fname='p40962', 
                        cycle_list=['V'],
                        symmetry='symmetric', 
                        definiteness='positive',
                        solver=rootnode_solver)
 
-        A = -1 * vc.E2s 
-        A = A.tocsr( )
-
-        solver_diagnostics(A, fname='E2s', 
+        solver_diagnostics(vc.POdn.A_spd, fname='d40962', 
                        cycle_list=['V'],
                        symmetry='symmetric', 
                        definiteness='positive',
@@ -225,49 +219,26 @@ def run_tests(env, g, vc, c, s):
         # Timing tests for AMG solvers
         print("Timing tests for AMG solvers ")
 
-#        import D2s40962
-        
         sol = np.random.rand(g.nCells)
         sol[0] = 0.
-        A = -1 * vc.D2s
-        A = A.tocsr( )
-        b = A.dot(sol)
+        b = vc.POpn.A_spd.dot(sol)
 
-#        x1 = np.zeros(g.nCells)
+#        x4 = np.zeros(g.nCells)
 #        t0 = time.clock( )
-#        x1[:] = vc.lu_D2s.solve(b)
+#        info, nIter = cg(vc.POpn.A_spd, b, x4, relres=c.err_tol)
 #        t1 = time.clock( )
-#        print("rel error = %f" % (np.sqrt(np.sum((x1+sol)**2))/np.sqrt(np.sum(sol*sol))))
-#        print("CPU time for the direct method: %f" % (t1-t0,))
-
-        x4 = np.zeros(g.nCells)
-        t0 = time.clock( )
-        info, nIter = cg(A, b, x4, relres=c.err_tol)
-        t1 = time.clock( )
-        print(("info = %d" % info))
-        print(("nIter = %d" % nIter))
-        print(("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol)))))
-        print(("CPU time for cg solver: %f" % (t1-t0,)))
-
-        # Generate B
-        B = ones((A.shape[0],1), dtype=A.dtype); BH = B.copy()
-        ml = rootnode_solver(A, B=B, BH=BH,
-            strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
-            smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
-            improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), None, None, None, None, None, None, None, None, None, None, None, None, None, None],
-            aggregate="standard",
-            presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-            postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-            max_levels=15,
-            max_coarse=300,
-            coarse_solver="pinv")
+#        print(("info = %d" % info))
+#        print(("nIter = %d" % nIter))
+#        print(("rel error = %f" % (np.sqrt(np.sum((x4-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+#        print(("CPU time for cg solver: %f" % (t1-t0,)))
 
         res = []
         x0 = np.zeros(g.nCells)
         t0 = time.clock()
-        x = ml.solve(b, x0=x0, tol=c.err_tol, residuals=res, accel="cg", maxiter=300, cycle="V")
+        x = vc.POpn.A_amg.solve(b, x0=x0, tol=c.err_tol, residuals=res, accel="cg", maxiter=300, cycle="V")
         t1 = time.clock()
-        print(("rel error = %f" % (np.sqrt(np.sum((x-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+        print(("rel error = %e" % (np.sqrt(np.sum((x-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+        print("nIter = %d" % len(res))
         print(("CPU time for AMG cg solver: %f" % (t1-t0,)))
 
         

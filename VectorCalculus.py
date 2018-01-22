@@ -4,7 +4,7 @@ from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 from scipy.sparse.linalg import spsolve, splu, factorized
 from swe_comp import swe_comp as cmp
 from LinearAlgebra import cg, pcg, cudaCG, cudaPCG
-#from pyamg import rootnode_solver
+from pyamg import rootnode_solver
 #import time
 
 class Poisson:
@@ -87,30 +87,35 @@ class Poisson:
  #           self.D2sLT_solve = factorized(self.D2sLT)
 
             
- #       elif self.linear_solver is 'amg':
- #           D2s = D2s_coo.tocsr( )
- #           D2s = -D2s
- #           B = np.ones((D2s.shape[0],1), dtype=D2s.dtype); BH = B.copy()
- #           self.D2spd_amg = rootnode_solver(D2s, B=B, BH=BH,
- #               strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
- #               smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
- #               improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
- #                                   None, None, None, None, None, None, None, None, None, None, \
- #                                   None, None, None, None],
- #               aggregate="standard",
- #               presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
- #               postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
- #               max_levels=15,
- #               max_coarse=300,
- #               coarse_solver="pinv")
+        elif linear_solver is 'amg':
+
+            # For comparison with LU
+            A_spd = A.tocsr( )
+            A_spd = -A_spd
+            self.A_spd = A_spd
+            B = np.ones((A_spd.shape[0],1), dtype=A_spd.dtype); BH = B.copy()
+            self.A_amg = rootnode_solver(A_spd, B=B, BH=BH,
+                strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
+                smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
+                improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
+                                    None, None, None, None, None, None, None, None, None, None, \
+                                    None, None, None, None],
+                aggregate="standard",
+                presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                max_levels=15,
+                max_coarse=300,
+                coarse_solver="pinv")
         else:
             raise ValueError("Invalid solver choice.")
 
     def solve(self, b, x, env=None, linear_solver='lu'):
+#        print("b max = %e" % np.max(np.abs(b)))
         
         if linear_solver is 'lu':
             x[:] = self.lu.solve(b)
         elif linear_solver is 'cg':
+#            print("b max = %e" % np.max(np.abs(b)))
             try:
                 info, nIter = cg(env, self.A, b, x, max_iter=c.max_iter, relres=c.err_tol)
                 print("CG, nIter = %d" % nIter)
@@ -123,55 +128,82 @@ class Poisson:
         elif linear_solver is 'cudaPCG':
             info, nIter = cudaPCG(env, self, b, x, max_iter=c.max_iter, relres = c.err_tol)
             print("cudaPCG, nIter = %d" % nIter)
+        elif linear_solver is 'amg':
+#            print("b[:5] = ")
+#            print(b[:5])
+
+#            x2 = self.lu.solve(b)
+            
+#            print("x2[:5] = ")
+#            print(x2[:5])
+            
+            res = []
+            x0 = -x
+#            x[:] = self.A_amg.solve(b, x0=x0, tol=c.err_tol, residuals=res, accel='cg', maxiter=300, cycle='V')
+#            x[:] = self.A_amg.solve(b, x0=x0, tol=c.err_tol, residuals=res, accel='cg')
+            x[:] = self.A_amg.solve(b, x0=x0, tol=c.err_tol, residuals=res)
+            x *= -1.
+            
+#            if np.max(np.abs(x2)) > 1e-10:
+#                print("Diff between lu and amg: %e" % (np.sum(np.abs(x-x2))/np.sum(np.abs(x2))) )
+#            else:
+#                print("Abs diff between lu and amg: %e" % np.max(np.abs(x-x2)) )
+                
+            print("AMG, nIter, res = %d, %e" % (len(res), res[-1]))
+#            x[:] = x2[:]
+
+#            print("x[:5] = ")
+#            print(x[:5])
+            
         else:
             raise ValueError("Invalid solver choice.")
         
             
-class PoissonSPD:
-    def __init__(self, A, linear_solver, env):
-        self.A = A.copy( )
+#class PoissonSPD:
+#    def __init__(self, A, linear_solver, env):
+#        self.A = A.copy( )
 
-        if linear_solver in ['cg', 'cudaCG', 'cudaPCG']:
+#        if linear_solver in ['cg', 'cudaCG', 'cudaPCG']:
         
-            self.Adata = env.cuda.to_device(self.A.data)
-            self.Aptr = env.cuda.to_device(self.A.indptr)
-            self.Aind = env.cuda.to_device(self.A.indices)
-            self.Adescr = env.cuSparse.matdescr( )
+#            self.Adata = env.cuda.to_device(self.A.data)
+#            self.Aptr = env.cuda.to_device(self.A.indptr)
+#            self.Aind = env.cuda.to_device(self.A.indices)
+#            self.Adescr = env.cuSparse.matdescr( )
 
-            A_t = self.A.copy( )
-            A_t.data = np.where(A_t.nonzero()[0] >= A_t.nonzero()[1], A_t.data, 0.)
-            A_t.eliminate_zeros( )
-            A_t_descr = env.cuSparse.matdescr(matrixtype='S', fillmode='L')
-            info = env.cuSparse.csrsv_analysis(trans='N', m=A_t.shape[0], nnz=A_t.nnz, \
-                                       descr=A_t_descr, csrVal=A_t.data, \
-                                       csrRowPtr=A_t.indptr, csrColInd=A_t.indices)
-            env.cuSparse.csric0(trans='N', m=A_t.shape[0], \
-                        descr=A_t_descr, csrValM=A_t.data, csrRowPtrA=A_t.indptr,\
-                        csrColIndA=A_t.indices, info=info)
+#            A_t = self.A.copy( )
+#            A_t.data = np.where(A_t.nonzero()[0] >= A_t.nonzero()[1], A_t.data, 0.)
+#            A_t.eliminate_zeros( )
+#            A_t_descr = env.cuSparse.matdescr(matrixtype='S', fillmode='L')
+#            info = env.cuSparse.csrsv_analysis(trans='N', m=A_t.shape[0], nnz=A_t.nnz, \
+#                                       descr=A_t_descr, csrVal=A_t.data, \
+#                                       csrRowPtr=A_t.indptr, csrColInd=A_t.indices)
+#            env.cuSparse.csric0(trans='N', m=A_t.shape[0], \
+#                        descr=A_t_descr, csrValM=A_t.data, csrRowPtrA=A_t.indptr,\
+#                        csrColIndA=A_t.indices, info=info)
 
-            self.L = A_t
-            self.Lmv_descr = env.cuSparse.matdescr( )
+#            self.L = A_t
+#            self.Lmv_descr = env.cuSparse.matdescr( )
     #        self.Lsv_descr = cuSparse.matdescr(matrixtype='T', fillmode='L')
-            self.Lsv_descr = env.cuSparse.matdescr(matrixtype='T')
-            self.Ldata = env.cuda.to_device(self.L.data)
-            self.Lptr = env.cuda.to_device(self.L.indptr)
-            self.Lind = env.cuda.to_device(self.L.indices)
-            self.Lsv_info = env.cuSparse.csrsv_analysis(trans='N', m=self.L.shape[0], \
-                    nnz=self.L.nnz,  descr=self.Lsv_descr, csrVal=self.Ldata, \
-                    csrRowPtr=self.Lptr, csrColInd=self.Lind)        
+#            self.Lsv_descr = env.cuSparse.matdescr(matrixtype='T')
+#            self.Ldata = env.cuda.to_device(self.L.data)
+#            self.Lptr = env.cuda.to_device(self.L.indptr)
+#            self.Lind = env.cuda.to_device(self.L.indices)
+#            self.Lsv_info = env.cuSparse.csrsv_analysis(trans='N', m=self.L.shape[0], \
+#                    nnz=self.L.nnz,  descr=self.Lsv_descr, csrVal=self.Ldata, \
+#                    csrRowPtr=self.Lptr, csrColInd=self.Lind)        
 
 
-            self.LT = self.L.transpose( )
-            self.LT.tocsr( )
-            self.LTmv_descr = env.cuSparse.matdescr( )
-            self.LTsv_descr = env.cuSparse.matdescr(matrixtype='T', fillmode='U')
-            self.LTsv_descr = env.cuSparse.matdescr()
-            self.LTdata = env.cuda.to_device(self.LT.data)
-            self.LTptr = env.cuda.to_device(self.LT.indptr)
-            self.LTind = env.cuda.to_device(self.LT.indices)
-            self.LTsv_info = env.cuSparse.csrsv_analysis(trans='T', m=self.L.shape[0], \
-                    nnz=self.L.nnz,  descr=self.Lsv_descr, csrVal=self.Ldata, \
-                    csrRowPtr=self.Lptr, csrColInd=self.Lind)        
+#            self.LT = self.L.transpose( )
+#            self.LT.tocsr( )
+#            self.LTmv_descr = env.cuSparse.matdescr( )
+#            self.LTsv_descr = env.cuSparse.matdescr(matrixtype='T', fillmode='U')
+#            self.LTsv_descr = env.cuSparse.matdescr()
+#            self.LTdata = env.cuda.to_device(self.LT.data)
+#            self.LTptr = env.cuda.to_device(self.LT.indptr)
+#            self.LTind = env.cuda.to_device(self.LT.indices)
+#            self.LTsv_info = env.cuSparse.csrsv_analysis(trans='T', m=self.L.shape[0], \
+#                    nnz=self.L.nnz,  descr=self.Lsv_descr, csrVal=self.Ldata, \
+#                    csrRowPtr=self.Lptr, csrColInd=self.Lind)        
         
 
             
