@@ -99,33 +99,32 @@ def cudaCG(env, PO, b, x, max_iter=1000, relres=1e-5):
         # Punch the attendance card
         counter += 1
 
+        ## Group 1 execution:
         # Compute Ap = A.p
         env.cuSparse.csrmv(trans='N', m=PO.A.shape[0], n=PO.A.shape[1], nnz=PO.A.nnz, alpha = 1., descr=PO.cuSparseDescr, \
                        csrVal=PO.dData, csrRowPtr=PO.dPtr, csrColInd=PO.dInd, x=dp, beta=0., y=dAp)
 
+        # Set x_incr = 0.
+        env.cuBlas.scal(0., x_incr)
+
+        ## Group 2 execution:
         # Compute alpha
         alpha = r2 / env.cuBlas.dot(dp, dAp)
 
-        # Compute x = x + alpha.p
-        env.cuBlas.axpy(alpha, dp, dx)
-
-        env.cuBlas.scal(0., x_incr)
+        ## Group 3 execution:
+        # x_incr = alpha * dp
         env.cuBlas.axpy(alpha, dp, x_incr)
-        x_incr_norm = env.cuBlas.nrm2(x_incr)
+
+        # Compute x = x + alpha * dp
+        env.cuBlas.axpy(alpha, dp, dx)
 
         # Compute r = r - alpha.Ap
         env.cuBlas.axpy(-alpha, dAp, dr)
 
+        ## Group 4
         # Compute l2 norm of the residual
-        res = env.cuBlas.nrm2(dr)
-        r2_new = res*res
+        x_incr_norm = env.cuBlas.nrm2(x_incr)
 
-        # Compute beta
-        beta = r2_new / r2
-
-        # Compute p = beta*p + r
-        env.cuBlas.scal(beta, dp)
-        env.cuBlas.axpy(1., dr, dp)
 
         # Check if the target tol has been reached
 #        if res/res0 < relres:
@@ -136,9 +135,24 @@ def cudaCG(env, PO, b, x, max_iter=1000, relres=1e-5):
         
         if counter > max_iter:
             raise ValueError("Maximum number of iteration exceeded. Number of iters: %d. relres = %e" % (counter, res/res0))
+
+        ## Group 5
+        res = env.cuBlas.nrm2(dr)
+        x_norm = env.cuBlas.nrm2(dx)
+
+        ## Group 6
+        # Compute beta
+        r2_new = res*res
+        beta = r2_new / r2
+
+        ## Group 7
+        # Compute p = beta*p
+        env.cuBlas.scal(beta, dp)
+        ## Group 8
+        # dp = dp + dr
+        env.cuBlas.axpy(1., dr, dp)
         
         r2 = r2_new
-        x_norm = env.cuBlas.nrm2(dx)
 
 
 def cudaPCG(env, PO, b, x, max_iter=1000, relres=1e-5):
