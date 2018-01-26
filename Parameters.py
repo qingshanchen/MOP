@@ -24,7 +24,7 @@ no_slip_BC = False
 linear_solver = 'lu'      # lu, cg, cudaCG, cudaPCG, amg
 err_tol = 1e-8
 max_iter = 5000
-max_iter_dual = 25
+#max_iter_dual = 25
 #dual_init = 'interpolation'    # 'extrapolation', 'interpolation'
 
 restart = False

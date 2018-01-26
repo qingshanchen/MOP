@@ -354,9 +354,6 @@ class state_data:
         if c.on_a_global_sphere or c.no_slip_BC or c.delVisc > np.finfo('float32').tiny:
             self.vorticity[:] = cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.psi_cell)
 
-#        print("vorticity[:5] = ")
-#        print(self.vorticity[:5])
-            
         # Only to re-calcualte divergence[0] to ensure zero average. This is absoutely necessary when there are external forcings
         self.divergence[:] = cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.phi_cell)
             
@@ -365,11 +362,6 @@ class state_data:
         self.vorticity_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.vorticity)
         self.divergence_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.divergence)
 
-#        print("vorticity_vertex[:5] = ")
-#        print(self.vorticity_vertex[:5])
-#        print("2max divergence = %e" % np.max(np.abs(self.divergence)))
-#        print("2max divergence_vertex = %e" % np.max(np.abs(self.divergence_vertex)))
-        
         # Compute psi_vertex and phi_vertex from vorticity_vertex and divergence_vertex
         #self.psi_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.psi_cell)
         #self.phi_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.phi_cell)
@@ -398,7 +390,6 @@ class state_data:
         kenergy_edge = 0.5 * (self.nVelocity * self.nVelocity + self.tVelocity * self.tVelocity )
         self.kinetic_energy[:] = cmp.edge2cell(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, kenergy_edge)
 
-
         
     def compute_psi_cell(self, vc, c):
         # To compute the psi_cell using the elliptic equation on the
@@ -406,14 +397,12 @@ class state_data:
 
         if not c.on_a_global_sphere:
             # A bounded domain
-#             vc.invLaplace_prime_dirich(self.vorticity, self.psi_cell)
             vc.scalar_cell[:] = self.vorticity * vc.areaCell
             vc.scalar_cell_interior[:] = self.psi_cell[vc.cellInterior[:]-1].copy( )
             vc.POpd.solve(vc.scalar_cell[vc.cellInterior[:]-1], vc.scalar_cell_interior, \
                           vc.env, c.linear_solver)
             self.psi_cell[vc.cellInterior[:]-1] = vc.scalar_cell_interior[:]
             self.psi_cell[vc.cellBoundary[:]-1] = 0.
-
             
         else:
             # A global domain with no boundary
@@ -447,16 +436,12 @@ class state_data:
     def compute_phi_cell(self, vc, c):
         # To compute the phi_cell from divergence
         
-#        print("max divergence = %e" % np.max(np.abs(self.divergence)))
-
         vc.scalar_cell[:] = self.divergence * vc.areaCell
         vc.scalar_cell[0] = 0.   # Set first element to zeor to make phi_cell[0] zero
         self.phi_cell -= self.phi_cell[0]
         
         vc.POpn.solve(vc.scalar_cell, self.phi_cell, vc.env, c.linear_solver)
         
-#        print("max divergence = %e" % np.max(np.abs(self.divergence)))
-
         return 0
 
     def compute_phi_vertex(self, vc, c):
@@ -465,10 +450,6 @@ class state_data:
         vc.scalar_vertex = self.divergence_vertex * vc.areaTriangle                    #Scaling
         vc.scalar_vertex[0] = 0.                                                       #Set to zero to make x[0] zero
         self.phi_vertex -= self.phi_vertex[0]                                          #Prepare the initial guess
-        
-#        print("max divergence = %e" % np.max(np.abs(self.divergence)))
-#        print("max divergence_vertex = %e" % np.max(np.abs(self.divergence_vertex)))
-#        print("max scalar_vertex = %e" % np.max(np.abs(vc.scalar_vertex)))
         
         vc.POdn.solve(vc.scalar_vertex, self.phi_vertex, vc.env, c.linear_solver)
         return 0
@@ -683,7 +664,7 @@ def main( ):
     
     for iStep in range(c.nTimeSteps):
 
-        print(("Doing step %d " % iStep))
+        print(("Doing step %d/%d " % (iStep, c.nTimeSteps)))
 
         if c.timestepping == 'RK4':
             timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, g, vc, c)
