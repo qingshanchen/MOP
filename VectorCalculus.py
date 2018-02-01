@@ -89,14 +89,13 @@ class Poisson:
             
         elif linear_solver is 'amg':
 
-            # For comparison with LU
             A_spd = A.tocsr( )
             A_spd = -A_spd
             self.A_spd = A_spd
-            B = np.ones((A_spd.shape[0],1), dtype=A_spd.dtype); BH = B.copy()
+            self.B = np.ones((A_spd.shape[0],1), dtype=A_spd.dtype); self.BH = self.B.copy()
 
             if A_spd.shape[0] in  [40962, 163842, 655362]:
-                self.A_amg = rootnode_solver(A_spd, B=B, BH=BH,
+                self.A_amg = rootnode_solver(self.A_spd, B=self.B, BH=self.BH,
                     strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
                     smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
                     improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
@@ -109,7 +108,7 @@ class Poisson:
                     max_coarse=300,
                     coarse_solver="pinv")
             elif A_spd.shape[0] in [81920, 327680, 1310720, 5242880]:
-                self.A_amg = rootnode_solver(A_spd, B=B, BH=BH,
+                self.A_amg = rootnode_solver(self.A_spd, B=self.B, BH=self.BH,
                     strength=('evolution', {'epsilon': 4.0, 'k': 2, 'proj_type': 'l2'}),
                     smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
                     improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
@@ -122,7 +121,7 @@ class Poisson:
                     max_coarse=300,
                     coarse_solver="pinv")
             elif A_spd.shape[0] in  [2621442]:
-                self.A_amg = rootnode_solver(A_spd, B=B, BH=BH,
+                self.A_amg = rootnode_solver(self.A_spd, B=self.B, BH=self.BH,
                     strength=('evolution', {'epsilon': 4.0, 'k': 2, 'proj_type': 'l2'}),
                     smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 3, 'maxiter': 4}),
                     improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
@@ -138,7 +137,7 @@ class Poisson:
             else:
                 print("Unknown matrix. Using a generic AMG solver")
 
-                self.A_amg = rootnode_solver(A_spd, B=B, BH=BH,
+                self.A_amg = rootnode_solver(self.A_spd, B=self.B, BH=self.BH,
                     strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
                     smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
                     improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
