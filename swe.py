@@ -13,6 +13,8 @@ from swe_comp import swe_comp as cmp
 import os
 from copy import deepcopy as deepcopy
 #from pyamg import rootnode_solver
+from scipy.io import mmwrite
+
 
 max_int = np.iinfo('int32').max
 
@@ -335,6 +337,27 @@ class state_data:
         self.tend_divergence[:] -= c.bottomDrag * self.divergence[:]
         self.tend_divergence[:] += c.delVisc * cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.divergence)
 
+        ### For Debug##########
+        # Potential enstrophy tendency
+#        div_hu = cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, thicknessTransport)
+#        div_etau = cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorTransport)
+#        a = np.sum(div_etau * self.pv_cell * g.areaCell)
+#        b = -0.5 * np.sum(div_hu * self.pv_cell * self.pv_cell * g.areaCell)
+#        tend_pe = a + b
+#        print("a = %.15e" % a)
+#        print("b = %.15e" % b)
+#        print("tend_pe = %e" % tend_pe)
+
+#        grad_pv = cmp.discrete_grad_n(self.pv_cell, g.cellsOnEdge, g.dcEdge)
+#        grad_pv2 = cmp.discrete_grad_n(self.pv_cell*self.pv_cell, g.cellsOnEdge, g.dcEdge)
+#        a = -np.sum(absVorTransport * grad_pv * g.dcEdge * g.dvEdge)
+#        b = np.sum(thicknessTransport * grad_pv2 * g.dcEdge *g.dvEdge)/2.
+#        tend_pe = a + b
+#        print("a = %.15e" % a)
+#        print("b = %.15e" % b)
+#        print("tend_pe = %e" % tend_pe)
+        
+        
     def compute_diagnostics(self, g, vc, c):
         # Compute diagnostic variables from pv_cell
 
@@ -390,7 +413,6 @@ class state_data:
         kenergy_edge = 0.5 * (self.nVelocity * self.nVelocity + self.tVelocity * self.tVelocity )
         self.kinetic_energy[:] = cmp.edge2cell(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, kenergy_edge)
 
-        
     def compute_psi_cell(self, vc, c):
         # To compute the psi_cell using the elliptic equation on the
         # interior cells
@@ -620,7 +642,11 @@ def main( ):
 
 #    from Testing import run_tests
 #    run_tests(env, g, vc, c, s)
-#    raise ValueError("Just for testing.")
+    A = -vc.POpn.A
+    mmwrite("POpn.mtx", A)
+    A = -vc.POdn.A
+    mmwrite("POdn.mtx", A)
+    raise ValueError("Just for testing.")
 
     s.initialization(g, vc, c)
 #    raise ValueError("Just for testing.")
@@ -685,6 +711,7 @@ def main( ):
         
         print(("K-nergy, p-energy, t-energy, p-enstrophy, mass: %.15e, %.15e, %.15e, %.15e, %.15e" % \
               (kenergy[iStep+1], penergy[iStep+1], total_energy[iStep+1], penstrophy[iStep+1], mass[iStep+1])))
+        print("min thickness: %f" % np.min(s.thickness))
 
         if kenergy[iStep+1] != kenergy[iStep+1]:
             raise ValueError("Exceptions detected in energy. Stop now")

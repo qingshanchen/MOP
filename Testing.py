@@ -199,7 +199,7 @@ def run_tests(env, g, vc, c, s):
 
         raise ValueError
         
-    if True:
+    if False:
         # To run solver_diagnostics for the AMG
         print("To run solver_diagnostics for the AMG")
         
@@ -503,6 +503,63 @@ def run_tests(env, g, vc, c, s):
         
         raise ValueError("Stop for checking.")
 
+    elif True:
+        # To test the AMGX solver
+        
+        import pyamgx
+        import os
+
+        pyamgx.initialize()
+
+        # Initialize config, resources and mode:
+        #cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/FGMRES_AGGREGATION.json')
+        cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/AMG_CLASSICAL_CG.json')
+        #cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/AMG_AGGREGATION_CG.json')
+        #cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/AMG_CLASSICAL_CGF.json')
+        #cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/CLASSICAL_CG_CYCLE.json')
+        #cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/PCG_AGGREGATION_JACOBI.json')
+
+        rsc = pyamgx.Resources().create_simple(cfg)
+        mode = 'dDDI'
+
+        # Create matrices and vectors:
+        A = pyamgx.Matrix().create(rsc, mode)
+        x = pyamgx.Vector().create(rsc, mode)
+        b = pyamgx.Vector().create(rsc, mode)
+
+        # Create solver:
+        slv = pyamgx.Solver().create(rsc, cfg, mode)
+
+        hA = vc.POpn.A
+        # Read system from file
+        A.upload(hA.shape[0], hA.nnz, hA.indptr, hA.indices, hA.data)
+
+        sol = np.random.rand(hA.shape[0])
+        sol[0] = 0.
+        h_b = hA.dot(sol)
+        h_x = np.zeros(np.size(h_b))
+        
+        b.upload(hA.shape[0], h_b)
+        x.upload(hA.shape[0], h_x)
+
+        # Setup and solve system:
+        slv.setup(A)
+        slv.solve(b, x)
+
+        x.download(h_x)
+        print(("rel error for pyamg solver = %e" % (np.sqrt(np.sum((h_x-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+
+        # Clean up:
+        A.destroy()
+        x.destroy()
+        b.destroy()
+        slv.destroy()
+        rsc.destroy()
+        cfg.destroy()
+
+        pyamgx.finalize()
+
+        
     elif False:
         # Compare scipy dot with cuda mv.
         
