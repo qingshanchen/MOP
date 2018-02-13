@@ -642,11 +642,11 @@ def main( ):
 
 #    from Testing import run_tests
 #    run_tests(env, g, vc, c, s)
-    A = -vc.POpn.A
-    mmwrite("POpn.mtx", A)
-    A = -vc.POdn.A
-    mmwrite("POdn.mtx", A)
-    raise ValueError("Just for testing.")
+#    A = -vc.POpn.A
+#    mmwrite("POpn.mtx", A)
+#    A = -vc.POdn.A
+#    mmwrite("POdn.mtx", A)
+#    raise ValueError("Just for testing.")
 
     s.initialization(g, vc, c)
 #    raise ValueError("Just for testing.")
