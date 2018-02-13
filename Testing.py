@@ -6,7 +6,7 @@ from pyamg import rootnode_solver
 from numpy import ones, array, arange, zeros, abs, random
 from scipy.sparse import isspmatrix_bsr, isspmatrix_csr
 from scipy.sparse.linalg import factorized, splu
-from solver_diagnostics import solver_diagnostics
+#from solver_diagnostics import solver_diagnostics
 #from accelerate import cuda
 from copy import deepcopy as deepcopy
 import numba
@@ -503,7 +503,7 @@ def run_tests(env, g, vc, c, s):
         
         raise ValueError("Stop for checking.")
 
-    elif True:
+    elif False:
         # To test the AMGX solver
         
         import pyamgx
@@ -513,11 +513,18 @@ def run_tests(env, g, vc, c, s):
 
         # Initialize config, resources and mode:
         #cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/FGMRES_AGGREGATION.json')
-        cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/AMG_CLASSICAL_CG.json')
-        #cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/AMG_AGGREGATION_CG.json')
+        #cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/AMG_AGGRREGATION_CG.json')
         #cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/AMG_CLASSICAL_CGF.json')
-        #cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/CLASSICAL_CG_CYCLE.json')
-        #cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/PCG_AGGREGATION_JACOBI.json')
+        #cfg = pyamgx.Config().create_from_file('PCG_AGGREGATION_JACOBI.json')
+        #cfg = pyamgx.Config().create_from_file('PCGF_AGGREGATION_JACOBI.json')     # Converges for 655362, 262442 in ~40 iters.
+        #cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/PCG_CLASSICAL_V_JACOBI.json')
+        #cfg = pyamgx.Config().create_from_file('PCGF_CLASSICAL_V_JACOBI.json')
+        #cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/PCGF_V.json')
+        #cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/AMG_CLASSICAL_PMIS.json')
+        #cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/FGMRES_CLASSICAL_AGGRESSIVE_PMIS.json')
+        #cfg = pyamgx.Config().create_from_file('PCGF_CLASSICAL_AGGRESSIVE_PMIS.json')          # Best for 2621442 dual
+        cfg = pyamgx.Config().create_from_file('PCGF_CLASSICAL_AGGRESSIVE_PMIS_JACOBI.json')   # Best for 2621442 prim
+        #cfg = pyamgx.Config().create_from_file('PCGF_CLASSICAL_AGGRESSIVE_PMIS_GS.json')   # Best for 2621442 prim
 
         rsc = pyamgx.Resources().create_simple(cfg)
         mode = 'dDDI'
@@ -548,6 +555,71 @@ def run_tests(env, g, vc, c, s):
 
         x.download(h_x)
         print(("rel error for pyamg solver = %e" % (np.sqrt(np.sum((h_x-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+
+        # Clean up:
+        A.destroy()
+        x.destroy()
+        b.destroy()
+        slv.destroy()
+        rsc.destroy()
+        cfg.destroy()
+
+        pyamgx.finalize()
+
+
+    elif True:
+        # To compare the performances of AMGX and pyAMG
+        
+        import pyamgx
+        import os
+
+        pyamgx.initialize()
+
+        # Initialize config, resources and mode:
+        cfg = pyamgx.Config().create_from_file('PCGF_CLASSICAL_AGGRESSIVE_PMIS_JACOBI.json')   # Best for 2621442 prim
+        rsc = pyamgx.Resources().create_simple(cfg)
+        mode = 'dDDI'
+
+        # Create matrices and vectors:
+        A = pyamgx.Matrix().create(rsc, mode)
+        x = pyamgx.Vector().create(rsc, mode)
+        b = pyamgx.Vector().create(rsc, mode)
+
+        # Create solver:
+        slv = pyamgx.Solver().create(rsc, cfg, mode)
+
+        hA = vc.POpn.A
+        # Read system from file
+        A.upload(hA.shape[0], hA.nnz, hA.indptr, hA.indices, hA.data)
+        slv.setup(A)
+
+        for k in range(5):
+            sol = np.random.rand(hA.shape[0])
+            sol[0] = 0.
+            h_b = hA.dot(sol)
+            h_x = np.zeros(np.size(h_b))
+
+            res = []
+            b1 = -h_b.copy( )
+            x0 = np.zeros(hA.shape[0])
+            t0 = time.time()
+            sol1 = vc.POpn.A_amg.solve(b1, x0=x0, tol=1e-6, residuals=res, accel="cg", maxiter=300, cycle="V")
+            t1 = time.time()
+            print(("rel error for pyamg = %e" % (np.sqrt(np.sum((sol1-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+            print("nIter = %d" % len(res))
+            print(("Wall time for AMG cg solver: %f" % (t1-t0,)))
+
+
+            t0 = time.time( )
+            b.upload(hA.shape[0], h_b)
+            x.upload(hA.shape[0], h_x)
+
+            # Setup and solve system:
+            slv.solve(b, x)
+            x.download(h_x)
+            t1 = time.time( )
+            print(("rel error for amgx solver = %e" % (np.sqrt(np.sum((h_x-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+            print(("Wall time for AMGX solver: %f" % (t1-t0,)))
 
         # Clean up:
         A.destroy()
