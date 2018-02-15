@@ -138,10 +138,14 @@ class Poisson:
             pyamgx.initialize( )
 
             hA = A.tocsr( )
-            if hA.shape[0] in [2562]:
-                AMGX_CONFIG_FILE_NAME = 'PCGF_CLASSICAL_AGGRESSIVE_PMIS_JACOBI.json'
-            elif hA.shape[0] in [5120]:
-                AMGX_CONFIG_FILE_NAME = 'PCGF_CLASSICAL_AGGRESSIVE_PMIS.json'
+#            if hA.shape[0] in [2562,10242, 40962]:
+            if hA.nnz * 1. / hA.shape[0] > 5.5:           # Primary mesh
+                AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS_JACOBI.json'
+#            elif hA.shape[0] in [5120, 20480,81920]:
+            if hA.nnz * 1. / hA.shape[0] < 5.5:           # Dual mesh
+                AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json'
+            else:
+                print('Error: cannot determine primary or dual mesh, not sure which config to use.')
 
 
             cfg = pyamgx.Config( ).create_from_file(AMGX_CONFIG_FILE_NAME) 
