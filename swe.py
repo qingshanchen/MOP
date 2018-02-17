@@ -314,6 +314,7 @@ class state_data:
         out.radius = "%e" % (c.earth_radius)
         out.no_flux_BC = "%s" % (c.no_flux_BC)
         out.no_slip_BC = "%s" % (c.no_slip_BC)
+        out.free_slip_BC = "%s" % (c.free_slip_BC)
         
         out.close( )
 
@@ -376,6 +377,8 @@ class state_data:
         # Only to recalculate vorticity on the boundary to ensure zero average. Necessary for a global domain, or a bounded domain with no-slip BCs
         if c.on_a_global_sphere or c.no_slip_BC or c.delVisc > np.finfo('float32').tiny:
             self.vorticity[:] = cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.psi_cell)
+        elif c.free_slip_BC:
+            self.vorticity[vc.cellBoundary[:]-1] = 0.
 
         # Only to re-calcualte divergence[0] to ensure zero average. This is absoutely necessary when there are external forcings
         self.divergence[:] = cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.phi_cell)
@@ -640,13 +643,13 @@ def main( ):
     vc = VectorCalculus(g, c, env)
     s = state_data(g, c)
 
-#    from Testing import run_tests
-#    run_tests(env, g, vc, c, s)
+    from Testing import run_tests
+    run_tests(env, g, vc, c, s)
 #    A = -vc.POpn.A
 #    mmwrite("POpn.mtx", A)
 #    A = -vc.POdn.A
 #    mmwrite("POdn.mtx", A)
-#    raise ValueError("Just for testing.")
+    raise ValueError("Just for testing.")
 
     s.initialization(g, vc, c)
 #    raise ValueError("Just for testing.")

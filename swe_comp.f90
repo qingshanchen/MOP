@@ -255,6 +255,7 @@ subroutine discrete_grad_t(nEdges, nVertices, &
 
 end subroutine discrete_grad_t
 
+
 ! Given a discrete vector field vector_n, compute its discrete divergence.
 ! The orientation on the edge is assumed to be from cell0 (first cell) to cell1 (second cell)
 subroutine discrete_div(nEdges, nCells, &
@@ -283,6 +284,43 @@ subroutine discrete_div(nEdges, nCells, &
   end do
   
 end subroutine discrete_div
+
+
+! Given a discrete vector field vector_n, compute its discrete divergence.
+! The orientation on the edge is assumed to be from cell0 (first cell) to cell1 (second cell)
+subroutine construct_matrix_discrete_div(nEdges, nCells, &
+  cellsOnEdge, dvEdge, areaCell,  &
+  nEntries, rows, cols, valEntries)
+  integer, intent(in) :: nEdges, nCells
+  integer, intent(in) :: cellsOnEdge(0:nEdges-1, 0:1)
+  real*8, intent(in)  :: dvEdge(0:nEdges-1), &
+       areaCell(0:nCells-1)
+  double precision, intent(out) :: valEntries(0:2*nEdges-1)
+  integer, intent(out)          :: nEntries, rows(0:2*nEdges-1), cols(0:2*nEdges-1) 
+
+  integer :: iEdge, cell0, cell1, iEntry
+
+  iEntry = 0
+
+  do iEdge = 0, nEdges-1
+      cell0 = cellsOnEdge(iEdge,0) - 1
+      cell1 = cellsOnEdge(iEdge,1) - 1
+
+      rows(iEntry) = cell0
+      cols(iEntry) = iEdge
+      valEntries(iEntry) = dvEdge(iEdge) / areaCell(cell0)
+      iEntry = iEntry + 1
+
+      rows(iEntry) = cell1
+      cols(iEntry) = iEdge
+      valEntries(iEntry) = -dvEdge(iEdge) / areaCell(cell1)
+      iEntry = iEntry + 1
+        
+   end do
+   nEntries = iEntry
+
+end subroutine construct_matrix_discrete_div
+
 
 subroutine discrete_div_t(nEdges, nVertices, &
                           grad_t, verticesOnEdge, dcEdge, areaTriangle, &
@@ -586,14 +624,6 @@ subroutine construct_discrete_laplace_neumann(nCells, nEdges, &
 
   nEntries = iEntry
 
-!  write(*,*) "Before setting first row and first column to zero"
-!  do iEntry = 0, nEntries-1
-!     if (rows(iEntry) == 65536) then
-!        write(*,*) "row, col = ", rows(iEntry), cols(iEntry)
-!        write(*,*) "val = ", valEntries(iEntry)
-!     end if
-!  end do
-  
   ! Set all entries on the first row to zero except the diagonal term
   do iEntry = 0, nEntries-1
      if (rows(iEntry) .EQ. 0 .AND. cols(iEntry) .NE. 0) then
@@ -604,14 +634,6 @@ subroutine construct_discrete_laplace_neumann(nCells, nEdges, &
      end if
   end do
 
-!  write(*,*) "After setting first row and first column to zero"
-!  do iEntry = 0, nEntries-1
-!     if (rows(iEntry) == 65536) then
-!        write(*,*) "row, col = ", rows(iEntry), cols(iEntry)
-!        write(*,*) "val = ", valEntries(iEntry)
-!     end if
-!  end do
-  
 end subroutine construct_discrete_laplace_neumann
 
 

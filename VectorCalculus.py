@@ -4,7 +4,7 @@ from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 from scipy.sparse.linalg import spsolve, splu, factorized
 from swe_comp import swe_comp as cmp
 from LinearAlgebra import cg, pcg, cudaCG, cudaPCG
-from pyamg import rootnode_solver
+#from pyamg import rootnode_solver
 #import time
 
 class Poisson:
@@ -306,6 +306,13 @@ class VectorCalculus:
         E2s_coo.eliminate_zeros( )
         self.POdn = Poisson(E2s_coo, c.linear_solver, env)
 
+        nEntries, rows, cols, valEntries = \
+            cmp.construct_matrix_discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell)
+        mDiv = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
+                               cols[:nEntries])), shape=(g.nCells, g.nEdges))
+        self.mDiv = mDiv.tocsr( )
+
+        
         self.scalar_cell = np.zeros(g.nCells)
         self.scalar_vertex = np.zeros(g.nVertices)
         if not c.on_a_global_sphere:

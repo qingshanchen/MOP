@@ -1,7 +1,7 @@
 import numpy as np
 import time
 from LinearAlgebra import cg, cudaCG, cudaPCG, pcg
-from pyamg import rootnode_solver
+#from pyamg import rootnode_solver
 #from pyamg.util.linalg import norm
 from numpy import ones, array, arange, zeros, abs, random
 from scipy.sparse import isspmatrix_bsr, isspmatrix_csr
@@ -10,6 +10,7 @@ from scipy.sparse.linalg import factorized, splu
 #from accelerate import cuda
 from copy import deepcopy as deepcopy
 import numba
+from swe_comp import swe_comp as cmp
 
 def run_tests(env, g, vc, c, s):
 
@@ -567,7 +568,7 @@ def run_tests(env, g, vc, c, s):
         pyamgx.finalize()
 
 
-    elif True:
+    elif False:
         # To compare the performances of AMGX and pyAMG
         
         import pyamgx
@@ -700,6 +701,29 @@ def run_tests(env, g, vc, c, s):
         print(("Wall time for transfering back to host: %f" % (t1b-t0b,)))
         print(("rel error = %e" % (np.sqrt(np.sum((y1-y)**2))/np.sqrt(np.sum(y*y)))))
         
+
+    elif True:
+        # Compare discrete_div and mDiv (as matrix-vector product)
         
+        x = np.random.rand(g.nEdges)
+
+        t0a = time.clock( )
+        t0b = time.time( )
+        y0 = cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, x)
+        t1a = time.clock( )
+        t1b = time.time( )
+        print(("CPU time for discrete_div: %f" % (t1a-t0a,)))
+        print(("Wall time for discrete_div: %f" % (t1b-t0b,)))
+
+        t0a = time.clock( )
+        t0b = time.time( )
+        y1 = vc.mDiv.dot(x)
+        t1a = time.clock( )
+        t1b = time.time( )
+        print(("CPU time for mDiv: %f" % (t1a-t0a,)))
+        print(("Wall time for mDiv: %f" % (t1b-t0b,)))
+        
+        print(("rel error = %e" % (np.sqrt(np.sum((y1-y0)**2))/np.sqrt(np.sum(y0*y0)))))
+
         
         
