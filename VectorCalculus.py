@@ -229,9 +229,9 @@ class Poisson:
 
 class Device_CSR:
     def __init__(self, A, env):
-        self.dData = env.cuda.to_device(self.A.data)
-        self.dPtr = env.cuda.to_device(self.A.indptr)
-        self.dInd = env.cuda.to_device(self.A.indices)
+        self.dData = env.cuda.to_device(A.data)
+        self.dPtr = env.cuda.to_device(A.indptr)
+        self.dInd = env.cuda.to_device(A.indices)
         self.shape = A.shape
         self.nnz = A.nnz
         self.cuSparseDescr = env.cuSparse.matdescr( )

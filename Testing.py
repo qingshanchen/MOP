@@ -7,7 +7,7 @@ from numpy import ones, array, arange, zeros, abs, random
 from scipy.sparse import isspmatrix_bsr, isspmatrix_csr
 from scipy.sparse.linalg import factorized, splu
 #from solver_diagnostics import solver_diagnostics
-#from accelerate import cuda
+from accelerate import cuda
 from copy import deepcopy as deepcopy
 import numba
 from swe_comp import swe_comp as cmp
@@ -633,7 +633,7 @@ def run_tests(env, g, vc, c, s):
         pyamgx.finalize()
 
         
-    elif False:
+    elif True:
         # Compare scipy dot with cuda mv.
         
         from scipy.sparse import tril
@@ -642,7 +642,7 @@ def run_tests(env, g, vc, c, s):
 
         cuSparse = cuda.sparse.Sparse()
         #D2s = tril(vc.D2s, format='csr')
-        D2s = vc.D2s
+        D2s = vc.POpn.A
         data = numba.cuda.to_device(D2s.data)
         ptr = numba.cuda.to_device(D2s.indptr)
         ind = numba.cuda.to_device(D2s.indices)
@@ -651,59 +651,44 @@ def run_tests(env, g, vc, c, s):
 
         t0a = time.clock( )
         t0b = time.time( )
-        y = vc.D2s.dot(x)
+        y = D2s.dot(x)
         t1a = time.clock( )
         t1b = time.time( )
         print(("CPU time for dot: %f" % (t1a-t0a,)))
         print(("Wall time for dot: %f" % (t1b-t0b,)))
 
         # Create arrays on host, and transfer them to device
-        xd = numba.cuda.to_device(x)
         y1 = np.zeros(np.size(x))
+
+        t0a = time.clock( )
         t0b = time.time()
+        xd = numba.cuda.to_device(x)
         d_y1 = numba.cuda.to_device(y1)
         t1b = time.time()
         print(("Wall time for transfering vector to device: %f" % (t1b-t0b,)))
         
-        t0a = time.clock( )
-        t0b = time.time( )
-        cuSparse.csrmv(trans='N', m=D2s.shape[0], n=D2s.shape[1], nnz=D2s.nnz, alpha=1.0, \
-                             descr=D2s_descr, csrVal=data, \
-                             csrRowPtr=ptr, csrColInd=ind, x=xd, beta=0., y=d_y1)
         t1a = time.clock( )
-        t1b = time.time( )
-        print(("CPU time for cuda-mv: %f" % (t1a-t0a,)))
-        print(("Wall time for cuda-mv: %f" % (t1b-t0b,)))
-        t0b = time.time( )
-        d_y1.copy_to_host(y1)
-        t1b = time.time( )
-        print(("Wall time for transfering back to host: %f" % (t1b-t0b,)))
-        print(("rel error = %e" % (np.sqrt(np.sum((y1-y)**2))/np.sqrt(np.sum(y*y)))))
-
-        # Create arrays on device, and transfer them to host
-        xd = numba.cuda.to_device(x)
-        t0b = time.time()
-        d_y1 = numba.cuda.device_array_like(x)
         t1b = time.time()
-        print(("Wall time for creating an array on device: %f" % (t1b-t0b,)))
-        t0a = time.clock( )
-        t0b = time.time( )
         cuSparse.csrmv(trans='N', m=D2s.shape[0], n=D2s.shape[1], nnz=D2s.nnz, alpha=1.0, \
                              descr=D2s_descr, csrVal=data, \
                              csrRowPtr=ptr, csrColInd=ind, x=xd, beta=0., y=d_y1)
-        t1a = time.clock( )
-        t1b = time.time( )
-        print(("CPU time for cuda-mv: %f" % (t1a-t0a,)))
-        print(("Wall time for cuda-mv: %f" % (t1b-t0b,)))
-        t0b = time.time( )
+        t2a = time.clock( )
+        t2b = time.time( )
+        print(("CPU time for cuda-mv: %f" % (t2a-t1a,)))
+        print(("Wall time for cuda-mv: %f" % (t2b-t1b,)))
+
         d_y1.copy_to_host(y1)
-        t1b = time.time( )
-        print(("Wall time for transfering back to host: %f" % (t1b-t0b,)))
+        t3a = time.clock( )
+        t3b = time.time( )
+        print(("Wall time for transfering back to host: %f" % (t3b-t2b,)))
         print(("rel error = %e" % (np.sqrt(np.sum((y1-y)**2))/np.sqrt(np.sum(y*y)))))
+        print(("Total wall time for cuda-mv: %f" % (t3b-t0b,)))
+
         
 
-    elif True:
+    elif False:
         # Compare discrete_div and mDiv (as matrix-vector product), and GPU mv with d_mDiv
+        cuSparse = cuda.sparse.Sparse()
         
         x = np.random.rand(g.nEdges)
 
@@ -722,9 +707,12 @@ def run_tests(env, g, vc, c, s):
         t1b = time.time( )
         print(("CPU time for mDiv: %f" % (t1a-t0a,)))
         print(("Wall time for mDiv: %f" % (t1b-t0b,)))
-        print(("rel error = %e" % (np.sqrt(np.sum((y1-y)**2))/np.sqrt(np.sum(y*y)))))
+        print(("rel error = %e" % (np.sqrt(np.sum((y1-y0)**2))/np.sqrt(np.sum(y0*y0)))))
 
         # Create arrays on host, and transfer them to device
+        print(x[0])
+        t0a = time.clock( )
+        t0b = time.time( )
         d_x = numba.cuda.to_device(x)
         y1[:] = 0.
         d_y1 = numba.cuda.to_device(y1)
@@ -733,8 +721,9 @@ def run_tests(env, g, vc, c, s):
                              descr=vc.d_mDiv.cuSparseDescr, csrVal=vc.d_mDiv.dData, \
                              csrRowPtr=vc.d_mDiv.dPtr, csrColInd=vc.d_mDiv.dInd, x=d_x, beta=0., y=d_y1)
         d_y1.copy_to_host(y1)
-        print(("rel error = %e" % (np.sqrt(np.sum((y1-y)**2))/np.sqrt(np.sum(y*y)))))
+        print(y1[:1])
         t1a = time.clock( )
         t1b = time.time( )
         print(("CPU time for cuda-mv: %f" % (t1a-t0a,)))
         print(("Wall time for cuda-mv: %f" % (t1b-t0b,)))
+        print(("rel error = %e" % (np.sqrt(np.sum((y1-y0)**2))/np.sqrt(np.sum(y0*y0)))))
