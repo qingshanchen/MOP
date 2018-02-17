@@ -703,7 +703,7 @@ def run_tests(env, g, vc, c, s):
         
 
     elif True:
-        # Compare discrete_div and mDiv (as matrix-vector product)
+        # Compare discrete_div and mDiv (as matrix-vector product), and GPU mv with d_mDiv
         
         x = np.random.rand(g.nEdges)
 
@@ -722,8 +722,19 @@ def run_tests(env, g, vc, c, s):
         t1b = time.time( )
         print(("CPU time for mDiv: %f" % (t1a-t0a,)))
         print(("Wall time for mDiv: %f" % (t1b-t0b,)))
-        
-        print(("rel error = %e" % (np.sqrt(np.sum((y1-y0)**2))/np.sqrt(np.sum(y0*y0)))))
+        print(("rel error = %e" % (np.sqrt(np.sum((y1-y)**2))/np.sqrt(np.sum(y*y)))))
 
+        # Create arrays on host, and transfer them to device
+        d_x = numba.cuda.to_device(x)
+        y1[:] = 0.
+        d_y1 = numba.cuda.to_device(y1)
         
-        
+        cuSparse.csrmv(trans='N', m=vc.d_mDiv.shape[0], n=vc.d_mDiv.shape[1], nnz=vc.d_mDiv.nnz, alpha=1.0, \
+                             descr=vc.d_mDiv.cuSparseDescr, csrVal=vc.d_mDiv.dData, \
+                             csrRowPtr=vc.d_mDiv.dPtr, csrColInd=vc.d_mDiv.dInd, x=d_x, beta=0., y=d_y1)
+        d_y1.copy_to_host(y1)
+        print(("rel error = %e" % (np.sqrt(np.sum((y1-y)**2))/np.sqrt(np.sum(y*y)))))
+        t1a = time.clock( )
+        t1b = time.time( )
+        print(("CPU time for cuda-mv: %f" % (t1a-t0a,)))
+        print(("Wall time for cuda-mv: %f" % (t1b-t0b,)))

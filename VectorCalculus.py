@@ -226,7 +226,15 @@ class Poisson:
         else:
             raise ValueError("Invalid solver choice.")
         
-            
+
+class Device_CSR:
+    def __init__(self, A, env):
+        self.dData = env.cuda.to_device(self.A.data)
+        self.dPtr = env.cuda.to_device(self.A.indptr)
+        self.dInd = env.cuda.to_device(self.A.indices)
+        self.shape = A.shape
+        self.nnz = A.nnz
+        self.cuSparseDescr = env.cuSparse.matdescr( )
             
 class VectorCalculus:
     def __init__(self, g, c, env):
@@ -308,10 +316,10 @@ class VectorCalculus:
 
         nEntries, rows, cols, valEntries = \
             cmp.construct_matrix_discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell)
-        mDiv = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
+        A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
                                cols[:nEntries])), shape=(g.nCells, g.nEdges))
-        self.mDiv = mDiv.tocsr( )
-
+        self.mDiv = A.tocsr( )
+        self.d_mDiv = Device_CSR(self.mDiv, env)
         
         self.scalar_cell = np.zeros(g.nCells)
         self.scalar_vertex = np.zeros(g.nVertices)
