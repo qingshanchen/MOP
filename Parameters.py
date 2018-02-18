@@ -3,6 +3,7 @@ import numpy as np
 ### Parameters essential
 test_case = 12
 on_a_global_sphere = True
+use_gpu = True
 
 ### Parameters secondary
 # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
