@@ -138,10 +138,8 @@ class Poisson:
             pyamgx.initialize( )
 
             hA = A.tocsr( )
-#            if hA.shape[0] in [2562,10242, 40962]:
             if hA.nnz * 1. / hA.shape[0] > 5.5:           # Primary mesh
                 AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS_JACOBI.json'
-#            elif hA.shape[0] in [5120, 20480,81920]:
             if hA.nnz * 1. / hA.shape[0] < 5.5:           # Dual mesh
                 AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json'
             else:
@@ -160,19 +158,12 @@ class Poisson:
             self.d_x = pyamgx.Vector().create(rsc, mode)
             self.d_b = pyamgx.Vector().create(rsc, mode)
 
-
-            #d_A.upload_CSR(hA)
             d_A.upload(hA.indptr, hA.indices, hA.data)
 
             # Setup and solve system:
             self.amgx.setup(d_A)
 
-            #self.amgx.solve(b, x)
-
-            #x.download(h_x)
-            #print(("rel error for pyamg solver = %e" % (np.sqrt(np.sum((h_x-sol)**2))/np.sqrt(np.sum(sol*sol)))))
-
-            # Clean up:
+            ## Clean up:
             #A.destroy()
             #x.destroy()
             #b.destroy()
@@ -181,18 +172,14 @@ class Poisson:
             #cfg.destroy()
 
             #pyamgx.finalize()
-
-
         else:
             raise ValueError("Invalid solver choice.")
 
     def solve(self, b, x, env=None, linear_solver='lu'):
-#        print("b max = %e" % np.max(np.abs(b)))
         
         if linear_solver is 'lu':
             x[:] = self.lu.solve(b)
         elif linear_solver is 'cg':
-#            print("b max = %e" % np.max(np.abs(b)))
             try:
                 info, nIter = cg(env, self.A, b, x, max_iter=c.max_iter, relres=c.err_tol)
                 print("CG, nIter = %d" % nIter)
@@ -221,8 +208,6 @@ class Poisson:
             self.d_x.upload(x)
             self.amgx.solve(self.d_b, self.d_x)
             self.d_x.download(x)
-
-            
         else:
             raise ValueError("Invalid solver choice.")
         
@@ -235,6 +220,7 @@ class Device_CSR:
         self.shape = A.shape
         self.nnz = A.nnz
         self.cuSparseDescr = env.cuSparse.matdescr( )
+#        self.d_vectOut = env.cuda.device_array
             
 class VectorCalculus:
     def __init__(self, g, c, env):
@@ -314,6 +300,7 @@ class VectorCalculus:
         E2s_coo.eliminate_zeros( )
         self.POdn = Poisson(E2s_coo, c.linear_solver, env)
 
+        ## Construct the matrix representing the discrete div (on primal mesh)
         nEntries, rows, cols, valEntries = \
             cmp.construct_matrix_discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell)
         A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
@@ -325,6 +312,24 @@ class VectorCalculus:
         self.scalar_vertex = np.zeros(g.nVertices)
         if not c.on_a_global_sphere:
             self.scalar_cell_interior = np.zeros(nCellsInterior)
+
+
+    def discrete_div(self, vEdge):
+
+        assert len(vEdge) == self.d_mDiv.shape[1], \
+            "Dimensions do not match."
+        d_vectorIn = env.cuda.to_device(vEdge)
+
+        sCell = np.zeros(self.d_mDiv.shape[0])
+        d_vectorOut = env.cuda.to_device(sCell)
+        cuSparse.csrmv(trans='N', m=self.d_mDiv.shape[0], \
+            n=self.d_mDiv.shape[1], nnz=self.d_mDiv.nnz, alpha=1.0, \
+            descr=self.d_mDiv.cuSparseDescr, csrVal=self.d_mDiv.dData, \
+            csrRowPtr=self.d_mDiv.dPtr, csrColInd=self.d_mDiv.dInd, \
+                       x=d_vectorIn, beta=0., y=d_vectorOut)
+        d_vectorOut.to_host(sCell)
+        return sCell
+        
 
 
         
