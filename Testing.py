@@ -633,7 +633,7 @@ def run_tests(env, g, vc, c, s):
         pyamgx.finalize()
 
         
-    elif True:
+    elif False:
         # Compare scipy dot with cuda mv.
         
         from scipy.sparse import tril
@@ -686,7 +686,7 @@ def run_tests(env, g, vc, c, s):
 
         
 
-    elif False:
+    elif True:
         # Compare discrete_div and mDiv (as matrix-vector product), and GPU mv with d_mDiv
         cuSparse = cuda.sparse.Sparse()
         
@@ -713,15 +713,16 @@ def run_tests(env, g, vc, c, s):
         print(x[0])
         t0a = time.clock( )
         t0b = time.time( )
-        d_x = numba.cuda.to_device(x)
         y1[:] = 0.
-        d_y1 = numba.cuda.to_device(y1)
+#        d_x = numba.cuda.to_device(x)
+#        d_y1 = numba.cuda.to_device(y1)
         
-        cuSparse.csrmv(trans='N', m=vc.d_mDiv.shape[0], n=vc.d_mDiv.shape[1], nnz=vc.d_mDiv.nnz, alpha=1.0, \
-                             descr=vc.d_mDiv.cuSparseDescr, csrVal=vc.d_mDiv.dData, \
-                             csrRowPtr=vc.d_mDiv.dPtr, csrColInd=vc.d_mDiv.dInd, x=d_x, beta=0., y=d_y1)
-        d_y1.copy_to_host(y1)
-        print(y1[:1])
+#        cuSparse.csrmv(trans='N', m=vc.d_mDiv.shape[0], n=vc.d_mDiv.shape[1], nnz=vc.d_mDiv.nnz, alpha=1.0, \
+#                             descr=vc.d_mDiv.cuSparseDescr, csrVal=vc.d_mDiv.dData, \
+#                             csrRowPtr=vc.d_mDiv.dPtr, csrColInd=vc.d_mDiv.dInd, x=d_x, beta=0., y=d_y1)
+#        d_y1.copy_to_host(y1)
+#        print(y1[:1])
+        y1 = vc.discrete_div(x)
         t1a = time.clock( )
         t1b = time.time( )
         print(("CPU time for cuda-mv: %f" % (t1a-t0a,)))
