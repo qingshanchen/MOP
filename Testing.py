@@ -710,21 +710,31 @@ def run_tests(env, g, vc, c, s):
         print(("rel error = %e" % (np.sqrt(np.sum((y1-y0)**2))/np.sqrt(np.sum(y0*y0)))))
 
         # Create arrays on host, and transfer them to device
-        print(x[0])
+        y1[:] = 0.
+
         t0a = time.clock( )
         t0b = time.time( )
-        y1[:] = 0.
-#        d_x = numba.cuda.to_device(x)
-#        d_y1 = numba.cuda.to_device(y1)
-        
-#        cuSparse.csrmv(trans='N', m=vc.d_mDiv.shape[0], n=vc.d_mDiv.shape[1], nnz=vc.d_mDiv.nnz, alpha=1.0, \
-#                             descr=vc.d_mDiv.cuSparseDescr, csrVal=vc.d_mDiv.dData, \
-#                             csrRowPtr=vc.d_mDiv.dPtr, csrColInd=vc.d_mDiv.dInd, x=d_x, beta=0., y=d_y1)
-#        d_y1.copy_to_host(y1)
-#        print(y1[:1])
-        y1 = vc.discrete_div(x)
+        d_x = numba.cuda.to_device(x)
+        d_y1 = numba.cuda.to_device(y1)
+
         t1a = time.clock( )
         t1b = time.time( )
-        print(("CPU time for cuda-mv: %f" % (t1a-t0a,)))
-        print(("Wall time for cuda-mv: %f" % (t1b-t0b,)))
+        cuSparse.csrmv(trans='N', m=vc.d_mDiv.shape[0], n=vc.d_mDiv.shape[1], nnz=vc.d_mDiv.nnz, alpha=1.0, \
+                             descr=vc.d_mDiv.cuSparseDescr, csrVal=vc.d_mDiv.dData, \
+                             csrRowPtr=vc.d_mDiv.dPtr, csrColInd=vc.d_mDiv.dInd, x=d_x, beta=0., y=d_y1)
+
+        t2a = time.clock( )
+        t2b = time.time( )
+        d_y1.copy_to_host(y1)
+
+
+        t3a = time.clock( )
+        t3b = time.time( )
+        y1 = vc.discrete_div(x)
+        t4a = time.clock( )
+        t4b = time.time( )
+        print(("Wall time for copy to device: %f" % (t1b-t0b,)))
+        print(("Wall time for cuda-mv: %f" % (t2b-t1b,)))
+        print(("Wall time for copy to host: %f" % (t3b-t2b,)))
+        print(("Wall time for discrete_div: %f" % (t4b-t3b,)))
         print(("rel error = %e" % (np.sqrt(np.sum((y1-y0)**2))/np.sqrt(np.sum(y0*y0)))))

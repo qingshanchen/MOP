@@ -306,7 +306,9 @@ class VectorCalculus:
         A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
                                cols[:nEntries])), shape=(g.nCells, g.nEdges))
         self.mDiv = A.tocsr( )
-        self.d_mDiv = Device_CSR(self.mDiv, env)
+
+        if c.use_gpu:
+            self.d_mDiv = Device_CSR(self.mDiv, env)
         
         self.scalar_cell = np.zeros(g.nCells)
         self.scalar_vertex = np.zeros(g.nVertices)
@@ -316,19 +318,24 @@ class VectorCalculus:
 
     def discrete_div(self, vEdge):
 
-        assert len(vEdge) == self.d_mDiv.shape[1], \
-            "Dimensions do not match."
-        d_vectorIn = env.cuda.to_device(vEdge)
+        if c.use_gpu:
+            assert len(vEdge) == self.d_mDiv.shape[1], \
+                "Dimensions do not match."
+            d_vectorIn = self.env.cuda.to_device(vEdge)
 
-        sCell = np.zeros(self.d_mDiv.shape[0])
-        d_vectorOut = env.cuda.to_device(sCell)
-        cuSparse.csrmv(trans='N', m=self.d_mDiv.shape[0], \
-            n=self.d_mDiv.shape[1], nnz=self.d_mDiv.nnz, alpha=1.0, \
-            descr=self.d_mDiv.cuSparseDescr, csrVal=self.d_mDiv.dData, \
-            csrRowPtr=self.d_mDiv.dPtr, csrColInd=self.d_mDiv.dInd, \
-                       x=d_vectorIn, beta=0., y=d_vectorOut)
-        d_vectorOut.to_host(sCell)
-        return sCell
+            sCell = np.zeros(self.d_mDiv.shape[0])
+            d_vectorOut = self.env.cuda.to_device(sCell)
+            self.env.cuSparse.csrmv(trans='N', m=self.d_mDiv.shape[0], \
+                n=self.d_mDiv.shape[1], nnz=self.d_mDiv.nnz, alpha=1.0, \
+                descr=self.d_mDiv.cuSparseDescr, csrVal=self.d_mDiv.dData, \
+                csrRowPtr=self.d_mDiv.dPtr, csrColInd=self.d_mDiv.dInd, \
+                           x=d_vectorIn, beta=0., y=d_vectorOut)
+            d_vectorOut.copy_to_host(sCell)
+            return sCell
+
+        else:
+            return self.mDiv.dot(vEdge)
+
         
 
 

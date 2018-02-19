@@ -319,13 +319,15 @@ class state_data:
         out.close( )
 
 
-    def compute_tendencies(self, g, c):
+    def compute_tendencies(self, g, c, vc):
 
         thicknessTransport = self.thickness_edge[:] * self.nVelocity[:]
-        self.tend_thickness[:] = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, thicknessTransport)
+#        self.tend_thickness[:] = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, thicknessTransport)
+        self.tend_thickness[:] = -vc.discrete_div(thicknessTransport)
         
         absVorTransport = self.eta_edge[:] * self.nVelocity[:]
-        self.tend_vorticity[:] = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorTransport)
+#        self.tend_vorticity[:] = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorTransport)
+        self.tend_vorticity[:] = -vc.discrete_div(absVorTransport)
         self.tend_vorticity[:] += self.curlWind_cell / self.thickness[:]
         self.tend_vorticity[:] -= c.bottomDrag * self.vorticity[:]
         self.tend_vorticity[:] += c.delVisc * cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.vorticity)
@@ -540,7 +542,7 @@ def timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, g, vc, c):
     for i in range(4):
 
         # Compute the tendencies
-        s_intm.compute_tendencies(g, c)
+        s_intm.compute_tendencies(g, c, vc)
 
         # Accumulating the change in s
         s.thickness[:] += s_intm.tend_thickness[:]*accum[i]*dt

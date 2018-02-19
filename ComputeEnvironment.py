@@ -1,6 +1,7 @@
 class ComputeEnvironment:
     def __init__(self, c):
-        if c.linear_solver in ['cudaCG', 'cudaPCG']:
+#        if c.linear_solver in ['cudaCG', 'cudaPCG']:
+        if c.use_gpu:
             from accelerate.cuda.sparse import Sparse as cuSparseClass
             self.cuSparse = cuSparseClass( )
             
