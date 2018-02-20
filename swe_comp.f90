@@ -423,7 +423,7 @@ subroutine construct_matrix_discrete_curl(nEdges, nCells,  &
 end subroutine construct_matrix_discrete_curl
 
 
-
+! Homogeneous Neumann BC assumed on the boundary
 subroutine discrete_laplace(nEdges, nCells,  &
      cellsOnEdge, dcEdge, dvEdge, areaCell, scalar_cell, &
           laplace_cell)
@@ -444,6 +444,52 @@ subroutine discrete_laplace(nEdges, nCells,  &
                        cellsOnEdge, dvEdge, areaCell, grad_n, &
                        laplace_cell)
 end subroutine discrete_laplace
+
+
+! Homogeneous Neumann BC assumed on the boundary
+subroutine construct_matrix_discrete_laplace(nEdges, nCells,  &
+     cellsOnEdge, dcEdge, dvEdge, areaCell,  &
+     nEntries, rows, cols, valEntries)
+  
+  integer, intent(in) :: nEdges, nCells
+  integer, intent(in) :: cellsOnEdge(0:nEdges-1, 0:1)
+  double precision, intent(in)  :: dcEdge(0:nEdges-1), dvEdge(0:nEdges-1), &
+       areaCell(0:nCells-1)
+  integer, intent(out)          :: nEntries, rows(0:10*nCells-1), cols(0:10*nCells-1)
+  double precision, intent(out) :: valEntries(0:4*nEdges-1)
+
+  integer:: iEdge, cell0, cell1, iEntry
+
+  iEntry = 0
+
+  do iEdge = 0, nEdges-1
+     cell0 = cellsOnEdge(iEdge,0) - 1
+     cell1 = cellsOnEdge(iEdge,1) - 1
+
+     rows(iEntry) = cell0
+     cols(iEntry) = cell0
+     valEntries(iEntry) = -dvEdge(iEdge) / dcEdge(iEdge) / areaCell(cell0)
+     iEntry = iEntry + 1
+
+     rows(iEntry) = cell0
+     cols(iEntry) = cell1
+     valEntries(iEntry) = dvEdge(iEdge) / dcEdge(iEdge) / areaCell(cell0)
+     iEntry = iEntry + 1
+     
+     rows(iEntry) = cell1
+     cols(iEntry) = cell0
+     valEntries(iEntry) = dvEdge(iEdge) / dcEdge(iEdge) / areaCell(cell1)
+     iEntry = iEntry + 1
+
+     rows(iEntry) = cell1
+     cols(iEntry) = cell1
+     valEntries(iEntry) = -dvEdge(iEdge) / dcEdge(iEdge) / areaCell(cell1)
+     iEntry = iEntry + 1
+  end do
+
+  nEntries = iEntry
+  
+end subroutine construct_matrix_discrete_laplace
 
 
 subroutine discrete_laplace_vertex(nEdges, nVertices,  &
