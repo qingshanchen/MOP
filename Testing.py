@@ -686,7 +686,7 @@ def run_tests(env, g, vc, c, s):
 
         
 
-    elif True:
+    elif False:
         # Compare discrete_div and mDiv (as matrix-vector product), and GPU mv with d_mDiv
         cuSparse = cuda.sparse.Sparse()
         
@@ -738,3 +738,58 @@ def run_tests(env, g, vc, c, s):
         print(("Wall time for copy to host: %f" % (t3b-t2b,)))
         print(("Wall time for discrete_div: %f" % (t4b-t3b,)))
         print(("rel error = %e" % (np.sqrt(np.sum((y1-y0)**2))/np.sqrt(np.sum(y0*y0)))))
+
+
+    elif True:
+        # Compare discrete_curl and  mCurl (as matrix-vector product), and GPU mv with d_mCurl
+        cuSparse = cuda.sparse.Sparse()
+        
+        x = np.random.rand(g.nEdges)
+
+        t0a = time.clock( )
+        t0b = time.time( )
+        y0 = cmp.discrete_curl(g.cellsOnEdge, g.dvEdge, g.areaCell, x)
+        t1a = time.clock( )
+        t1b = time.time( )
+        print(("CPU time for discrete_curl: %f" % (t1a-t0a,)))
+        print(("Wall time for discrete_curl: %f" % (t1b-t0b,)))
+
+        t0a = time.clock( )
+        t0b = time.time( )
+        y1 = vc.mCurl.dot(x)
+        t1a = time.clock( )
+        t1b = time.time( )
+        print(("CPU time for mCurl: %f" % (t1a-t0a,)))
+        print(("Wall time for mCurl: %f" % (t1b-t0b,)))
+        print(("rel error = %e" % (np.sqrt(np.sum((y1-y0)**2))/np.sqrt(np.sum(y0*y0)))))
+
+        # Create arrays on host, and transfer them to device
+        y1[:] = 0.
+
+        t0a = time.clock( )
+        t0b = time.time( )
+        d_x = numba.cuda.to_device(x)
+        d_y1 = numba.cuda.to_device(y1)
+
+        t1a = time.clock( )
+        t1b = time.time( )
+        cuSparse.csrmv(trans='N', m=vc.d_mCurl.shape[0], n=vc.d_mCurl.shape[1], nnz=vc.d_mCurl.nnz, alpha=1.0, \
+                             descr=vc.d_mCurl.cuSparseDescr, csrVal=vc.d_mCurl.dData, \
+                             csrRowPtr=vc.d_mCurl.dPtr, csrColInd=vc.d_mCurl.dInd, x=d_x, beta=0., y=d_y1)
+
+        t2a = time.clock( )
+        t2b = time.time( )
+        d_y1.copy_to_host(y1)
+
+
+        t3a = time.clock( )
+        t3b = time.time( )
+        y1 = vc.discrete_curl(x)
+        t4a = time.clock( )
+        t4b = time.time( )
+        print(("Wall time for copy to device: %f" % (t1b-t0b,)))
+        print(("Wall time for cuda-mv: %f" % (t2b-t1b,)))
+        print(("Wall time for copy to host: %f" % (t3b-t2b,)))
+        print(("Wall time for discrete_curl: %f" % (t4b-t3b,)))
+        print(("rel error = %e" % (np.sqrt(np.sum((y1-y0)**2))/np.sqrt(np.sum(y0*y0)))))
+        

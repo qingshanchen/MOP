@@ -322,11 +322,9 @@ class state_data:
     def compute_tendencies(self, g, c, vc):
 
         thicknessTransport = self.thickness_edge[:] * self.nVelocity[:]
-#        self.tend_thickness[:] = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, thicknessTransport)
         self.tend_thickness[:] = -vc.discrete_div(thicknessTransport)
         
         absVorTransport = self.eta_edge[:] * self.nVelocity[:]
-#        self.tend_vorticity[:] = -cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorTransport)
         self.tend_vorticity[:] = -vc.discrete_div(absVorTransport)
         self.tend_vorticity[:] += self.curlWind_cell / self.thickness[:]
         self.tend_vorticity[:] -= c.bottomDrag * self.vorticity[:]
@@ -334,8 +332,9 @@ class state_data:
         
         absVorCirc = self.eta_edge[:] * self.tVelocity[:]
         geoPotent = c.gravity * (self.thickness[:] + g.bottomTopographyCell[:])  + self.kinetic_energy[:]
-        self.tend_divergence[:] = cmp.discrete_curl(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorCirc) - \
-                          cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, geoPotent)
+        self.tend_divergence[:] = vc.discrete_curl(absVorCirc)
+        self.tend_divergence[:] -= cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, \
+                                                        g.areaCell, geoPotent)
         self.tend_divergence[:] += self.divWind_cell/self.thickness[:]
         self.tend_divergence[:] -= c.bottomDrag * self.divergence[:]
         self.tend_divergence[:] += c.delVisc * cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.divergence)

@@ -309,7 +309,17 @@ class VectorCalculus:
 
         if c.use_gpu:
             self.d_mDiv = Device_CSR(self.mDiv, env)
-        
+
+        ## Construct the matrix representing the discrete curl (on primal mesh)
+        nEntries, rows, cols, valEntries = \
+            cmp.construct_matrix_discrete_curl(g.cellsOnEdge, g.dvEdge, g.areaCell)
+        A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
+                               cols[:nEntries])), shape=(g.nCells, g.nEdges))
+        self.mCurl = A.tocsr( )
+
+        if c.use_gpu:
+            self.d_mCurl = Device_CSR(self.mCurl, env)
+            
         self.scalar_cell = np.zeros(g.nCells)
         self.scalar_vertex = np.zeros(g.nVertices)
         if not c.on_a_global_sphere:
@@ -317,6 +327,9 @@ class VectorCalculus:
 
 
     def discrete_div(self, vEdge):
+        '''
+        No flux boundary conditions implied on the boundary.
+        '''
 
         if c.use_gpu:
             assert len(vEdge) == self.d_mDiv.shape[1], \
@@ -336,6 +349,30 @@ class VectorCalculus:
         else:
             return self.mDiv.dot(vEdge)
 
+
+    def discrete_curl(self, vEdge):
+        '''
+        No-slip boundary conditions implied on the boundary.
+        '''
+
+        if c.use_gpu:
+            assert len(vEdge) == self.d_mCurl.shape[1], \
+                "Dimensions do not match."
+            d_vectorIn = self.env.cuda.to_device(vEdge)
+
+            sCell = np.zeros(self.d_mCurl.shape[0])
+            d_vectorOut = self.env.cuda.to_device(sCell)
+            self.env.cuSparse.csrmv(trans='N', m=self.d_mCurl.shape[0], \
+                n=self.d_mCurl.shape[1], nnz=self.d_mCurl.nnz, alpha=1.0, \
+                descr=self.d_mCurl.cuSparseDescr, csrVal=self.d_mCurl.dData, \
+                csrRowPtr=self.d_mCurl.dPtr, csrColInd=self.d_mCurl.dInd, \
+                           x=d_vectorIn, beta=0., y=d_vectorOut)
+            d_vectorOut.copy_to_host(sCell)
+            return sCell
+
+        else:
+            return self.mCurl.dot(vEdge)
+        
         
 
 

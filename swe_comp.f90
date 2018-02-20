@@ -354,7 +354,8 @@ subroutine discrete_div_t(nEdges, nVertices, &
 end subroutine discrete_div_t
 
 ! Given a discrete vector field vector_t, compute its discrete curl.
-! The orientation on the edge is such that the first cell (cell0) appears on the left of the edge
+! The orientation on the edge is such that the first cell (cell0) appears on the left of the edge.
+! No slip boundary condition implied on the boundary.
 subroutine discrete_curl(nEdges, nCells,  &
      cellsOnEdge, dvEdge, areaCell, vector_t, &
      curl)
@@ -382,6 +383,44 @@ subroutine discrete_curl(nEdges, nCells,  &
   end do
   
 end subroutine discrete_curl
+
+
+! Construct the coefficient matrix representing the discrete curl operator
+! No slip boundary condition implied on the boundary.
+subroutine construct_matrix_discrete_curl(nEdges, nCells,  &
+     cellsOnEdge, dvEdge, areaCell, &
+     nEntries, rows, cols, valEntries)
+  integer, intent(in) :: nEdges, nCells
+  integer, intent(in) :: cellsOnEdge(0:nEdges-1, 0:1)
+  double precision, intent(in)  :: dvEdge(0:nEdges-1), &
+       areaCell(0:nCells-1)
+  integer, intent(out)          :: nEntries, rows(0:2*nEdges-1), cols(0:2*nEdges-1)
+  double precision, intent(out) :: valEntries(0:2*nEdges-1)
+
+  integer :: iEdge, cell0, cell1, iEntry
+
+  iEntry = 0
+
+  do iEdge = 0, nEdges-1
+        cell0 = cellsOnEdge(iEdge,0) - 1
+        cell1 = cellsOnEdge(iEdge,1) - 1
+
+        rows(iEntry) = cell0
+        cols(iEntry) = iEdge
+        valEntries(iEntry) = dvEdge(iEdge) / areaCell(cell0)
+        iEntry = iEntry + 1
+
+        rows(iEntry) = cell1
+        cols(iEntry) = iEdge
+        valEntries(iEntry) = -dvEdge(iEdge) / areaCell(cell1)
+        iEntry = iEntry + 1
+        
+  end do
+
+  nEntries = iEntry
+
+  
+end subroutine construct_matrix_discrete_curl
 
 
 
