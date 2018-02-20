@@ -645,13 +645,13 @@ def main( ):
     vc = VectorCalculus(g, c, env)
     s = state_data(g, c)
 
-    from Testing import run_tests
-    run_tests(env, g, vc, c, s)
+#    from Testing import run_tests
+#    run_tests(env, g, vc, c, s)
 #    A = -vc.POpn.A
 #    mmwrite("POpn.mtx", A)
 #    A = -vc.POdn.A
 #    mmwrite("POdn.mtx", A)
-    raise ValueError("Just for testing.")
+#    raise ValueError("Just for testing.")
 
     s.initialization(g, vc, c)
 #    raise ValueError("Just for testing.")
