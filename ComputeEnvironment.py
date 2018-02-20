@@ -1,0 +1,14 @@
+class ComputeEnvironment:
+    def __init__(self, c):
+#        if c.linear_solver in ['cudaCG', 'cudaPCG']:
+        if c.use_gpu:
+            from accelerate.cuda.sparse import Sparse as cuSparseClass
+            self.cuSparse = cuSparseClass( )
+            
+            from accelerate.cuda.blas import Blas as cuBlasClass
+            self.cuBlas = cuBlasClass( )
+            
+            from numba import cuda
+            self.cuda = cuda
+
+        
