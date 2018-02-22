@@ -765,4 +765,149 @@ subroutine construct_discrete_laplace_triangle_neumann(nVertices, nEdges, &
   
 end subroutine construct_discrete_laplace_triangle_neumann
 
+
+subroutine separate_boundary_interior_edges(nEdges, &
+     nEdgesInterior, nEdgesBoundary, max_int, boundaryEdgeMark,  &
+     edgeInterior, edgeBoundary, edgeRankInterior, edgeRankBoundary)
+  
+  integer, intent(in)   :: nEdges, nEdgesInterior, nEdgesBoundary, max_int
+  integer, intent(in)   :: boundaryEdgeMark(0:nEdges-1)
+  integer, intent(out)  :: edgeInterior(0:nEdgesInterior-1), edgeBoundary(0:nEdgesBoundary-1), &
+       edgeRankInterior(0:nEdges-1), edgeRankBoundary(0:nEdges-1)
+
+  ! Local variables
+  integer               :: index, index2, iEdge
+
+
+  index = 1
+  index2 = 1
+
+
+  do iEdge = 0, nEdges-1
+     if (boundaryEdgeMark(iEdge) .EQ. 0) then
+        edgeInterior(index-1) = iEdge + 1
+        edgeRankInterior(iEdge) = index
+        edgeRankBoundary(iEdge) = max_int
+        index = index + 1
+     else
+        edgeBoundary(index2-1) = iEdge + 1
+        edgeRankInterior(iEdge) = max_int
+        index2 = index2 + 1
+     end if
+  end do
+
+end subroutine separate_boundary_interior_edges
+
+
+subroutine construct_matrix_discrete_grad_n(nEdges, &
+     cellsOnEdge, dcEdge, &
+     nEntries, rows, cols, valEntries)
+  integer, intent(in) :: nEdges
+  integer, intent(in) :: cellsOnEdge(0:nEdges-1, 0:1)
+  double precision, intent(in)  :: dcEdge(0:nEdges-1)
+  double precision, intent(out) :: valEntries(0:2*nEdges-1)
+  integer, intent(out) :: nEntries, rows(0:2*nEdges-1), cols(0:2*nEdges-1)
+
+  integer :: iEdge, cell0, cell1, iEntry
+
+  iEntry = 0
+  do iEdge = 0, nEdges-1
+        cell0 = cellsOnEdge(iEdge,0) - 1
+        cell1 = cellsOnEdge(iEdge,1) - 1
+        
+        rows(iEntry) = iEdge
+        cols(iEntry) = cell0
+        valEntries(iEntry) = -1./dcEdge(iEdge)
+        iEntry = iEntry + 1
+
+        rows(iEntry) = iEdge
+        cols(iEntry) = cell1
+        valEntries(iEntry) = 1./dcEdge(iEdge)
+        iEntry = iEntry + 1
+   end do
+
+   nEntries = iEntry
+
+end subroutine construct_matrix_discrete_grad_n
+
+
+subroutine construct_matrix_discrete_grad_td(nEdges, &
+     verticesOnEdge, dvEdge, &
+     nEntries, rows, cols, valEntries)
+  integer, intent(in) :: nEdges
+  integer, intent(in) :: verticesOnEdge(0:nEdges-1, 0:1)
+  double precision, intent(in)  :: dvEdge(0:nEdges-1)
+  double precision, intent(out) :: valEntries(0:2*nEdges-1)
+  integer, intent(out) :: nEntries, rows(0:2*nEdges-1), cols(0:2*nEdges-1)
+
+  integer :: iEdge, vertex0, vertex1, iEntry
+
+  iEntry = 0
+  do iEdge = 0, nEdges-1
+        vertex0 = verticesOnEdge(iEdge,0) - 1
+        vertex1 = verticesOnEdge(iEdge,1) - 1
+
+        if (vertex0 .GE. 0 .and. vertex1 .GE. 0) then
+            rows(iEntry) = iEdge
+            cols(iEntry) = vertex0
+            valEntries(iEntry) = -1./dvEdge(iEdge)
+            iEntry = iEntry + 1
+
+            rows(iEntry) = iEdge
+            cols(iEntry) = vertex1
+            valEntries(iEntry) = 1./dvEdge(iEdge)
+            iEntry = iEntry + 1
+         else if (vertex0 .GE. 0 .and. vertex1 < 0) then
+            rows(iEntry) = iEdge
+            cols(iEntry) = vertex0
+            valEntries(iEntry) = -1./dvEdge(iEdge)
+            iEntry = iEntry + 1
+         else if (vertex1 .GE. 0 .and. vertex0 < 0) then
+            rows(iEntry) = iEdge
+            cols(iEntry) = vertex1
+            valEntries(iEntry) = 1./dvEdge(iEdge)
+            iEntry = iEntry + 1
+         else
+           write(*,*) "Vertex indices in verticesOnEdge are wrong in discrete_grad_t. Exit."
+           stop
+        end if
+   end do
+
+   nEntries = iEntry
+
+end subroutine construct_matrix_discrete_grad_td
+
+
+subroutine construct_matrix_discrete_grad_tn(nEdges, &
+     verticesOnEdge, dvEdge, &
+     nEntries, rows, cols, valEntries)
+  integer, intent(in) :: nEdges
+  integer, intent(in) :: verticesOnEdge(0:nEdges-1, 0:1)
+  double precision, intent(in)  :: dvEdge(0:nEdges-1)
+  double precision, intent(out) :: valEntries(0:2*nEdges-1)
+  integer, intent(out) :: nEntries, rows(0:2*nEdges-1), cols(0:2*nEdges-1)
+
+  integer :: iEdge, vertex0, vertex1, iEntry
+
+  iEntry = 0
+  do iEdge = 0, nEdges-1
+        vertex0 = verticesOnEdge(iEdge,0) - 1
+        vertex1 = verticesOnEdge(iEdge,1) - 1
+
+        if (vertex0 .GE. 0 .and. vertex1 .GE. 0) then
+            rows(iEntry) = iEdge
+            cols(iEntry) = vertex0
+            valEntries(iEntry) = -1./dvEdge(iEdge)
+            iEntry = iEntry + 1
+
+            rows(iEntry) = iEdge
+            cols(iEntry) = vertex1
+            valEntries(iEntry) = 1./dvEdge(iEdge)
+            iEntry = iEntry + 1
+        end if
+   end do
+
+   nEntries = iEntry
+end subroutine construct_matrix_discrete_grad_tn
+
 end module
