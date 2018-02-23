@@ -328,16 +328,15 @@ class state_data:
         self.tend_vorticity[:] = -vc.discrete_div(absVorTransport)
         self.tend_vorticity[:] += self.curlWind_cell / self.thickness[:]
         self.tend_vorticity[:] -= c.bottomDrag * self.vorticity[:]
-        self.tend_vorticity[:] += c.delVisc * cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.vorticity)
+        self.tend_vorticity[:] += c.delVisc * vc.discrete_laplace(self.vorticity)
         
         absVorCirc = self.eta_edge[:] * self.tVelocity[:]
         geoPotent = c.gravity * (self.thickness[:] + g.bottomTopographyCell[:])  + self.kinetic_energy[:]
         self.tend_divergence[:] = vc.discrete_curl(absVorCirc)
-        self.tend_divergence[:] -= cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, \
-                                                        g.areaCell, geoPotent)
+        self.tend_divergence[:] -= vc.discrete_laplace(geoPotent)
         self.tend_divergence[:] += self.divWind_cell/self.thickness[:]
         self.tend_divergence[:] -= c.bottomDrag * self.divergence[:]
-        self.tend_divergence[:] += c.delVisc * cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.divergence)
+        self.tend_divergence[:] += c.delVisc * vc.discrete_laplace(self.divergence)
 
         ### For Debug##########
         # Potential enstrophy tendency
@@ -377,12 +376,14 @@ class state_data:
 
         # Only to recalculate vorticity on the boundary to ensure zero average. Necessary for a global domain, or a bounded domain with no-slip BCs
         if c.on_a_global_sphere or c.no_slip_BC or c.delVisc > np.finfo('float32').tiny:
-            self.vorticity[:] = cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.psi_cell)
+            self.vorticity[:] = vc.discrete_laplace(self.psi_cell)
+
+            
         elif c.free_slip_BC:
             self.vorticity[vc.cellBoundary[:]-1] = 0.
 
         # Only to re-calcualte divergence[0] to ensure zero average. This is absoutely necessary when there are external forcings
-        self.divergence[:] = cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, self.phi_cell)
+        self.divergence[:] = vc.discrete_laplace(self.phi_cell)
             
         # Map vorticity and divergence to the dual mesh, and then compute the streamfunction and velocity potential
         # on dual mesh
@@ -646,10 +647,6 @@ def main( ):
 
 #    from Testing import run_tests
 #    run_tests(env, g, vc, c, s)
-#    A = -vc.POpn.A
-#    mmwrite("POpn.mtx", A)
-#    A = -vc.POdn.A
-#    mmwrite("POdn.mtx", A)
 #    raise ValueError("Just for testing.")
 
     s.initialization(g, vc, c)

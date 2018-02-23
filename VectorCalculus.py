@@ -319,6 +319,18 @@ class VectorCalculus:
 
         if c.use_gpu:
             self.d_mCurl = Device_CSR(self.mCurl, env)
+
+        ## Construct the matrix representing the discrete Laplace operator (primal
+        ## mesh). Homogeneous Neuman BC's are assumed.
+        nEntries, rows, cols, valEntries = \
+            cmp.construct_matrix_discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, \
+                                                  g.areaCell)
+        A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
+                               cols[:nEntries])), shape=(g.nCells, g.nCells))
+        self.mLaplace = A.tocsr( )
+
+        if c.use_gpu:
+            self.d_mLaplace = Device_CSR(self.mLaplace, env)
             
         self.scalar_cell = np.zeros(g.nCells)
         self.scalar_vertex = np.zeros(g.nVertices)
@@ -372,6 +384,30 @@ class VectorCalculus:
 
         else:
             return self.mCurl.dot(vEdge)
+
+
+    def discrete_laplace(self, vEdge):
+        '''
+        No-slip boundary conditions implied on the boundary.
+        '''
+
+        if c.use_gpu:
+            assert len(vEdge) == self.d_mLaplace.shape[1], \
+                "Dimensions do not match."
+            d_vectorIn = self.env.cuda.to_device(vEdge)
+
+            sCell = np.zeros(self.d_mLaplace.shape[0])
+            d_vectorOut = self.env.cuda.to_device(sCell)
+            self.env.cuSparse.csrmv(trans='N', m=self.d_mLaplace.shape[0], \
+                n=self.d_mLaplace.shape[1], nnz=self.d_mLaplace.nnz, alpha=1.0, \
+                descr=self.d_mLaplace.cuSparseDescr, csrVal=self.d_mLaplace.dData, \
+                csrRowPtr=self.d_mLaplace.dPtr, csrColInd=self.d_mLaplace.dInd, \
+                           x=d_vectorIn, beta=0., y=d_vectorOut)
+            d_vectorOut.copy_to_host(sCell)
+            return sCell
+
+        else:
+            return self.mLaplace.dot(vEdge)
         
         
 

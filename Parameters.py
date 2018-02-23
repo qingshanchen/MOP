@@ -16,7 +16,7 @@ nYears = 50./360
 save_inter_days = 10
 
 # Model configuraitons, boundary conditions
-delVisc = 0.  # 80 for NA818
+delVisc = 1000.  # 80 for NA818
 bottomDrag =  0. #5.e-8
 no_flux_BC = True  # Should always be on
 no_slip_BC = False
