@@ -13,14 +13,14 @@ timestepping = 'RK4'
 dt = 1440.   #1440 for 480km
 #dt = 360.   #360 for NA818
 nYears = 50./360
-save_inter_days = 10
+save_inter_days = 1
 
 # Model configuraitons, boundary conditions
 delVisc = 1000.  # 80 for NA818
 bottomDrag =  0. #5.e-8
 no_flux_BC = True  # Should always be on
 no_slip_BC = False
-free_slip_BC = True
+free_slip_BC = False
 
 # Solver config
 linear_solver = 'lu'      # lu, cg, cudaCG, cudaPCG, amg
