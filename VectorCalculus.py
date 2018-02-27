@@ -331,6 +331,41 @@ class VectorCalculus:
 
         if c.use_gpu:
             self.d_mLaplace = Device_CSR(self.mLaplace, env)
+
+        ## Construct the matrix representing the discrete grad operator for the primal
+        ## mesh. 
+        nEntries, rows, cols, valEntries = \
+            cmp.construct_matrix_discrete_grad_n(g.cellsOnEdge, g.dcEdge)
+        A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
+                               cols[:nEntries])), shape=(g.nEdges, g.nCells))
+        self.mGrad_n = A.tocsr( )
+
+        if c.use_gpu:
+            self.d_mGrad_n = Device_CSR(self.mGrad_n, env)
+
+
+        ## Construct the matrix representing the discrete grad operator for the dual
+        ## mesh, with implied homogeneous Dirichlet BC's 
+        nEntries, rows, cols, valEntries = \
+            cmp.construct_matrix_discrete_grad_td(g.verticesOnEdge, g.dvEdge)
+        A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
+                               cols[:nEntries])), shape=(g.nEdges, g.nVertices))
+        self.mGrad_td = A.tocsr( )
+
+        if c.use_gpu:
+            self.d_mGrad_td = Device_CSR(self.mGrad_td, env)
+
+        ## Construct the matrix representing the discrete grad operator for the dual
+        ## mesh, with implied homogeneous Neumann BC's
+        nEntries, rows, cols, valEntries = \
+            cmp.construct_matrix_discrete_grad_tn(g.verticesOnEdge, g.dvEdge)
+        A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
+                               cols[:nEntries])), shape=(g.nEdges, g.nVertices))
+        self.mGrad_tn = A.tocsr( )
+
+        if c.use_gpu:
+            self.d_mGrad_tn = Device_CSR(self.mGrad_tn, env)
+
             
         self.scalar_cell = np.zeros(g.nCells)
         self.scalar_vertex = np.zeros(g.nVertices)
@@ -386,28 +421,95 @@ class VectorCalculus:
             return self.mCurl.dot(vEdge)
 
 
-    def discrete_laplace(self, vEdge):
+    def discrete_laplace(self, sCell):
         '''
         No-slip boundary conditions implied on the boundary.
         '''
 
         if c.use_gpu:
-            assert len(vEdge) == self.d_mLaplace.shape[1], \
+            assert len(sCell) == self.d_mLaplace.shape[1], \
                 "Dimensions do not match."
-            d_vectorIn = self.env.cuda.to_device(vEdge)
+            d_vectorIn = self.env.cuda.to_device(sCell)
 
-            sCell = np.zeros(self.d_mLaplace.shape[0])
-            d_vectorOut = self.env.cuda.to_device(sCell)
+            vOut = np.zeros(self.d_mLaplace.shape[0])
+            d_vectorOut = self.env.cuda.to_device(vOut)
             self.env.cuSparse.csrmv(trans='N', m=self.d_mLaplace.shape[0], \
                 n=self.d_mLaplace.shape[1], nnz=self.d_mLaplace.nnz, alpha=1.0, \
                 descr=self.d_mLaplace.cuSparseDescr, csrVal=self.d_mLaplace.dData, \
                 csrRowPtr=self.d_mLaplace.dPtr, csrColInd=self.d_mLaplace.dInd, \
                            x=d_vectorIn, beta=0., y=d_vectorOut)
-            d_vectorOut.copy_to_host(sCell)
-            return sCell
+            d_vectorOut.copy_to_host(vOut)
+            return vOut
 
         else:
-            return self.mLaplace.dot(vEdge)
+            return self.mLaplace.dot(sCell)
+
+
+    def discrete_grad_n(self, sCell):
+
+        if c.use_gpu:
+            assert len(sCell) == self.d_mGrad_n.shape[1], \
+                "Dimensions do not match."
+            d_vectorIn = self.env.cuda.to_device(sCell)
+
+            vOut = np.zeros(self.d_mGrad_n.shape[0])
+            d_vectorOut = self.env.cuda.to_device(vOut)
+            self.env.cuSparse.csrmv(trans='N', m=self.d_mGrad_n.shape[0], \
+                n=self.d_mGrad_n.shape[1], nnz=self.d_mGrad_n.nnz, alpha=1.0, \
+                descr=self.d_mGrad_n.cuSparseDescr, csrVal=self.d_mGrad_n.dData, \
+                csrRowPtr=self.d_mGrad_n.dPtr, csrColInd=self.d_mGrad_n.dInd, \
+                           x=d_vectorIn, beta=0., y=d_vectorOut)
+            d_vectorOut.copy_to_host(vOut)
+            return vOut
+
+        else:
+            return self.mGrad_n.dot(sCell)
+
+
+    def discrete_grad_td(self, sVertex):
+        '''With implied Dirichlet BC's'''
+
+        if c.use_gpu:
+            assert len(sVertex) == self.d_mGrad_td.shape[1], \
+                "Dimensions do not match."
+            d_vectorIn = self.env.cuda.to_device(sVertex)
+
+            vOut = np.zeros(self.d_mGrad_td.shape[0])
+            d_vectorOut = self.env.cuda.to_device(vOut)
+            self.env.cuSparse.csrmv(trans='N', m=self.d_mGrad_td.shape[0], \
+                n=self.d_mGrad_td.shape[1], nnz=self.d_mGrad_td.nnz, alpha=1.0, \
+                descr=self.d_mGrad_td.cuSparseDescr, csrVal=self.d_mGrad_td.dData, \
+                csrRowPtr=self.d_mGrad_td.dPtr, csrColInd=self.d_mGrad_td.dInd, \
+                           x=d_vectorIn, beta=0., y=d_vectorOut)
+            d_vectorOut.copy_to_host(vOut)
+            return vOut
+
+        else:
+            return self.mGrad_td.dot(sVertex)
+
+
+    def discrete_grad_tn(self, sVertex):
+        '''With implied Neumann BC's'''
+
+        if c.use_gpu:
+            assert len(sVertex) == self.d_mGrad_tn.shape[1], \
+                "Dimensions do not match."
+            d_vectorIn = self.env.cuda.to_device(sVertex)
+
+            vOut = np.zeros(self.d_mGrad_tn.shape[0])
+            d_vectorOut = self.env.cuda.to_device(vOut)
+            self.env.cuSparse.csrmv(trans='N', m=self.d_mGrad_tn.shape[0], \
+                n=self.d_mGrad_tn.shape[1], nnz=self.d_mGrad_tn.nnz, alpha=1.0, \
+                descr=self.d_mGrad_tn.cuSparseDescr, csrVal=self.d_mGrad_tn.dData, \
+                csrRowPtr=self.d_mGrad_tn.dPtr, csrColInd=self.d_mGrad_tn.dInd, \
+                           x=d_vectorIn, beta=0., y=d_vectorOut)
+            d_vectorOut.copy_to_host(vOut)
+            return vOut
+
+        else:
+            return self.mGrad_tn.dot(sVertex)
+        
+        
         
         
 

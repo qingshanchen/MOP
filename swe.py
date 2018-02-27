@@ -375,15 +375,23 @@ class state_data:
         self.compute_phi_cell(vc, c)
 
         # Only to recalculate vorticity on the boundary to ensure zero average. Necessary for a global domain, or a bounded domain with no-slip BCs
+        #print("max and min of vorticity: %e %e " % (np.max(self.vorticity), np.min(self.vorticity)))
+
         if c.on_a_global_sphere or c.no_slip_BC or c.delVisc > np.finfo('float32').tiny:
             self.vorticity[:] = vc.discrete_laplace(self.psi_cell)
 
+            #print("max and min of vorticity: %e %e " % (np.max(self.vorticity), np.min(self.vorticity)))
+            
             
         elif c.free_slip_BC:
             self.vorticity[vc.cellBoundary[:]-1] = 0.
 
         # Only to re-calcualte divergence[0] to ensure zero average. This is absoutely necessary when there are external forcings
+        #print("max and min of divergence: %e %e " % (np.max(self.divergence), np.min(self.divergence)))
+
         self.divergence[:] = vc.discrete_laplace(self.phi_cell)
+
+        #print("max and min of divergence: %e %e " % (np.max(self.divergence), np.min(self.divergence)))
             
         # Map vorticity and divergence to the dual mesh, and then compute the streamfunction and velocity potential
         # on dual mesh
@@ -397,8 +405,14 @@ class state_data:
         self.compute_phi_vertex(vc, c)
         
         # compute the normal and tangential velocity components
-        self.nVelocity = cmp.compute_normal_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_cell, self.psi_vertex)
-        self.tVelocity = cmp.compute_tangential_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_vertex, self.psi_cell)
+#        self.nVelocity = cmp.compute_normal_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_cell, self.psi_vertex)
+        self.nVelocity = vc.discrete_grad_n(self.phi_cell)
+        self.nVelocity -= vc.discrete_grad_td(self.psi_vertex)
+
+        
+#        self.tVelocity = cmp.compute_tangential_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_vertex, self.psi_cell)
+        self.tVelocity = vc.discrete_grad_n(self.psi_cell)
+        self.tVelocity += vc.discrete_grad_tn(self.phi_vertex)
 
         # Compute the absolute vorticity
         self.eta_cell = self.vorticity + g.fCell
