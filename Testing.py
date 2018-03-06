@@ -794,7 +794,7 @@ def run_tests(env, g, vc, c, s):
         print(("rel error = %e" % (np.sqrt(np.sum((y1-y0)**2))/np.sqrt(np.sum(y0*y0)))))
 
 
-    elif True:
+    elif False:
         # Compare discrete_laplace and  mLaplace (as matrix-vector product), and GPU mv with d_mLaplace
         cuSparse = cuda.sparse.Sparse()
         

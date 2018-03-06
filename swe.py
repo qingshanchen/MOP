@@ -369,7 +369,20 @@ class state_data:
             self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
             self.divergence[:] = 0.
 
-        self.thickness_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.thickness)
+#        t0a = time.time( )
+        
+#        self.thickness_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.thickness)
+        self.thickness_vertex[:] = vc.cell2vertex(self.thickness)
+
+#        t1a = time.time( )
+
+        ## Testing cell2vertex ##
+#        thickness_vertex = vc.cell2vertex(self.thickness)
+#        t2a = time.time( )
+#        print(("rel diff = %e" % (np.sqrt(np.sum((thickness_vertex-self.thickness_vertex)**2))/np.sqrt(np.sum(self.thickness_vertex**2)))))
+#        print(("Wall time for Fortran serial version: %f" % (t1a-t0a,)))
+#        print(("Wall time for matrix-version: %f" % (t2a-t1a,)))
+        ## End testing ##
         
         self.compute_psi_cell(vc, c)
         self.compute_phi_cell(vc, c)

@@ -27,6 +27,39 @@ subroutine cell2vertex(nVertices, nCells, nEdges, vertexDegree, &
 end subroutine cell2vertex
 
 
+subroutine construct_matrix_cell2vertex(nVertices, vertexDegree, &
+     cellsOnVertex, kiteAreasOnVertex, areaTriangle,  &
+     nEntries, rows, cols, valEntries)
+  integer, intent(in) :: nVertices, vertexDegree
+  integer, intent(in) :: cellsOnVertex(0:nVertices-1, 0:vertexDegree-1)
+  double precision, intent(in)  :: kiteAreasOnVertex(0:nVertices-1, 0:vertexDegree-1), &
+       areaTriangle(0:nVertices-1)
+  integer, intent(out)  :: nEntries, rows(0:nVertices*vertexDegree-1), cols(0:nVertices*vertexDegree-1)
+  double precision, intent(out) :: valEntries(0:nVertices*vertexDegree-1)
+
+  integer :: iVertex, iCell, i, iEntry
+
+  iEntry = 0
+
+  do iVertex = 0, nVertices-1
+      do i = 0, vertexDegree-1
+         iCell = cellsOnVertex(iVertex, i) - 1
+         
+!         scalar_vertex(iVertex) = scalar_vertex(iVertex) + &
+!              kiteAreasOnVertex(iVertex, i)*scalar_cell(iCell)/areaTriangle(iVertex)
+
+         rows(iEntry) = iVertex
+         cols(iEntry) = iCell
+         valEntries(iEntry) = kiteAreasOnVertex(iVertex, i) / areaTriangle(iVertex)
+         iEntry = iEntry + 1
+         
+      end do
+   end do
+   nEntries = iEntry
+
+end subroutine construct_matrix_cell2vertex
+
+
 subroutine edge2cell(nCells, nEdges, &
      cellsOnEdge, dcEdge, dvEdge, areaCell, scalar_edge, &
      scalar_cell)

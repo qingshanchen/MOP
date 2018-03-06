@@ -366,6 +366,18 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mGrad_tn = Device_CSR(self.mGrad_tn, env)
 
+
+        ## Construct the matrix representing the mapping from the primary mesh onto the dual
+        ## mesh
+        nEntries, rows, cols, valEntries = \
+            cmp.construct_matrix_cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle)
+        A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
+                               cols[:nEntries])), shape=(g.nVertices, g.nCells))
+        self.mCell2vertex = A.tocsr( )
+
+        if c.use_gpu:
+            self.d_mCell2vertex = Device_CSR(self.mCell2vertex, env)
+            
             
         self.scalar_cell = np.zeros(g.nCells)
         self.scalar_vertex = np.zeros(g.nVertices)
@@ -508,6 +520,28 @@ class VectorCalculus:
 
         else:
             return self.mGrad_tn.dot(sVertex)
+
+
+    def cell2vertex(self, sCell):
+        '''With implied Neumann BC's'''
+
+        if c.use_gpu:
+            assert len(sCell) == self.d_mCell2vertex.shape[1], \
+                "Dimensions do not match."
+            d_vectorIn = self.env.cuda.to_device(sCell)
+
+            vOut = np.zeros(self.d_mCell2vertex.shape[0])
+            d_vectorOut = self.env.cuda.to_device(vOut)
+            self.env.cuSparse.csrmv(trans='N', m=self.d_mCell2vertex.shape[0], \
+                n=self.d_mCell2vertex.shape[1], nnz=self.d_mCell2vertex.nnz, alpha=1.0, \
+                descr=self.d_mCell2vertex.cuSparseDescr, csrVal=self.d_mCell2vertex.dData, \
+                csrRowPtr=self.d_mCell2vertex.dPtr, csrColInd=self.d_mCell2vertex.dInd, \
+                           x=d_vectorIn, beta=0., y=d_vectorOut)
+            d_vectorOut.copy_to_host(vOut)
+            return vOut
+
+        else:
+            return self.mCell2vertex.dot(sCell)
         
         
         
