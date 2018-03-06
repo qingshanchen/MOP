@@ -369,47 +369,28 @@ class state_data:
             self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
             self.divergence[:] = 0.
 
-#        t0a = time.time( )
-        
-#        self.thickness_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.thickness)
         self.thickness_vertex[:] = vc.cell2vertex(self.thickness)
 
-#        t1a = time.time( )
-
-        ## Testing cell2vertex ##
-#        thickness_vertex = vc.cell2vertex(self.thickness)
-#        t2a = time.time( )
-#        print(("rel diff = %e" % (np.sqrt(np.sum((thickness_vertex-self.thickness_vertex)**2))/np.sqrt(np.sum(self.thickness_vertex**2)))))
-#        print(("Wall time for Fortran serial version: %f" % (t1a-t0a,)))
-#        print(("Wall time for matrix-version: %f" % (t2a-t1a,)))
-        ## End testing ##
-        
         self.compute_psi_cell(vc, c)
         self.compute_phi_cell(vc, c)
 
         # Only to recalculate vorticity on the boundary to ensure zero average. Necessary for a global domain, or a bounded domain with no-slip BCs
         #print("max and min of vorticity: %e %e " % (np.max(self.vorticity), np.min(self.vorticity)))
-
         if c.on_a_global_sphere or c.no_slip_BC or c.delVisc > np.finfo('float32').tiny:
             self.vorticity[:] = vc.discrete_laplace(self.psi_cell)
 
-            #print("max and min of vorticity: %e %e " % (np.max(self.vorticity), np.min(self.vorticity)))
-            
             
         elif c.free_slip_BC:
             self.vorticity[vc.cellBoundary[:]-1] = 0.
 
         # Only to re-calcualte divergence[0] to ensure zero average. This is absoutely necessary when there are external forcings
         #print("max and min of divergence: %e %e " % (np.max(self.divergence), np.min(self.divergence)))
-
         self.divergence[:] = vc.discrete_laplace(self.phi_cell)
 
-        #print("max and min of divergence: %e %e " % (np.max(self.divergence), np.min(self.divergence)))
-            
         # Map vorticity and divergence to the dual mesh, and then compute the streamfunction and velocity potential
         # on dual mesh
-        self.vorticity_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.vorticity)
-        self.divergence_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.divergence)
+        self.vorticity_vertex[:] = vc.cell2vertex(self.vorticity)
+        self.divergence_vertex[:] = vc.cell2vertex(self.divergence)
 
         # Compute psi_vertex and phi_vertex from vorticity_vertex and divergence_vertex
         #self.psi_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.psi_cell)
@@ -418,12 +399,9 @@ class state_data:
         self.compute_phi_vertex(vc, c)
         
         # compute the normal and tangential velocity components
-#        self.nVelocity = cmp.compute_normal_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_cell, self.psi_vertex)
         self.nVelocity = vc.discrete_grad_n(self.phi_cell)
         self.nVelocity -= vc.discrete_grad_td(self.psi_vertex)
-
         
-#        self.tVelocity = cmp.compute_tangential_velocity(g.verticesOnEdge, g.cellsOnEdge, g.dcEdge, g.dvEdge, self.phi_vertex, self.psi_cell)
         self.tVelocity = vc.discrete_grad_n(self.psi_cell)
         self.tVelocity += vc.discrete_grad_tn(self.phi_vertex)
 
