@@ -848,3 +848,44 @@ def run_tests(env, g, vc, c, s):
         print(("Wall time for vc.discrete_laplace: %f" % (t4b-t3b,)))
         print(("rel error = %e" % (np.sqrt(np.sum((y2-y0)**2))/np.sqrt(np.sum(y0*y0)))))
         
+    elif True:
+        # Compare cell2edge and edge2cell with their Fortran versions
+        
+        x = np.random.rand(g.nCells)
+
+        t0a = time.clock( )
+        t0b = time.time( )
+        y0 = cmp.cell2edge(g.cellsOnEdge, x)
+        t1a = time.clock( )
+        t1b = time.time( )
+        print(("CPU time for Fortran cell2edge: %f" % (t1a-t0a,)))
+        print(("Wall time for Fortran cell2edge: %f" % (t1b-t0b,)))
+
+        t0a = time.clock( )
+        t0b = time.time( )
+        y1 = vc.cell2edge(x)
+        t1a = time.clock( )
+        t1b = time.time( )
+        print(("CPU time for matrix cell2edge: %f" % (t1a-t0a,)))
+        print(("Wall time for matrix cell2edge: %f" % (t1b-t0b,)))
+        print(("rel error = %e" % (np.sqrt(np.sum((y1-y0)**2))/np.sqrt(np.sum(y0*y0)))))
+
+        x = np.random.rand(g.nEdges)
+
+        t0a = time.clock( )
+        t0b = time.time( )
+        y0 = cmp.edge2cell(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, x)
+        t1a = time.clock( )
+        t1b = time.time( )
+        print(("CPU time for Fortran edge2cell: %f" % (t1a-t0a,)))
+        print(("Wall time for Fortran edge2cell: %f" % (t1b-t0b,)))
+
+        t0a = time.clock( )
+        t0b = time.time( )
+        y1 = vc.edge2cell(x)
+        t1a = time.clock( )
+        t1b = time.time( )
+        print(("CPU time for matrix edge2cell: %f" % (t1a-t0a,)))
+        print(("Wall time for matrix edge2cell: %f" % (t1b-t0b,)))
+        print(("rel error = %e" % (np.sqrt(np.sum((y1-y0)**2))/np.sqrt(np.sum(y0*y0)))))
+        

@@ -377,7 +377,27 @@ class VectorCalculus:
 
         if c.use_gpu:
             self.d_mCell2vertex = Device_CSR(self.mCell2vertex, env)
-            
+
+
+        ## Construct the matrix representing the mapping from cells to edges
+        nEntries, rows, cols, valEntries = \
+            cmp.construct_matrix_cell2edge(g.cellsOnEdge)
+        A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
+                               cols[:nEntries])), shape=(g.nEdges, g.nCells))
+        self.mCell2edge = A.tocsr( )
+
+        if c.use_gpu:
+            self.d_mCell2edge = Device_CSR(self.mCell2edge, env)
+
+        ## Construct the matrix representing the mapping from edges to cells
+        nEntries, rows, cols, valEntries = \
+            cmp.construct_matrix_edge2cell(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell)
+        A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
+                               cols[:nEntries])), shape=(g.nCells, g.nEdges))
+        self.mEdge2cell = A.tocsr( )
+
+        if c.use_gpu:
+            self.d_mEdge2cell = Device_CSR(self.mEdge2cell, env)
             
         self.scalar_cell = np.zeros(g.nCells)
         self.scalar_vertex = np.zeros(g.nVertices)
@@ -523,7 +543,6 @@ class VectorCalculus:
 
 
     def cell2vertex(self, sCell):
-        '''With implied Neumann BC's'''
 
         if c.use_gpu:
             assert len(sCell) == self.d_mCell2vertex.shape[1], \
@@ -542,6 +561,46 @@ class VectorCalculus:
 
         else:
             return self.mCell2vertex.dot(sCell)
+
+    def cell2edge(self, sCell):
+
+        if c.use_gpu:
+            assert len(sCell) == self.d_mCell2edge.shape[1], \
+                "Dimensions do not match."
+            d_vectorIn = self.env.cuda.to_device(sCell)
+
+            vOut = np.zeros(self.d_mCell2edge.shape[0])
+            d_vectorOut = self.env.cuda.to_device(vOut)
+            self.env.cuSparse.csrmv(trans='N', m=self.d_mCell2edge.shape[0], \
+                n=self.d_mCell2edge.shape[1], nnz=self.d_mCell2edge.nnz, alpha=1.0, \
+                descr=self.d_mCell2edge.cuSparseDescr, csrVal=self.d_mCell2edge.dData, \
+                csrRowPtr=self.d_mCell2edge.dPtr, csrColInd=self.d_mCell2edge.dInd, \
+                           x=d_vectorIn, beta=0., y=d_vectorOut)
+            d_vectorOut.copy_to_host(vOut)
+            return vOut
+
+        else:
+            return self.mCell2edge.dot(sCell)
+
+    def edge2cell(self, sEdge):
+
+        if c.use_gpu:
+            assert len(sEdge) == self.d_mEdge2cell.shape[1], \
+                "Dimensions do not match."
+            d_vectorIn = self.env.cuda.to_device(sEdge)
+
+            vOut = np.zeros(self.d_mEdge2cell.shape[0])
+            d_vectorOut = self.env.cuda.to_device(vOut)
+            self.env.cuSparse.csrmv(trans='N', m=self.d_mEdge2cell.shape[0], \
+                n=self.d_mEdge2cell.shape[1], nnz=self.d_mEdge2cell.nnz, alpha=1.0, \
+                descr=self.d_mEdge2cell.cuSparseDescr, csrVal=self.d_mEdge2cell.dData, \
+                csrRowPtr=self.d_mEdge2cell.dPtr, csrColInd=self.d_mEdge2cell.dInd, \
+                           x=d_vectorIn, beta=0., y=d_vectorOut)
+            d_vectorOut.copy_to_host(vOut)
+            return vOut
+
+        else:
+            return self.mEdge2cell.dot(sEdge)
         
         
         

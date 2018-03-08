@@ -88,6 +88,42 @@ subroutine edge2cell(nCells, nEdges, &
 end subroutine edge2cell
 
 
+subroutine construct_matrix_edge2cell(nCells, nEdges, &
+     cellsOnEdge, dcEdge, dvEdge, areaCell, &
+     nEntries, rows, cols, valEntries)
+  integer, intent(in) :: nCells, nEdges
+  integer, intent(in) :: cellsOnEdge(0:nEdges-1, 0:1)
+  double precision, intent(in)  :: areaCell(0:nCells-1), dvEdge(0:nEdges-1), &
+       dcEdge(0:nEdges-1)
+  integer, intent(out) :: nEntries, rows(0:2*nEdges-1), cols(0:2*nEdges-1)
+  double precision, intent(out) :: valEntries(0:2*nEdges-1)
+
+  integer :: iEdge, cell0, cell1, iEntry
+  double precision:: halfDiamond
+
+  iEntry = 0
+  
+  do iEdge = 0, nEdges-1
+     cell0 = cellsOnEdge(iEdge,0) - 1
+     cell1 = cellsOnEdge(iEdge,1) - 1
+     halfDiamond = 0.5 * 0.5 * dvEdge(iEdge) * dcEdge(iEdge)
+
+     rows(iEntry) = cell0
+     cols(iEntry) = iEdge
+     valEntries(iEntry) = halfDiamond / areaCell(cell0)
+     iEntry = iEntry + 1
+
+     rows(iEntry) = cell1
+     cols(iEntry) = iEdge
+     valEntries(iEntry) = halfDiamond / areaCell(cell1)
+     iEntry = iEntry + 1     
+  end do
+
+  nEntries = iEntry
+
+end subroutine construct_matrix_edge2cell
+
+
 ! Compute the normal velocity component from psi_vertex and phi_cell
 subroutine compute_normal_velocity(nEdges, nVertices, nCells, verticesOnEdge, cellsOnEdge, dcEdge, dvEdge, phi_cell, psi_vertex, u)
   integer, intent(in) :: nEdges, nVertices, nCells
@@ -221,6 +257,37 @@ subroutine cell2edge(nEdges, nCells, cellsOnEdge, scalar_cell, scalar_edge)
   end do
 
 end subroutine cell2edge
+
+
+subroutine construct_matrix_cell2edge(nEdges,  &
+     cellsOnEdge, &
+     nEntries, rows, cols, valEntries)
+  integer, intent(in) :: nEdges
+  integer, intent(in) :: cellsOnEdge(0:nEdges-1, 0:1)
+  integer, intent(out) :: nEntries, rows(0:2*nEdges-1), cols(0:2*nEdges-1)
+  double precision, intent(out) :: valEntries(0:2*nEdges-1)
+
+  integer :: iEdge, cell0, cell1, iEntry
+
+  iEntry = 0
+  do iEdge = 0, nEdges-1
+        cell0 = cellsOnEdge(iEdge,0) - 1
+        cell1 = cellsOnEdge(iEdge,1) - 1
+
+        rows(iEntry) = iEdge
+        cols(iEntry) = cell0
+        valEntries(iEntry) = 0.5
+        iEntry = iEntry + 1
+
+        rows(iEntry) = iEdge
+        cols(iEntry) = cell1
+        valEntries(iEntry) = 0.5
+        iEntry = iEntry + 1
+     end do
+
+     nEntries = iEntry
+
+end subroutine construct_matrix_cell2edge
 
 
 subroutine discrete_grad_n(nEdges, nCells, scalar_cell, cellsOnEdge, &

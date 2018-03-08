@@ -650,9 +650,9 @@ def main( ):
     vc = VectorCalculus(g, c, env)
     s = state_data(g, c)
 
-#    from Testing import run_tests
-#    run_tests(env, g, vc, c, s)
-#    raise ValueError("Just for testing.")
+    from Testing import run_tests
+    run_tests(env, g, vc, c, s)
+    raise ValueError("Just for testing.")
 
     s.initialization(g, vc, c)
 #    raise ValueError("Just for testing.")
