@@ -412,8 +412,10 @@ class state_data:
         self.pv_cell = self.eta_cell / self.thickness
         
         # Map from cell to edge
-        self.pv_edge[:] = cmp.cell2edge(g.cellsOnEdge, self.pv_cell)
-        self.thickness_edge[:] = cmp.cell2edge(g.cellsOnEdge, self.thickness)
+#        self.pv_edge[:] = cmp.cell2edge(g.cellsOnEdge, self.pv_cell)
+        self.pv_edge[:] = vc.cell2edge(self.pv_cell)
+#        self.thickness_edge[:] = cmp.cell2edge(g.cellsOnEdge, self.thickness)
+        self.thickness_edge[:] = vc.cell2edge(self.thickness)
 
         # Compute absolute vorticity on edge
         self.eta_edge[:] = self.pv_edge[:] * self.thickness_edge[:]
@@ -421,7 +423,8 @@ class state_data:
         # Compute kinetic energy
         #self.compute_kinetic_energy(g, c)
         kenergy_edge = 0.5 * (self.nVelocity * self.nVelocity + self.tVelocity * self.tVelocity )
-        self.kinetic_energy[:] = cmp.edge2cell(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, kenergy_edge)
+#        self.kinetic_energy[:] = cmp.edge2cell(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, kenergy_edge)
+        self.kinetic_energy[:] = vc.edge2cell(kenergy_edge)
 
     def compute_psi_cell(self, vc, c):
         # To compute the psi_cell using the elliptic equation on the

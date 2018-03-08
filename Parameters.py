@@ -1,8 +1,8 @@
 import numpy as np
 
 ### Parameters essential
-test_case = 5
-on_a_global_sphere = True
+test_case = 12
+on_a_global_sphere = False
 use_gpu = False
 
 ### Parameters secondary
@@ -23,7 +23,7 @@ no_slip_BC = False
 free_slip_BC = False
 
 # Solver config
-linear_solver = 'cg'      # lu, cg, cudaCG, cudaPCG, amg
+linear_solver = 'lu'      # lu, cg, cudaCG, cudaPCG, amg
 err_tol = 1e-8
 max_iter = 5000
 #max_iter_dual = 25
