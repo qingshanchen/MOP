@@ -648,21 +648,30 @@ def main( ):
     # -----------------------------------------------------------
 
 #    c = parameters()
+    print("===========Setting up the compute environment====================")
     env = ComputeEnvironment(c)
+
+    print("Init the grid object")
     g = grid_data('grid.nc', c)
+
+    print("===========Initializing the VectorCalculus object================")
     vc = VectorCalculus(g, c, env)
+
+    print("========== Initializing the State object ========================")
     s = state_data(g, c)
 
-    from Testing import run_tests
-    run_tests(env, g, vc, c, s)
-    raise ValueError("Just for testing.")
+#    from Testing import run_tests
+#    run_tests(env, g, vc, c, s)
+#    raise ValueError("Just for testing.")
 
+    print("========== Setting the initial state of the model ================")
     s.initialization(g, vc, c)
 #    raise ValueError("Just for testing.")
     
+    print("========== Making a copy of the state object =====================")
     s_init = deepcopy(s)
-    h0 = np.mean(s_init.thickness[:])
-        
+
+    print("========== Declaring variables for holding statistics ============")
     # Compute energy and enstrophy
     kenergy = np.zeros(c.nTimeSteps+1)
     penergy = np.zeros(c.nTimeSteps+1)
@@ -672,6 +681,8 @@ def main( ):
     pv_max = np.zeros(c.nTimeSteps+1)
     pv_min = np.zeros(c.nTimeSteps+1)
 
+    print("========== Computing some initial statistics =====================")
+    h0 = np.mean(s_init.thickness[:])
     kenergy[0] = np.sum(s.thickness[:]*s.kinetic_energy[:]*g.areaCell[:])
     penergy[0] = 0.5*c.gravity* np.sum((s.thickness[:]-h0)**2 * g.areaCell[:])
     total_energy[0] = kenergy[0] + penergy[0]
