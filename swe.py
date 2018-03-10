@@ -648,21 +648,23 @@ def main( ):
     # -----------------------------------------------------------
 
 #    c = parameters()
-    print("===========Setting up the compute environment====================")
+    print("=========== Setting up the compute environment====================")
     env = ComputeEnvironment(c)
 
-    print("Init the grid object")
+    print("=========== Init the grid object =================================")
     g = grid_data('grid.nc', c)
 
-    print("===========Initializing the VectorCalculus object================")
+    print("===========Initializing the VectorCalculus object ================")
     vc = VectorCalculus(g, c, env)
 
-    print("========== Initializing the State object ========================")
+    print("========== Initializing the State object =========================")
     s = state_data(g, c)
 
-#    from Testing import run_tests
-#    run_tests(env, g, vc, c, s)
-#    raise ValueError("Just for testing.")
+    ## Uncomment the following lines to perform tests
+    print("========== Beginning tests =======================================")
+    from Testing import run_tests
+    run_tests(env, g, vc, c, s)
+    raise ValueError("Just for testing.")
 
     print("========== Setting the initial state of the model ================")
     s.initialization(g, vc, c)
