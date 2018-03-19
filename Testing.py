@@ -504,7 +504,7 @@ def run_tests(env, g, vc, c, s):
         
         raise ValueError("Stop for checking.")
 
-    elif False:
+    elif True:
         # To test the AMGX solver
         
         import pyamgx
@@ -513,19 +513,8 @@ def run_tests(env, g, vc, c, s):
         pyamgx.initialize()
 
         # Initialize config, resources and mode:
-        #cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/FGMRES_AGGREGATION.json')
-        #cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/AMG_AGGRREGATION_CG.json')
-        #cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/AMG_CLASSICAL_CGF.json')
-        #cfg = pyamgx.Config().create_from_file('PCG_AGGREGATION_JACOBI.json')
-        #cfg = pyamgx.Config().create_from_file('PCGF_AGGREGATION_JACOBI.json')     # Converges for 655362, 262442 in ~40 iters.
-        #cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/PCG_CLASSICAL_V_JACOBI.json')
-        #cfg = pyamgx.Config().create_from_file('PCGF_CLASSICAL_V_JACOBI.json')
-        #cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/PCGF_V.json')
-        #cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/AMG_CLASSICAL_PMIS.json')
-        #cfg = pyamgx.Config().create_from_file(os.environ['AMGX_DIR']+'/core/configs/FGMRES_CLASSICAL_AGGRESSIVE_PMIS.json')
-        #cfg = pyamgx.Config().create_from_file('PCGF_CLASSICAL_AGGRESSIVE_PMIS.json')          # Best for 2621442 dual
-        cfg = pyamgx.Config().create_from_file('PCGF_CLASSICAL_AGGRESSIVE_PMIS_JACOBI.json')   # Best for 2621442 prim
-        #cfg = pyamgx.Config().create_from_file('PCGF_CLASSICAL_AGGRESSIVE_PMIS_GS.json')   # Best for 2621442 prim
+        cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS_JACOBI.json')   # Best for 2621442 prim
+        #cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_AGGREGATION_JACOBI.json') 
 
         rsc = pyamgx.Resources().create_simple(cfg)
         mode = 'dDDI'
@@ -539,23 +528,23 @@ def run_tests(env, g, vc, c, s):
         slv = pyamgx.Solver().create(rsc, cfg, mode)
 
         hA = vc.POpn.A
-        # Read system from file
-        A.upload(hA.shape[0], hA.nnz, hA.indptr, hA.indices, hA.data)
-
-        sol = np.random.rand(hA.shape[0])
-        sol[0] = 0.
-        h_b = hA.dot(sol)
-        h_x = np.zeros(np.size(h_b))
-        
-        b.upload(hA.shape[0], h_b)
-        x.upload(hA.shape[0], h_x)
-
-        # Setup and solve system:
+        A.upload(hA.indptr, hA.indices, hA.data)
         slv.setup(A)
-        slv.solve(b, x)
 
-        x.download(h_x)
-        print(("rel error for pyamg solver = %e" % (np.sqrt(np.sum((h_x-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+        for k in range(20):
+            sol = np.random.rand(hA.shape[0])
+            sol[0] = 0.
+            h_b = hA.dot(sol)
+            h_x = np.zeros(np.size(h_b))
+
+            b.upload( h_b)
+            x.upload( h_x)
+
+            # Setup and solve system:
+            slv.solve(b, x)
+
+            x.download(h_x)
+            print(("rel error for pyamg solver = %e" % (np.sqrt(np.sum((h_x-sol)**2))/np.sqrt(np.sum(sol*sol)))))
 
         # Clean up:
         A.destroy()
@@ -848,7 +837,7 @@ def run_tests(env, g, vc, c, s):
         print(("Wall time for vc.discrete_laplace: %f" % (t4b-t3b,)))
         print(("rel error = %e" % (np.sqrt(np.sum((y2-y0)**2))/np.sqrt(np.sum(y0*y0)))))
         
-    elif True:
+    elif False:
         # Compare cell2edge and edge2cell with their Fortran versions
         
         x = np.random.rand(g.nCells)
