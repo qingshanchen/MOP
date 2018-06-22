@@ -60,6 +60,36 @@ subroutine construct_matrix_cell2vertex(nVertices, vertexDegree, &
 end subroutine construct_matrix_cell2vertex
 
 
+subroutine construct_matrix_vertex2cell(nVertices, nCells, vertexDegree, &
+     cellsOnVertex, kiteAreasOnVertex, areaCell,  &
+     nEntries, rows, cols, valEntries)
+  integer, intent(in) :: nVertices, nCells, vertexDegree
+  integer, intent(in) :: cellsOnVertex(0:nVertices-1, 0:vertexDegree-1)
+  double precision, intent(in)  :: kiteAreasOnVertex(0:nVertices-1, 0:vertexDegree-1), &
+       areaCell(0:nCells-1)
+  integer, intent(out)  :: nEntries, rows(0:nVertices*vertexDegree-1), cols(0:nVertices*vertexDegree-1)
+  double precision, intent(out) :: valEntries(0:nVertices*vertexDegree-1)
+
+  integer :: iVertex, iCell, i, iEntry
+
+  iEntry = 0
+
+  do iVertex = 0, nVertices-1
+      do i = 0, vertexDegree-1
+         iCell = cellsOnVertex(iVertex, i) - 1
+         
+         rows(iEntry) = iCell
+         cols(iEntry) = iVertex
+         valEntries(iEntry) = kiteAreasOnVertex(iVertex, i) / areaCell(iCell)
+         iEntry = iEntry + 1
+         
+      end do
+   end do
+   nEntries = iEntry
+
+end subroutine construct_matrix_vertex2cell
+
+
 subroutine edge2cell(nCells, nEdges, &
      cellsOnEdge, dcEdge, dvEdge, areaCell, scalar_edge, &
      scalar_cell)
@@ -386,8 +416,9 @@ subroutine discrete_div(nEdges, nCells, &
 end subroutine discrete_div
 
 
-! Given a discrete vector field vector_n, compute its discrete divergence.
-! The orientation on the edge is assumed to be from cell0 (first cell) to cell1 (second cell)
+! Construct the discrete divergence operator on the primal mesh
+! The orientation on the edge is assumed to be from cell0 (first
+! cell) to cell1 (second cell)
 subroutine construct_matrix_discrete_div(nEdges, nCells, &
   cellsOnEdge, dvEdge, areaCell,  &
   nEntries, rows, cols, valEntries)
@@ -485,7 +516,8 @@ subroutine discrete_curl(nEdges, nCells,  &
 end subroutine discrete_curl
 
 
-! Construct the coefficient matrix representing the discrete curl operator
+! Construct the coefficient matrix representing the discrete curl
+! operator on the primary mesh. 
 ! No slip boundary condition implied on the boundary.
 subroutine construct_matrix_discrete_curl(nEdges, nCells,  &
      cellsOnEdge, dvEdge, areaCell, &
@@ -521,6 +553,43 @@ subroutine construct_matrix_discrete_curl(nEdges, nCells,  &
 
   
 end subroutine construct_matrix_discrete_curl
+
+
+! Construct the coefficient matrix representing the discrete curl
+! operator on the dual mesh. 
+subroutine construct_matrix_discrete_curl_trig(nEdges, nVertices,  &
+     verticesOnEdge, dcEdge, areaTriangle, &
+     nEntries, rows, cols, valEntries)
+  integer, intent(in) :: nEdges, nVertices
+  integer, intent(in) :: verticesOnEdge(0:nEdges-1, 0:1)
+  double precision, intent(in)  :: dcEdge(0:nEdges-1), &
+       areaTriangle(0:nVertices-1)
+  integer, intent(out)          :: nEntries, rows(0:2*nEdges-1), cols(0:2*nEdges-1)
+  double precision, intent(out) :: valEntries(0:2*nEdges-1)
+
+  integer :: iEdge, vertex0, vertex1, iEntry
+
+  iEntry = 0
+
+  do iEdge = 0, nEdges-1
+        vertex0 = verticesOnEdge(iEdge,0) - 1
+        vertex1 = verticesOnEdge(iEdge,1) - 1
+
+        rows(iEntry) = vertex0
+        cols(iEntry) = iEdge
+        valEntries(iEntry) = -dcEdge(iEdge) / areaTriangle(vertex0)
+        iEntry = iEntry + 1
+
+        rows(iEntry) = vertex1
+        cols(iEntry) = iEdge
+        valEntries(iEntry) = dcEdge(iEdge) / areaTriangle(vertex1)
+        iEntry = iEntry + 1
+        
+  end do
+
+  nEntries = iEntry
+  
+end subroutine construct_matrix_discrete_curl_trig
 
 
 ! Homogeneous Neumann BC assumed on the boundary
@@ -984,6 +1053,7 @@ subroutine separate_boundary_interior_edges(nEdges, &
 end subroutine separate_boundary_interior_edges
 
 
+! Construct the discrete gradient operator on the primal mesh
 subroutine construct_matrix_discrete_grad_n(nEdges, &
      cellsOnEdge, dcEdge, &
      nEntries, rows, cols, valEntries)
@@ -1094,5 +1164,53 @@ subroutine construct_matrix_discrete_grad_tn(nEdges, &
 
    nEntries = iEntry
 end subroutine construct_matrix_discrete_grad_tn
+
+! Construct the discrete skew gradient operator on the dual mesh
+! Homogeneous Dirichlet BC's assumed 
+subroutine construct_matrix_discrete_skewgrad(nEdges, &
+     verticesOnEdge, dvEdge, &
+     nEntries, rows, cols, valEntries)
+  integer, intent(in) :: nEdges
+  integer, intent(in) :: verticesOnEdge(0:nEdges-1, 0:1)
+  double precision, intent(in)  :: dvEdge(0:nEdges-1)
+  double precision, intent(out) :: valEntries(0:2*nEdges-1)
+  integer, intent(out) :: nEntries, rows(0:2*nEdges-1), cols(0:2*nEdges-1)
+
+  integer :: iEdge, vertex0, vertex1, iEntry
+
+  iEntry = 0
+  do iEdge = 0, nEdges-1
+        vertex0 = verticesOnEdge(iEdge,0) - 1
+        vertex1 = verticesOnEdge(iEdge,1) - 1
+
+        if (vertex0 .GE. 0 .and. vertex1 .GE. 0) then
+            rows(iEntry) = iEdge
+            cols(iEntry) = vertex0
+            valEntries(iEntry) = 1./dvEdge(iEdge)
+            iEntry = iEntry + 1
+
+            rows(iEntry) = iEdge
+            cols(iEntry) = vertex1
+            valEntries(iEntry) = -1./dvEdge(iEdge)
+            iEntry = iEntry + 1
+         else if (vertex0 .GE. 0 .and. vertex1 < 0) then
+            rows(iEntry) = iEdge
+            cols(iEntry) = vertex0
+            valEntries(iEntry) = 1./dvEdge(iEdge)
+            iEntry = iEntry + 1
+         else if (vertex1 .GE. 0 .and. vertex0 < 0) then
+            rows(iEntry) = iEdge
+            cols(iEntry) = vertex1
+            valEntries(iEntry) = -1./dvEdge(iEdge)
+            iEntry = iEntry + 1
+         else
+           write(*,*) "Vertex indices in verticesOnEdge are wrong in discrete_grad_t. Exit."
+           stop
+        end if
+   end do
+
+   nEntries = iEntry
+
+end subroutine construct_matrix_discrete_skewgrad
 
 end module
