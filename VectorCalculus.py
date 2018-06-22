@@ -1,6 +1,6 @@
 import numpy as np
 import Parameters as c
-from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
+from scipy.sparse import coo_matrix, csc_matrix, csr_matrix, eye
 from scipy.sparse.linalg import spsolve, splu, factorized
 from swe_comp import swe_comp as cmp
 from LinearAlgebra import cg, pcg, cudaCG, cudaPCG
@@ -398,6 +398,10 @@ class VectorCalculus:
 
         if c.use_gpu:
             self.d_mEdge2cell = Device_CSR(self.mEdge2cell, env)
+
+        self.mThicknessInv = eye(g.nEdges)   # This is only a space holder
+        if c.use_gpu:                        # Need to update at every step
+            self.d_mThicknessInv = Device_CSR(self.mThicknessInv.to_csr(), env)
             
         self.scalar_cell = np.zeros(g.nCells)
         self.scalar_vertex = np.zeros(g.nVertices)
@@ -405,6 +409,7 @@ class VectorCalculus:
             self.scalar_cell_interior = np.zeros(nCellsInterior)
 
 
+        
     def discrete_div(self, vEdge):
         '''
         No flux boundary conditions implied on the boundary.
