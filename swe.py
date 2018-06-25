@@ -369,7 +369,11 @@ class state_data:
             self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
             self.divergence[:] = 0.
 
+        self.thickness_edge[:] = vc.cell2edge(self.thickness)
         self.thickness_vertex[:] = vc.cell2vertex(self.thickness)
+
+        vc.update_coefficient_matrix(self.thickness_edge)
+        raise ValueError
 
         self.compute_psi_cell(vc, c)
         self.compute_phi_cell(vc, c)
@@ -412,10 +416,7 @@ class state_data:
         self.pv_cell = self.eta_cell / self.thickness
         
         # Map from cell to edge
-#        self.pv_edge[:] = cmp.cell2edge(g.cellsOnEdge, self.pv_cell)
         self.pv_edge[:] = vc.cell2edge(self.pv_cell)
-#        self.thickness_edge[:] = cmp.cell2edge(g.cellsOnEdge, self.thickness)
-        self.thickness_edge[:] = vc.cell2edge(self.thickness)
 
         # Compute absolute vorticity on edge
         self.eta_edge[:] = self.pv_edge[:] * self.thickness_edge[:]

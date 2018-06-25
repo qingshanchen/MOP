@@ -1,6 +1,6 @@
 import numpy as np
 import Parameters as c
-from scipy.sparse import coo_matrix, csc_matrix, csr_matrix, eye
+from scipy.sparse import coo_matrix, csc_matrix, csr_matrix, eye, diags, bmat
 from scipy.sparse.linalg import spsolve, splu, factorized
 from swe_comp import swe_comp as cmp
 from LinearAlgebra import cg, pcg, cudaCG, cudaPCG
@@ -234,6 +234,8 @@ class VectorCalculus:
         self.areaCell = g.areaCell.copy()
         self.areaTriangle = g.areaTriangle.copy()
 
+        self.on_a_global_sphere = c.on_a_global_sphere
+
         if not c.on_a_global_sphere:
             # Collect non-boundary (interior) cells and put into a vector,
             # and boundary cells into a separate vector
@@ -320,6 +322,16 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mCurl = Device_CSR(self.mCurl, env)
 
+        ## Construct the matrix representing the discrete curl (on dual mesh)
+        nEntries, rows, cols, valEntries = \
+            cmp.construct_matrix_discrete_curl_trig(g.verticesOnEdge, g.dcEdge, g.areaTriangle)
+        A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
+                               cols[:nEntries])), shape=(g.nVertices, g.nEdges))
+        self.mCurl_trig = A.tocsr( )
+
+        if c.use_gpu:
+            self.d_mCurl = Device_CSR(self.mCurl, env)
+            
         ## Construct the matrix representing the discrete Laplace operator (primal
         ## mesh). Homogeneous Neuman BC's are assumed.
         nEntries, rows, cols, valEntries = \
@@ -343,6 +355,17 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mGrad_n = Device_CSR(self.mGrad_n, env)
 
+        ## Construct the matrix representing the discrete grad operator for
+        ## the primal mesh. 
+        nEntries, rows, cols, valEntries = \
+            cmp.construct_matrix_discrete_skewgrad(g.verticesOnEdge, g.dvEdge)
+        A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
+                               cols[:nEntries])), shape=(g.nEdges, g.nVertices))
+        self.mSkewgrad = A.tocsr( )
+
+        if c.use_gpu:
+            self.d_mGrad_n = Device_CSR(self.mGrad_n, env)
+            
 
         ## Construct the matrix representing the discrete grad operator for the dual
         ## mesh, with implied homogeneous Dirichlet BC's 
@@ -378,6 +401,16 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mCell2vertex = Device_CSR(self.mCell2vertex, env)
 
+        ## Construct the matrix representing the mapping from the dual mesh onto the primal
+        ## mesh
+        nEntries, rows, cols, valEntries = \
+            cmp.construct_matrix_vertex2cell(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaCell)
+        A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
+                               cols[:nEntries])), shape=(g.nCells, g.nVertices))
+        self.mVertex2cell = A.tocsr( )
+
+        if c.use_gpu:
+            self.d_mVertex2cell = Device_CSR(self.mVertex2cell, env)
 
         ## Construct the matrix representing the mapping from cells to edges
         nEntries, rows, cols, valEntries = \
@@ -402,14 +435,27 @@ class VectorCalculus:
         self.mThicknessInv = eye(g.nEdges)   # This is only a space holder
         if c.use_gpu:                        # Need to update at every step
             self.d_mThicknessInv = Device_CSR(self.mThicknessInv.to_csr(), env)
-            
+
+        # A diagonal matrix representing scaling by cell areas
+        self.mAreaCell = diags(g.areaCell, 0)
+        if c.use_gpu:                        # Need to update at every step
+            self.d_mAreaCell = Device_CSR(self.mAreaCell.to_csr(), env)
+
+        # To compute a few intermediate matrix products
+        AMC = self.mAreaCell * self.mVertex2cell * self.mCurl_trig
+        AD = self.mAreaCell * self.mDiv
+        SN = self.mSkewgrad * self.mCell2vertex
+        self.leftM = bmat([[AMC],[AD]])
+        self.rightM = bmat([SN, self.mGrad_n])
+
+        self.coefM = None
+        
         self.scalar_cell = np.zeros(g.nCells)
         self.scalar_vertex = np.zeros(g.nVertices)
         if not c.on_a_global_sphere:
             self.scalar_cell_interior = np.zeros(nCellsInterior)
 
-
-        
+            
     def discrete_div(self, vEdge):
         '''
         No flux boundary conditions implied on the boundary.
@@ -606,6 +652,26 @@ class VectorCalculus:
 
         else:
             return self.mEdge2cell.dot(sEdge)
+
+
+    def update_coefficient_matrix(self, thickness):
+        thicknessInv2 = np.concatenate([1./thickness, 1./thickness])
+        mThicknessInv2 = diags(thicknessInv2, 0)
+        self.coefM = self.leftM * mThicknessInv2 * self.rightM
+
+        nCells = thickness.size( )
+        
+        if self.on_a_global_sphere:
+            self.coefM[0,:] = 0.
+            self.coefM[:,0] = 0.
+            self.coefM[0,0] = 1.
+
+            self.coefM[nCells, :] = 0.
+            self.coefM[:, nCells] = 0.
+            self.coefM[nCells, nCells] = 1.
+        else:
+            raise ValueError("Case not handled")
+        
         
         
         
