@@ -446,7 +446,7 @@ class VectorCalculus:
         AD = self.mAreaCell * self.mDiv
         SN = self.mSkewgrad * self.mCell2vertex
         self.leftM = bmat([[AMC],[AD]])
-        self.rightM = bmat([SN, self.mGrad_n])
+        self.rightM = bmat([[SN, self.mGrad_n]])
 
         self.coefM = None
         
@@ -655,11 +655,11 @@ class VectorCalculus:
 
 
     def update_coefficient_matrix(self, thickness):
-        thicknessInv2 = np.concatenate([1./thickness, 1./thickness])
-        mThicknessInv2 = diags(thicknessInv2, 0)
-        self.coefM = self.leftM * mThicknessInv2 * self.rightM
+#        thicknessInv2 = np.concatenate([1./thickness, 1./thickness])
+        self.mThicknessInv.data[0,:] = 1./thickness
+        self.coefM = self.leftM * self.mThicknessInv * self.rightM
 
-        nCells = thickness.size( )
+        nCells = self.coefM.shape[0]/2
         
         if self.on_a_global_sphere:
             self.coefM[0,:] = 0.
