@@ -3,17 +3,15 @@ import Parameters as c
 from Grid import grid_data
 from ComputeEnvironment import ComputeEnvironment
 from VectorCalculus import VectorCalculus
-#from LinearAlgebra import cg, MaxItersError
 import netCDF4 as nc
 from matplotlib import use
 use('Agg')
 import matplotlib.pyplot as plt
-#import time
 from swe_comp import swe_comp as cmp
 import os
 from copy import deepcopy as deepcopy
-#from pyamg import rootnode_solver
 from scipy.io import mmwrite
+from scipy.sparse.linalg import spsolve
 
 
 max_int = np.iinfo('int32').max
@@ -31,11 +29,14 @@ class state_data:
         self.thickness_vertex = np.zeros(g.nVertices)
         self.vorticity_vertex = np.zeros(g.nVertices)
         self.divergence_vertex = np.zeros(g.nVertices)
+        self.vortdiv = np.zeros(2*g.nCells)
+
         self.psi_cell = np.zeros(g.nCells)
         self.psi_vertex = np.zeros(g.nVertices)
         self.psi_vertex_pred = np.zeros(g.nVertices)
         self.phi_cell = np.zeros(g.nCells)
         self.phi_vertex = np.zeros(g.nVertices)
+        
         self.nVelocity = np.zeros(g.nEdges)
         self.tVelocity = np.zeros(g.nEdges)
         self.pv_cell = np.zeros(g.nCells)
@@ -44,6 +45,7 @@ class state_data:
         self.eta_cell = np.zeros(g.nCells)
         self.eta_edge = np.zeros(g.nEdges)
         self.kinetic_energy = np.zeros(g.nCells)
+        
         self.tend_thickness = np.zeros(g.nCells)
         self.tend_vorticity = np.zeros(g.nCells)
         self.tend_divergence = np.zeros(g.nCells)
@@ -457,6 +459,25 @@ class state_data:
 #        self.kinetic_energy[:] = cmp.edge2cell(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, kenergy_edge)
         self.kinetic_energy[:] = vc.edge2cell(kenergy_edge)
 
+    def compute_psi_phi(self, vc, c):
+        # To compute the psi_cell and phi_cell
+        
+        if c.on_a_global_sphere:
+            # A global domain with no boundary
+            self.vortdiv[:g.nCells] = self.vorticity * g.areaCell
+            self.vortdiv[g.nCells,:] = self.divergence * g.areaCell
+            self.vortdiv[0] = 0.   # Set first element to zeor to make psi_cell[0] zero
+            self.vortdiv[g.nCells] = 0.   # Set first element to zeor to make phi_cell[0] zero
+            x = spsolve(self.coefM, self.vortdiv)
+            self.psi_cell[:] = x[:g.nCells]
+            self.phi_cell[:] = x[g.nCells:]
+            
+        else:
+            raise ValueError("Case not handled yet.")
+            
+        return 0
+
+        
     def compute_psi_cell(self, vc, c):
         # To compute the psi_cell using the elliptic equation on the
         # interior cells
