@@ -35,7 +35,7 @@ def main( ):
     vc = VectorCalculus(g, c, env)
 
     print("========== Initializing the State object =========================")
-    s = state_data(g, c)
+    s = state_data(vc, g, c)
 
     ## Uncomment the following lines to perform tests
     print("========== Beginning tests =======================================")

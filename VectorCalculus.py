@@ -448,8 +448,6 @@ class VectorCalculus:
         self.leftM = bmat([[AMC],[AD]])
         self.rightM = bmat([[SN, self.mGrad_n]])
 
-        self.coefM = None
-        
         self.scalar_cell = np.zeros(g.nCells)
         self.scalar_vertex = np.zeros(g.nVertices)
         if not c.on_a_global_sphere:
@@ -528,6 +526,7 @@ class VectorCalculus:
             return self.mLaplace.dot(sCell)
 
 
+    # The discrete gradient operator on the primal mesh
     def discrete_grad_n(self, sCell):
 
         if c.use_gpu:
@@ -549,6 +548,8 @@ class VectorCalculus:
             return self.mGrad_n.dot(sCell)
 
 
+    # The discrete gradient operator on the dual mesh, assuming
+    # homogeneous Dirichlet BC's
     def discrete_grad_td(self, sVertex):
         '''With implied Dirichlet BC's'''
 
@@ -571,6 +572,8 @@ class VectorCalculus:
             return self.mGrad_td.dot(sVertex)
 
 
+    # The discrete gradient operator on the dual mesh, assuming
+    # homogeneous Neumann BC's
     def discrete_grad_tn(self, sVertex):
         '''With implied Neumann BC's'''
 
@@ -655,7 +658,6 @@ class VectorCalculus:
 
 
     def update_coefficient_matrix(self, thickness):
-#        thicknessInv2 = np.concatenate([1./thickness, 1./thickness])
         self.mThicknessInv.data[0,:] = 1./thickness
         self.coefM = self.leftM * self.mThicknessInv * self.rightM
 

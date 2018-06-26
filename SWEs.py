@@ -3,12 +3,12 @@ import Parameters as c
 from Grid import grid_data
 from ComputeEnvironment import ComputeEnvironment
 from VectorCalculus import VectorCalculus
-from LinearAlgebra import cg, MaxItersError
+#from LinearAlgebra import cg, MaxItersError
 import netCDF4 as nc
 from matplotlib import use
 use('Agg')
 import matplotlib.pyplot as plt
-import time
+#import time
 from swe_comp import swe_comp as cmp
 import os
 from copy import deepcopy as deepcopy
@@ -20,7 +20,7 @@ max_int = np.iinfo('int32').max
 
 
 class state_data:
-    def __init__(self, g, c):
+    def __init__(self, vc, g, c):
 
         # Prognostic variables
         self.thickness = np.zeros(g.nCells)
@@ -59,6 +59,36 @@ class state_data:
         # Time keeper
         self.time = 0.0
 
+        # Coefficient matrix for the big linear system
+        from scipy.sparse import eye, bmat
+        from VectorCalculus import Device_CSR
+        self.coefM = None
+        AMC = vc.mAreaCell * vc.mVertex2cell * vc.mCurl_trig
+        AD = vc.mAreaCell * vc.mDiv
+        SN = vc.mSkewgrad * vc.mCell2vertex
+        self.leftM = bmat([[AMC],[AD]])
+        self.rightM = bmat([[SN, vc.mGrad_n]])
+
+        self.mThicknessInv = eye(g.nEdges)   # This is only a space holder
+        if c.use_gpu:                        # Need to update at every step
+            self.d_mThicknessInv = Device_CSR(self.mThicknessInv.to_csr(), env)
+        
+
+    def update_coefficient_matrix(self, g, c):
+        self.mThicknessInv.data[0,:] = 1./self.thickness_edge
+        self.coefM = self.leftM * self.mThicknessInv * self.rightM
+
+        if c.on_a_global_sphere:
+            self.coefM[0,:] = 0.
+            self.coefM[:,0] = 0.
+            self.coefM[0,0] = 1.
+
+            self.coefM[g.nCells, :] = 0.
+            self.coefM[:, g.nCells] = 0.
+            self.coefM[g.nCells, g.nCells] = 1.
+        else:
+            raise ValueError("Case not handled")
+        
 
     def start_from_function(self, g, c):
 
@@ -372,7 +402,7 @@ class state_data:
         self.thickness_edge[:] = vc.cell2edge(self.thickness)
         self.thickness_vertex[:] = vc.cell2vertex(self.thickness)
 
-        vc.update_coefficient_matrix(self.thickness_edge)
+        self.update_coefficient_matrix(g, c)
         raise ValueError
 
         self.compute_psi_cell(vc, c)
