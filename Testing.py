@@ -62,6 +62,59 @@ def run_tests(env, g, vc, c, s):
         print("L infinity error = ", l8)
         print("L^2 error        = ", l2)        
 
+    if True:
+        # Test the linear solver for the coupled elliptic equation on the whole domain
+        # The solution is set to zero at cell 0.
+
+        s.thickness[:] = 4000. + np.random.rand(g.nCells) * 100
+        s.thickness_edge = vc.cell2edge(s.thickness)
+
+        cpu0 = time.clock( )
+        wall0 = time.time( )
+        s.update_coefficient_matrix(g, c)
+        cpu1 = time.clock( )
+        wall1 = time.time( )
+        print(("CPU time for updating matrix: %f" % (cpu1-cpu0,)))
+        print(("Wall time for updating matrix: %f" % (wall1-wall0,)))
+        
+        psi_cell_true = np.random.rand(g.nCells) * 2.4e+9
+        psi_cell_true[0] = 0.
+        phi_cell_true = np.random.rand(g.nCells) * 2.4e+9
+        phi_cell_true[0] = 0.
+
+        psi_vertex = vc.cell2vertex(psi_cell_true)
+
+        hu = vc.discrete_grad_n(phi_cell_true)
+        hu -= vc.discrete_grad_td(psi_vertex)
+        u = hu / s.thickness_edge
+        s.vorticity = vc.vertex2cell(vc.discrete_curl_trig(u))
+        s.divergence = vc.discrete_div(u)
+
+        cpu0 = time.clock( )
+        wall0 = time.time( )
+        s.compute_psi_phi(vc, g, c)
+        cpu1 = time.clock( )
+        wall1 = time.time( )
+        print(("CPU time for solving system: %f" % (cpu1-cpu0,)))
+        print(("Wall time for solving system: %f" % (wall1-wall0,)))
+        
+        # Compute the errors
+        l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
+        l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
+        l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
+        l2 = np.sqrt(l2)
+        print("Errors in psi")
+        print("L infinity error = ", l8)
+        print("L^2 error        = ", l2)        
+
+        l8 = np.max(np.abs(phi_cell_true[:] - s.phi_cell[:])) / np.max(np.abs(phi_cell_true[:]))
+        l2 = np.sum(np.abs(phi_cell_true[:] - s.phi_cell[:])**2 * g.areaCell[:])
+        l2 /=  np.sum(np.abs(phi_cell_true[:])**2 * g.areaCell[:])
+        l2 = np.sqrt(l2)
+        print("Errors in phi")
+        print("L infinity error = ", l8)
+        print("L^2 error        = ", l2)        
+        
     if False:   # Test the linear solver for the Poisson equation on the triangles with homogeneous Dirichlet BC's
         psi_vertex_true = np.random.rand(g.nVertices)
 
@@ -504,7 +557,7 @@ def run_tests(env, g, vc, c, s):
         
         raise ValueError("Stop for checking.")
 
-    elif True:
+    elif False:
         # To test the AMGX solver
         
         import pyamgx

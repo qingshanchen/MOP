@@ -68,8 +68,22 @@ class state_data:
         AMC = vc.mAreaCell * vc.mVertex2cell * vc.mCurl_trig
         AD = vc.mAreaCell * vc.mDiv
         SN = vc.mSkewgrad * vc.mCell2vertex
-        self.leftM = bmat([[AMC],[AD]])
-        self.rightM = bmat([[SN, vc.mGrad_n]])
+        
+        self.leftM = bmat([[AMC],[AD]], format='csr')
+        self.rightM = bmat([[SN, vc.mGrad_n]], format='csr')
+
+        if c.on_a_global_sphere:
+            # Set certain rows and columns to zeros for setting
+            # psi_0 and phi_0 to zeros later
+            self.leftM[0,:] = 0.     # Set row 0 to 0
+            self.leftM[g.nCells,:] = 0.   # Set row nCells to 0
+            self.leftM.eliminate_zeros( )
+
+            self.rightM[:,0] = 0.         # Set clmn 0 to 0
+            self.rightM[:,g.nCells] = 0.  # Set clmn nCells to 0
+            self.rightM.eliminate_zeros( )
+        else:
+            raise ValueError("Case not handled")
 
         self.mThicknessInv = eye(g.nEdges)   # This is only a space holder
         if c.use_gpu:                        # Need to update at every step
@@ -81,16 +95,11 @@ class state_data:
         self.coefM = self.leftM * self.mThicknessInv * self.rightM
 
         if c.on_a_global_sphere:
-            self.coefM[0,:] = 0.
-            self.coefM[:,0] = 0.
             self.coefM[0,0] = 1.
-
-            self.coefM[g.nCells, :] = 0.
-            self.coefM[:, g.nCells] = 0.
             self.coefM[g.nCells, g.nCells] = 1.
         else:
             raise ValueError("Case not handled")
-        
+
 
     def start_from_function(self, g, c):
 
@@ -405,7 +414,7 @@ class state_data:
         self.thickness_vertex[:] = vc.cell2vertex(self.thickness)
 
         self.update_coefficient_matrix(g, c)
-        raise ValueError
+        raise ValueError("The rest isn't ready for the prime time yet.")
 
         self.compute_psi_cell(vc, c)
         self.compute_phi_cell(vc, c)
@@ -459,13 +468,13 @@ class state_data:
 #        self.kinetic_energy[:] = cmp.edge2cell(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, kenergy_edge)
         self.kinetic_energy[:] = vc.edge2cell(kenergy_edge)
 
-    def compute_psi_phi(self, vc, c):
+    def compute_psi_phi(self, vc, g, c):
         # To compute the psi_cell and phi_cell
         
         if c.on_a_global_sphere:
             # A global domain with no boundary
             self.vortdiv[:g.nCells] = self.vorticity * g.areaCell
-            self.vortdiv[g.nCells,:] = self.divergence * g.areaCell
+            self.vortdiv[g.nCells:] = self.divergence * g.areaCell
             self.vortdiv[0] = 0.   # Set first element to zeor to make psi_cell[0] zero
             self.vortdiv[g.nCells] = 0.   # Set first element to zeor to make phi_cell[0] zero
             x = spsolve(self.coefM, self.vortdiv)

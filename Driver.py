@@ -39,9 +39,9 @@ def main( ):
 
     ## Uncomment the following lines to perform tests
     print("========== Beginning tests =======================================")
-#    from Testing import run_tests
-#    run_tests(env, g, vc, c, s)
-#    raise ValueError("Just for testing.")
+    from Testing import run_tests
+    run_tests(env, g, vc, c, s)
+    raise ValueError("Just for testing.")
 
     print("========== Setting the initial state of the model ================")
     s.initialization(g, vc, c)

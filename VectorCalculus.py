@@ -330,7 +330,7 @@ class VectorCalculus:
         self.mCurl_trig = A.tocsr( )
 
         if c.use_gpu:
-            self.d_mCurl = Device_CSR(self.mCurl, env)
+            self.d_mCurl_trig = Device_CSR(self.mCurl_trig, env)
             
         ## Construct the matrix representing the discrete Laplace operator (primal
         ## mesh). Homogeneous Neuman BC's are assumed.
@@ -432,21 +432,12 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mEdge2cell = Device_CSR(self.mEdge2cell, env)
 
-        self.mThicknessInv = eye(g.nEdges)   # This is only a space holder
-        if c.use_gpu:                        # Need to update at every step
-            self.d_mThicknessInv = Device_CSR(self.mThicknessInv.to_csr(), env)
 
         # A diagonal matrix representing scaling by cell areas
         self.mAreaCell = diags(g.areaCell, 0)
         if c.use_gpu:                        # Need to update at every step
             self.d_mAreaCell = Device_CSR(self.mAreaCell.to_csr(), env)
 
-        # To compute a few intermediate matrix products
-        AMC = self.mAreaCell * self.mVertex2cell * self.mCurl_trig
-        AD = self.mAreaCell * self.mDiv
-        SN = self.mSkewgrad * self.mCell2vertex
-        self.leftM = bmat([[AMC],[AD]])
-        self.rightM = bmat([[SN, self.mGrad_n]])
 
         self.scalar_cell = np.zeros(g.nCells)
         self.scalar_vertex = np.zeros(g.nVertices)
@@ -480,6 +471,7 @@ class VectorCalculus:
 
     def discrete_curl(self, vEdge):
         '''
+        The discrete curl operator on the primal mesh.
         No-slip boundary conditions implied on the boundary.
         '''
 
@@ -501,6 +493,30 @@ class VectorCalculus:
         else:
             return self.mCurl.dot(vEdge)
 
+
+    def discrete_curl_trig(self, vEdge):
+        '''
+        The discrete curl operator on the dual mesh.
+        '''
+
+        if c.use_gpu:
+            assert len(vEdge) == self.d_mCurl_trig.shape[1], \
+                "Dimensions do not match."
+            d_vectorIn = self.env.cuda.to_device(vEdge)
+
+            sCell = np.zeros(self.d_mCurl_trig.shape[0])
+            d_vectorOut = self.env.cuda.to_device(sCell)
+            self.env.cuSparse.csrmv(trans='N', m=self.d_mCurl_trig.shape[0], \
+                n=self.d_mCurl_trig.shape[1], nnz=self.d_mCurl_trig.nnz, alpha=1.0, \
+                descr=self.d_mCurl_trig.cuSparseDescr, csrVal=self.d_mCurl_trig.dData, \
+                csrRowPtr=self.d_mCurl_trig.dPtr, csrColInd=self.d_mCurl_trig.dInd, \
+                           x=d_vectorIn, beta=0., y=d_vectorOut)
+            d_vectorOut.copy_to_host(sCell)
+            return sCell
+
+        else:
+            return self.mCurl_trig.dot(vEdge)
+        
 
     def discrete_laplace(self, sCell):
         '''
@@ -616,6 +632,27 @@ class VectorCalculus:
         else:
             return self.mCell2vertex.dot(sCell)
 
+
+    def vertex2cell(self, sVertex):
+
+        if c.use_gpu:
+            assert len(sVertex) == self.d_mVertex2cell.shape[1], \
+                "Dimensions do not match."
+            d_vectorIn = self.env.cuda.to_device(sVertex)
+
+            vOut = np.zeros(self.d_mVertex2cell.shape[0])
+            d_vectorOut = self.env.cuda.to_device(vOut)
+            self.env.cuSparse.csrmv(trans='N', m=self.d_mVertex2cell.shape[0], \
+                n=self.d_mVertex2cell.shape[1], nnz=self.d_mVertex2cell.nnz, alpha=1.0, \
+                descr=self.d_mVertex2cell.cuSparseDescr, csrVal=self.d_mVertex2cell.dData, \
+                csrRowPtr=self.d_mVertex2cell.dPtr, csrColInd=self.d_mVertex2cell.dInd, \
+                           x=d_vectorIn, beta=0., y=d_vectorOut)
+            d_vectorOut.copy_to_host(vOut)
+            return vOut
+
+        else:
+            return self.mVertex2cell.dot(sVertex)
+        
     def cell2edge(self, sCell):
 
         if c.use_gpu:
@@ -656,28 +693,9 @@ class VectorCalculus:
         else:
             return self.mEdge2cell.dot(sEdge)
 
-
-    def update_coefficient_matrix(self, thickness):
-        self.mThicknessInv.data[0,:] = 1./thickness
-        self.coefM = self.leftM * self.mThicknessInv * self.rightM
-
-        nCells = self.coefM.shape[0]/2
-        
-        if self.on_a_global_sphere:
-            self.coefM[0,:] = 0.
-            self.coefM[:,0] = 0.
-            self.coefM[0,0] = 1.
-
-            self.coefM[nCells, :] = 0.
-            self.coefM[:, nCells] = 0.
-            self.coefM[nCells, nCells] = 1.
-        else:
-            raise ValueError("Case not handled")
         
         
         
         
-        
-
 
         
