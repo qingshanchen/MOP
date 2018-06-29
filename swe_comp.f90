@@ -575,16 +575,19 @@ subroutine construct_matrix_discrete_curl_trig(nEdges, nVertices,  &
         vertex0 = verticesOnEdge(iEdge,0) - 1
         vertex1 = verticesOnEdge(iEdge,1) - 1
 
-        rows(iEntry) = vertex0
-        cols(iEntry) = iEdge
-        valEntries(iEntry) = -dcEdge(iEdge) / areaTriangle(vertex0)
-        iEntry = iEntry + 1
+        if (vertex0 .GE. 0) then
+            rows(iEntry) = vertex0
+            cols(iEntry) = iEdge
+            valEntries(iEntry) = -dcEdge(iEdge) / areaTriangle(vertex0)
+            iEntry = iEntry + 1
+        end if
 
-        rows(iEntry) = vertex1
-        cols(iEntry) = iEdge
-        valEntries(iEntry) = dcEdge(iEdge) / areaTriangle(vertex1)
-        iEntry = iEntry + 1
-        
+        if (vertex1 .GE. 0) then
+            rows(iEntry) = vertex1
+            cols(iEntry) = iEdge
+            valEntries(iEntry) = dcEdge(iEdge) / areaTriangle(vertex1)
+            iEntry = iEntry + 1
+        end if
   end do
 
   nEntries = iEntry
@@ -714,6 +717,7 @@ end subroutine separate_boundary_interior_cells
 
 ! cellBoundary: cells on the boundary
 ! cellInterior: cells not on the boundary
+! cellRankInterior: the index of an interior cell in the sequence of all interior cells
 ! cellInner: cells that are not connected with boundary cells
 ! cellOuter: cells that are not inner cells
 subroutine separate_boundary_interior_inner_cells(nCells, maxEdges, &

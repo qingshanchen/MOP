@@ -64,33 +64,48 @@ class state_data:
         # Coefficient matrix for the big linear system
         from scipy.sparse import eye, bmat
         from VectorCalculus import Device_CSR
+        import time
+
+        cpu0 = time.clock()
+        wall0 = time.time( )
         self.coefM = None
         AMC = vc.mAreaCell * vc.mVertex2cell * vc.mCurl_trig
         AD = vc.mAreaCell * vc.mDiv
         SN = vc.mSkewgrad * vc.mCell2vertex
         
-        self.leftM = bmat([[AMC],[AD]], format='csr')
-        self.rightM = bmat([[SN, vc.mGrad_n]], format='csr')
+        leftM = bmat([[AMC],[AD]], format='lil')
+        rightM = bmat([[SN, vc.mGrad_n]], format='lil')
 
         if c.on_a_global_sphere:
             # Set certain rows and columns to zeros for setting
             # psi_0 and phi_0 to zeros later
-            self.leftM[0,:] = 0.     # Set row 0 to 0
-            self.leftM[g.nCells,:] = 0.   # Set row nCells to 0
-            self.leftM.eliminate_zeros( )
-
-            self.rightM[:,0] = 0.         # Set clmn 0 to 0
-            self.rightM[:,g.nCells] = 0.  # Set clmn nCells to 0
-            self.rightM.eliminate_zeros( )
+            leftM[0,:] = 0.     # Set row 0 to 0
+            leftM[g.nCells,:] = 0.   # Set row nCells to 0
+            rightM[:,0] = 0.         # Set clmn 0 to 0
+            rightM[:,g.nCells] = 0.  # Set clmn nCells to 0
         else:
-            raise ValueError("Case not handled")
+            leftM[vc.cellBoundary-1,:] = 0.
+            leftM[g.nCells, :] = 0.
+            rightM[:, vc.cellBoundary-1] = 0.
+            rightM[:, g.nCells] = 0.
+
+        self.leftM = leftM.tocsr( )
+        self.rightM = rightM.tocsr( )
+        self.leftM.eliminate_zeros( )
+        self.rightM.eliminate_zeros( )
+        
+        cpu1 = time.clock( )
+        wall1 = time.time( )
+        print(("CPU time for preparing matrices: %f" % (cpu1-cpu0,)))
+        print(("Wall time for preparing matrices: %f" % (wall1-wall0,)))
+        
 
         self.mThicknessInv = eye(g.nEdges)   # This is only a space holder
         if c.use_gpu:                        # Need to update at every step
             self.d_mThicknessInv = Device_CSR(self.mThicknessInv.to_csr(), env)
         
 
-    def update_coefficient_matrix(self, g, c):
+    def update_coefficient_matrix(self, vc, g, c):
         self.mThicknessInv.data[0,:] = 1./self.thickness_edge
         self.coefM = self.leftM * self.mThicknessInv * self.rightM
 
@@ -98,9 +113,14 @@ class state_data:
             self.coefM[0,0] = 1.
             self.coefM[g.nCells, g.nCells] = 1.
         else:
-            raise ValueError("Case not handled")
+            #self.coefM[vc.cellBoundary - 1, :] = 0.
+            #self.coefM[:, vc.cellBoundary - 1] = 0.
+            #self.coefM[g.nCells, :] = 0.
+            #self.coefM[:, g.nCells] = 0.
 
-
+            self.coefM[vc.cellBoundary-1, vc.cellBoundary-1] = 1.
+            self.coefM[g.nCells, g.nCells] = 1.
+            
     def start_from_function(self, g, c):
 
         latmin = np.min(g.latCell[:]); latmax = np.max(g.latCell[:])
@@ -482,7 +502,15 @@ class state_data:
             self.phi_cell[:] = x[g.nCells:]
             
         else:
-            raise ValueError("Case not handled yet.")
+            # A bounded domain with homogeneous Dirichlet for the psi and
+            # homogeneous Neumann for phi
+            self.vortdiv[:g.nCells] = self.vorticity * g.areaCell
+            self.vortdiv[g.nCells:] = self.divergence * g.areaCell
+            self.vortdiv[vc.cellBoundary-1] = 0.   # Set boundary elements to zeor to make psi_cell zero there
+            self.vortdiv[g.nCells] = 0.   # Set first element to zeor to make phi_cell[0] zero
+            x = spsolve(self.coefM, self.vortdiv)
+            self.psi_cell[:] = x[:g.nCells]
+            self.phi_cell[:] = x[g.nCells:]
             
         return 0
 

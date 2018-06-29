@@ -71,14 +71,18 @@ def run_tests(env, g, vc, c, s):
 
         cpu0 = time.clock( )
         wall0 = time.time( )
-        s.update_coefficient_matrix(g, c)
+        s.update_coefficient_matrix(vc, g, c)
         cpu1 = time.clock( )
         wall1 = time.time( )
         print(("CPU time for updating matrix: %f" % (cpu1-cpu0,)))
         print(("Wall time for updating matrix: %f" % (wall1-wall0,)))
-        
+
         psi_cell_true = np.random.rand(g.nCells) * 2.4e+9
-        psi_cell_true[0] = 0.
+        if c.on_a_global_sphere:
+            psi_cell_true[0] = 0.
+        else:
+            psi_cell_true[vc.cellBoundary[:]-1] = 0.
+            
         phi_cell_true = np.random.rand(g.nCells) * 2.4e+9
         phi_cell_true[0] = 0.
 

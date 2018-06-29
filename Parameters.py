@@ -1,8 +1,8 @@
 import numpy as np
 
 ### Parameters essential
-test_case = 5
-on_a_global_sphere = True
+test_case = 12
+on_a_global_sphere = False
 use_gpu = False
 
 ### Parameters secondary
