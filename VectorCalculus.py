@@ -350,11 +350,22 @@ class VectorCalculus:
             cmp.construct_matrix_discrete_grad_n(g.cellsOnEdge, g.dcEdge)
         A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
                                cols[:nEntries])), shape=(g.nEdges, g.nCells))
-        self.mGrad_n = A.tocsr( )
+        self.mGradn = A.tocsr( )
 
         if c.use_gpu:
-            self.d_mGrad_n = Device_CSR(self.mGrad_n, env)
+            self.d_mGradn = Device_CSR(self.mGradn, env)
 
+        ## Construct the matrix representing the discrete grad operator for the primal
+        ## mesh. 
+        nEntries, rows, cols, valEntries = \
+            cmp.construct_matrix_discrete_gradn_phi(g.cellsOnEdge, g.dcEdge)
+        A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
+                               cols[:nEntries])), shape=(g.nEdges, g.nCells))
+        self.mGradn_phi = A.tocsr( )
+
+        if c.use_gpu:
+            self.d_mGradn_phi = Device_CSR(self.mGradn_phi, env)
+            
         ## Construct the matrix representing the discrete grad operator for
         ## the primal mesh. 
         nEntries, rows, cols, valEntries = \
@@ -364,7 +375,7 @@ class VectorCalculus:
         self.mSkewgrad = A.tocsr( )
 
         if c.use_gpu:
-            self.d_mGrad_n = Device_CSR(self.mGrad_n, env)
+            self.d_mSkewgrad = Device_CSR(self.mSkewgrad, env)
             
 
         ## Construct the matrix representing the discrete grad operator for the dual
@@ -401,6 +412,17 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mCell2vertex = Device_CSR(self.mCell2vertex, env)
 
+        ## Construct the matrix representing the mapping from the primary mesh onto the dual
+        ## mesh; homogeneous Dirichlet BC's are assumed
+        nEntries, rows, cols, valEntries = \
+            cmp.construct_matrix_cell2vertex_psi(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.boundaryCellMark, c.on_a_global_sphere)
+        A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
+                               cols[:nEntries])), shape=(g.nVertices, g.nCells))
+        self.mCell2vertex_psi = A.tocsr( )
+
+        if c.use_gpu:
+            self.d_mCell2vertex_psi = Device_CSR(self.mCell2vertex_psi, env)
+            
         ## Construct the matrix representing the mapping from the dual mesh onto the primal
         ## mesh
         nEntries, rows, cols, valEntries = \
@@ -434,7 +456,19 @@ class VectorCalculus:
 
 
         # A diagonal matrix representing scaling by cell areas
-        self.mAreaCell = diags(g.areaCell, 0)
+        self.mAreaCell = diags(g.areaCell, 0, format='csr')
+        self.mAreaCell_phi = self.mAreaCell.copy( )
+        self.mAreaCell_phi[0,0] = 0.
+        self.mAreaCell_phi.eliminate_zeros( )
+
+        if c.on_a_global_sphere:
+            self.mAreaCell_psi = self.mAreaCell_phi.copy( )
+        else:
+            areaCell_psi = g.areaCell.copy( )
+            areaCell_psi[self.cellBoundary - 1] = 0.
+            self.mAreaCell_psi = diags(areaCell_psi, 0, format='csr')
+            self.mAreaCell_psi.eliminate_zeros( )
+            
         if c.use_gpu:                        # Need to update at every step
             self.d_mAreaCell = Device_CSR(self.mAreaCell.to_csr(), env)
 
@@ -546,22 +580,22 @@ class VectorCalculus:
     def discrete_grad_n(self, sCell):
 
         if c.use_gpu:
-            assert len(sCell) == self.d_mGrad_n.shape[1], \
+            assert len(sCell) == self.d_mGradn.shape[1], \
                 "Dimensions do not match."
             d_vectorIn = self.env.cuda.to_device(sCell)
 
-            vOut = np.zeros(self.d_mGrad_n.shape[0])
+            vOut = np.zeros(self.d_mGradn.shape[0])
             d_vectorOut = self.env.cuda.to_device(vOut)
-            self.env.cuSparse.csrmv(trans='N', m=self.d_mGrad_n.shape[0], \
-                n=self.d_mGrad_n.shape[1], nnz=self.d_mGrad_n.nnz, alpha=1.0, \
-                descr=self.d_mGrad_n.cuSparseDescr, csrVal=self.d_mGrad_n.dData, \
-                csrRowPtr=self.d_mGrad_n.dPtr, csrColInd=self.d_mGrad_n.dInd, \
+            self.env.cuSparse.csrmv(trans='N', m=self.d_mGradn.shape[0], \
+                n=self.d_mGradn.shape[1], nnz=self.d_mGradn.nnz, alpha=1.0, \
+                descr=self.d_mGradn.cuSparseDescr, csrVal=self.d_mGradn.dData, \
+                csrRowPtr=self.d_mGradn.dPtr, csrColInd=self.d_mGradn.dInd, \
                            x=d_vectorIn, beta=0., y=d_vectorOut)
             d_vectorOut.copy_to_host(vOut)
             return vOut
 
         else:
-            return self.mGrad_n.dot(sCell)
+            return self.mGradn.dot(sCell)
 
 
     # The discrete gradient operator on the dual mesh, assuming

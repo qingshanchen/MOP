@@ -60,6 +60,47 @@ subroutine construct_matrix_cell2vertex(nVertices, vertexDegree, &
 end subroutine construct_matrix_cell2vertex
 
 
+subroutine construct_matrix_cell2vertex_psi(nVertices, vertexDegree, nCells, &
+     cellsOnVertex, kiteAreasOnVertex, areaTriangle, boundaryCellMark, onGlobalSphere, &
+     nEntries, rows, cols, valEntries)
+  integer, intent(in) :: nVertices, vertexDegree, nCells
+  integer, intent(in) :: cellsOnVertex(0:nVertices-1, 0:vertexDegree-1), &
+                         boundaryCellMark(0:nCells-1), onGlobalSphere
+  double precision, intent(in)  :: kiteAreasOnVertex(0:nVertices-1, 0:vertexDegree-1), &
+       areaTriangle(0:nVertices-1)
+  integer, intent(out)  :: nEntries, rows(0:nVertices*vertexDegree-1), cols(0:nVertices*vertexDegree-1)
+  double precision, intent(out) :: valEntries(0:nVertices*vertexDegree-1)
+
+  integer :: iVertex, iCell, i, iEntry
+
+  iEntry = 0
+
+  do iVertex = 0, nVertices-1
+      do i = 0, vertexDegree-1
+         iCell = cellsOnVertex(iVertex, i) - 1
+
+         if (onGlobalSphere == 1) then
+            if (iCell > 0) then
+                rows(iEntry) = iVertex
+                cols(iEntry) = iCell
+                valEntries(iEntry) = kiteAreasOnVertex(iVertex, i) / areaTriangle(iVertex)
+                iEntry = iEntry + 1
+             endif
+         else
+             if (boundaryCellMark(iCell) .EQ. 0) then
+                rows(iEntry) = iVertex
+                cols(iEntry) = iCell
+                valEntries(iEntry) = kiteAreasOnVertex(iVertex, i) / areaTriangle(iVertex)
+                iEntry = iEntry + 1
+             end if
+         endif
+      end do
+   end do
+   nEntries = iEntry
+
+end subroutine construct_matrix_cell2vertex_psi
+
+
 subroutine construct_matrix_vertex2cell(nVertices, nCells, vertexDegree, &
      cellsOnVertex, kiteAreasOnVertex, areaCell,  &
      nEntries, rows, cols, valEntries)
@@ -1088,6 +1129,44 @@ subroutine construct_matrix_discrete_grad_n(nEdges, &
    nEntries = iEntry
 
 end subroutine construct_matrix_discrete_grad_n
+
+
+! Construct the discrete gradient operator on the primal mesh
+! phi is assumed to be zero at index = 0.
+subroutine construct_matrix_discrete_gradn_phi(nEdges, &
+     cellsOnEdge, dcEdge, &
+     nEntries, rows, cols, valEntries)
+  integer, intent(in) :: nEdges
+  integer, intent(in) :: cellsOnEdge(0:nEdges-1, 0:1)
+  double precision, intent(in)  :: dcEdge(0:nEdges-1)
+  double precision, intent(out) :: valEntries(0:2*nEdges-1)
+  integer, intent(out) :: nEntries, rows(0:2*nEdges-1), cols(0:2*nEdges-1)
+
+  integer :: iEdge, cell0, cell1, iEntry
+
+  iEntry = 0
+  do iEdge = 0, nEdges-1
+        cell0 = cellsOnEdge(iEdge,0) - 1
+        cell1 = cellsOnEdge(iEdge,1) - 1
+
+        if (cell0 > 0) then
+            rows(iEntry) = iEdge
+            cols(iEntry) = cell0
+            valEntries(iEntry) = -1./dcEdge(iEdge)
+            iEntry = iEntry + 1
+        endif
+
+        if (cell1 > 0) then
+            rows(iEntry) = iEdge
+            cols(iEntry) = cell1
+            valEntries(iEntry) = 1./dcEdge(iEdge)
+            iEntry = iEntry + 1
+        end if
+   end do
+
+   nEntries = iEntry
+
+end subroutine construct_matrix_discrete_gradn_phi
 
 
 subroutine construct_matrix_discrete_grad_td(nEdges, &
