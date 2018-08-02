@@ -274,10 +274,8 @@ class state_data:
             #c.delVisc = 0.
             #c.del2Visc = 0.
             
-            
         else:
             raise ValueError("Invaid choice for the test case.")
-
                                                 
         # Set time to zero
         self.time = 0.0
@@ -370,26 +368,6 @@ class state_data:
         self.tend_divergence[:] -= c.bottomDrag * self.divergence[:]
         self.tend_divergence[:] += c.delVisc * vc.discrete_laplace(self.divergence)
 
-        ### For Debug##########
-        # Potential enstrophy tendency
-#        div_hu = cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, thicknessTransport)
-#        div_etau = cmp.discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorTransport)
-#        a = np.sum(div_etau * self.pv_cell * g.areaCell)
-#        b = -0.5 * np.sum(div_hu * self.pv_cell * self.pv_cell * g.areaCell)
-#        tend_pe = a + b
-#        print("a = %.15e" % a)
-#        print("b = %.15e" % b)
-#        print("tend_pe = %e" % tend_pe)
-
-#        grad_pv = cmp.discrete_grad_n(self.pv_cell, g.cellsOnEdge, g.dcEdge)
-#        grad_pv2 = cmp.discrete_grad_n(self.pv_cell*self.pv_cell, g.cellsOnEdge, g.dcEdge)
-#        a = -np.sum(absVorTransport * grad_pv * g.dcEdge * g.dvEdge)
-#        b = np.sum(thicknessTransport * grad_pv2 * g.dcEdge *g.dvEdge)/2.
-#        tend_pe = a + b
-#        print("a = %.15e" % a)
-#        print("b = %.15e" % b)
-#        print("tend_pe = %e" % tend_pe)
-        
         
     def compute_diagnostics(self, g, vc, c):
         # Compute diagnostic variables from pv_cell
