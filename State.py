@@ -547,27 +547,6 @@ class state_data:
         
         out.close( )
         
-#def iterative_solver(A, b, x0, c):
-#    x, err = cg(A, b, x0=x0, tol=c.err_tol, maxiter=c.max_iter)#
-
-#    if err > 0:
-#        raise ValueError("Convergence not achieved after %d iterations." % err)
-#    elif err < 0:
-#        raise ValueError("Something is wrong in iterative_solver. Program abort.")
-#    else:
-#        return x
-
-#def pysparse_iterative_solver(A, b, x, K, c):#
-
-#    info, iter, relres = krylov.gmres(A, b, x, c.err_tol, c.max_iter, K)
-
-#    if info < 0:
-#        raise ValueError("Convergence not achieved after %d iterations. Error code %d." % (iter, info))
-#    else:
-        #print("x[1001] = %e" % x[1001])
-#        print(("iter = %d" % iter))
-#        print(("relres = %e" % relres))
-#        return info
     
 def timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, g, vc, c):
 

@@ -2,7 +2,7 @@ import numpy as np
 import Parameters as c
 from ComputeEnvironment import ComputeEnvironment
 from Grid import grid_data
-from SWEs import state_data, timestepping_rk4_z_hex
+from State import state_data, timestepping_rk4_z_hex
 from VectorCalculus import VectorCalculus
 from matplotlib import use
 use('Agg')
