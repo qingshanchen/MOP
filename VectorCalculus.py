@@ -7,6 +7,66 @@ from LinearAlgebra import cg, pcg, cudaCG, cudaPCG
 #from pyamg import rootnode_solver
 #import time
 
+class EllipticCPL:
+    def __init__(self, A, linear_solver, env):
+
+        if linear_solver is 'lu':
+            self.A = A.tocsc( )
+            self.lu = splu(self.A)
+            
+        elif linear_solver is 'amgx':
+            import pyamgx
+
+            pyamgx.initialize( )
+
+            hA = A.tocsr( )
+            #AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS_JACOBI.json'
+            AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json'
+ 
+            cfg = pyamgx.Config( ).create_from_file(AMGX_CONFIG_FILE_NAME) 
+            rsc = pyamgx.Resources().create_simple(cfg)
+            mode = 'dDDI'
+
+            # Create solver:
+            self.amgx = pyamgx.Solver().create(rsc, cfg, mode)
+
+            # Create matrices and vectors:
+            self.d_A = pyamgx.Matrix().create(rsc, mode)
+            self.d_x = pyamgx.Vector().create(rsc, mode)
+            self.d_b = pyamgx.Vector().create(rsc, mode)
+
+            self.d_A.upload(hA)
+
+            # Setup and solve system:
+            # self.amgx.setup(d_A)
+
+            ## Clean up:
+            #A.destroy()
+            #x.destroy()
+            #b.destroy()
+            #self.amgx.destroy()
+            #rsc.destroy()
+            #cfg.destroy()
+
+            #pyamgx.finalize()
+        else:
+            raise ValueError("Invalid solver choice.")
+
+    def solve(self, A, b, x, env=None, linear_solver='lu'):
+        
+        if linear_solver is 'lu':
+            x[:] = spsolve(A, b)
+
+        elif linear_solver is 'amgx':
+            self.d_b.upload(b)
+            self.d_x.upload(x)
+            self.d_A.replace_coefficients(A.data)
+            self.amgx.setup(d_A)
+            self.amgx.solve(self.d_b, self.d_x)
+            self.d_x.download(x)
+        else:
+            raise ValueError("Invalid solver choice.")
+        
 class Poisson:
     def __init__(self, A, linear_solver, env):
 
