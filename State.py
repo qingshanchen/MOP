@@ -36,6 +36,7 @@ class state_data:
         self.psi_vertex_pred = np.zeros(g.nVertices)
         self.phi_cell = np.zeros(g.nCells)
         self.phi_vertex = np.zeros(g.nVertices)
+        self.psiphi = np.zeros(2*g.nCells)
         
         self.nVelocity = np.zeros(g.nEdges)
         self.tVelocity = np.zeros(g.nEdges)
@@ -61,36 +62,6 @@ class state_data:
         # Time keeper
         self.time = 0.0
 
-        # Coefficient matrix for the big linear system
-        from scipy.sparse import eye, bmat
-        from VectorCalculus import Device_CSR
-
-        self.coefM = None
-        AMC = vc.mAreaCell_psi * vc.mVertex2cell * vc.mCurl_trig
-        AD = vc.mAreaCell_phi * vc.mDiv
-        SN = vc.mSkewgrad * vc.mCell2vertex_psi
-        
-        self.leftM = bmat([[AMC],[AD]], format='csr')
-        self.rightM = bmat([[SN, vc.mGradn_phi]], format='csr')
-
-        self.leftM.eliminate_zeros( )
-        self.rightM.eliminate_zeros( )
-        
-        self.mThicknessInv = eye(g.nEdges)   # This is only a space holder
-        if c.use_gpu:                        # Need to update at every step
-            self.d_mThicknessInv = Device_CSR(self.mThicknessInv.to_csr(), env)
-        
-
-    def update_coefficient_matrix(self, vc, g, c):
-        self.mThicknessInv.data[0,:] = 1./self.thickness_edge
-        self.coefM = self.leftM * self.mThicknessInv * self.rightM
-
-        if c.on_a_global_sphere:
-            self.coefM[0,0] = 1.
-            self.coefM[g.nCells, g.nCells] = 1.
-        else:
-            self.coefM[vc.cellBoundary-1, vc.cellBoundary-1] = 1.
-            self.coefM[g.nCells, g.nCells] = 1.
             
     def start_from_function(self, g, c):
 
@@ -382,9 +353,6 @@ class state_data:
         self.thickness_edge[:] = vc.cell2edge(self.thickness)
         self.thickness_vertex[:] = vc.cell2vertex(self.thickness)
 
-        self.update_coefficient_matrix(g, c)
-        raise ValueError("The rest isn't ready for the prime time yet.")
-
         self.compute_psi_cell(vc, c)
         self.compute_phi_cell(vc, c)
 
@@ -437,8 +405,17 @@ class state_data:
 #        self.kinetic_energy[:] = cmp.edge2cell(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, kenergy_edge)
         self.kinetic_energy[:] = vc.edge2cell(kenergy_edge)
 
+
     def compute_psi_phi(self, vc, g, c):
         # To compute the psi_cell and phi_cell
+
+        import time
+        # Update the coefficient matrix for the coupled system
+        t0a = time.clock( )
+        t0b = time.time( )
+        vc.update_matrix_for_coupled_elliptic(self.thickness_edge, c, g)
+        t1a = time.clock( )
+        t1b = time.time( )
         
         if c.on_a_global_sphere:
             # A global domain with no boundary
@@ -446,9 +423,6 @@ class state_data:
             self.vortdiv[g.nCells:] = self.divergence * g.areaCell
             self.vortdiv[0] = 0.   # Set first element to zeor to make psi_cell[0] zero
             self.vortdiv[g.nCells] = 0.   # Set first element to zeor to make phi_cell[0] zero
-            x = spsolve(self.coefM, self.vortdiv)
-            self.psi_cell[:] = x[:g.nCells]
-            self.phi_cell[:] = x[g.nCells:]
             
         else:
             # A bounded domain with homogeneous Dirichlet for the psi and
@@ -457,76 +431,23 @@ class state_data:
             self.vortdiv[g.nCells:] = self.divergence * g.areaCell
             self.vortdiv[vc.cellBoundary-1] = 0.   # Set boundary elements to zeor to make psi_cell zero there
             self.vortdiv[g.nCells] = 0.   # Set first element to zeor to make phi_cell[0] zero
-            x = spsolve(self.coefM, self.vortdiv)
-            self.psi_cell[:] = x[:g.nCells]
-            self.phi_cell[:] = x[g.nCells:]
-            
+
+        t2a = time.clock( )
+        t2b = time.time( )
+        vc.POcpl.solve(vc.coefM, self.vortdiv, self.psiphi, linear_solver = c.linear_solver)
+        self.psi_cell[:] = self.psiphi[:g.nCells]
+        self.phi_cell[:] = self.psiphi[g.nCells:]
+        t3a = time.clock( )
+        t3b = time.time( )
+
+        print("cpu time to update matrix: %f" % (t1a-t0a))
+        print("wall time to update matrix: %f" % (t1b-t0b))
+        print("cpu time to prepare the rhs: %f" % (t2a-t1a))
+        print("wall time to prepare the rhs: %f" % (t2b-t1b))
+        print("cpu time to solve the linear system: %f" % (t3a-t2a))
+        print("wall time to solve the linear system: %f" % (t3b-t2b))
         return 0
-
         
-    def compute_psi_cell(self, vc, c):
-        # To compute the psi_cell using the elliptic equation on the
-        # interior cells
-
-        if not c.on_a_global_sphere:
-            # A bounded domain
-            vc.scalar_cell[:] = self.vorticity * vc.areaCell
-            vc.scalar_cell_interior[:] = self.psi_cell[vc.cellInterior[:]-1].copy( )
-            vc.POpd.solve(vc.scalar_cell[vc.cellInterior[:]-1], vc.scalar_cell_interior, \
-                          vc.env, c.linear_solver)
-            self.psi_cell[vc.cellInterior[:]-1] = vc.scalar_cell_interior[:]
-            self.psi_cell[vc.cellBoundary[:]-1] = 0.
-            
-        else:
-            # A global domain with no boundary
-            vc.scalar_cell[:] = self.vorticity * vc.areaCell
-            vc.scalar_cell[0] = 0.   # Set first element to zeor to make phi_cell[0] zero
-            self.psi_cell -= self.psi_cell[0]
-            vc.POpn.solve(vc.scalar_cell, self.psi_cell, vc.env, c.linear_solver)
-            
-        return 0
-
-
-    def compute_psi_vertex(self, vc, c):
-        # To compute the psi_cell using the elliptic equation on the
-        # interior cells
-
-        if not c.on_a_global_sphere:
-            vc.scalar_vertex[:] = self.vorticity_vertex * vc.areaTriangle
-            vc.POdd.solve(vc.scalar_vertex, self.psi_vertex, vc.env, c.linear_solver)
-            
-        else:
-            # A global domain with no boundary
-            vc.scalar_vertex = self.vorticity_vertex * vc.areaTriangle #Scaling
-            vc.scalar_vertex[0] = 0. # Set to zero to make x[0] zero
-
-            self.psi_vertex -= self.psi_vertex[0]   #Prepare the initial guess
-            vc.POdn.solve(vc.scalar_vertex, self.psi_vertex, vc.env, c.linear_solver)
-
-        return 0
-    
-    
-    def compute_phi_cell(self, vc, c):
-        # To compute the phi_cell from divergence
-        
-        vc.scalar_cell[:] = self.divergence * vc.areaCell
-        vc.scalar_cell[0] = 0.   # Set first element to zeor to make phi_cell[0] zero
-        self.phi_cell -= self.phi_cell[0]
-        
-        vc.POpn.solve(vc.scalar_cell, self.phi_cell, vc.env, c.linear_solver)
-        
-        return 0
-
-    def compute_phi_vertex(self, vc, c):
-        # To compute the phi_cell from divergence
-
-        vc.scalar_vertex = self.divergence_vertex * vc.areaTriangle                    #Scaling
-        vc.scalar_vertex[0] = 0.                                                       #Set to zero to make x[0] zero
-        self.phi_vertex -= self.phi_vertex[0]                                          #Prepare the initial guess
-        
-        vc.POdn.solve(vc.scalar_vertex, self.phi_vertex, vc.env, c.linear_solver)
-        return 0
-    
 
     def save(self, c, g, k):
         # Open the output file to save current data data

@@ -10,9 +10,9 @@ from LinearAlgebra import cg, pcg, cudaCG, cudaPCG
 class EllipticCPL:
     def __init__(self, A, linear_solver, env):
 
+
         if linear_solver is 'lu':
             self.A = A.tocsc( )
-            self.lu = splu(self.A)
             
         elif linear_solver is 'amgx':
             import pyamgx
@@ -20,8 +20,13 @@ class EllipticCPL:
             pyamgx.initialize( )
 
             hA = A.tocsr( )
+            AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_AGGREGATION_JACOBI.json'
+            #AMGX_CONFIG_FILE_NAME = 'amgx_config/AMG_AGGREGATION_CG.json'
+            #AMGX_CONFIG_FILE_NAME = 'amgx_config/FGMRES_AGGREGATION_JACOBI.json'
+            #AMGX_CONFIG_FILE_NAME = 'amgx_config/PBICGSTAB_AGGREGATION_W_JACOBI.json'
+            #AMGX_CONFIG_FILE_NAME = 'amgx_config/AGGREGATION_JACOBI.json'
+            #AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json'
             #AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS_JACOBI.json'
-            AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json'
  
             cfg = pyamgx.Config( ).create_from_file(AMGX_CONFIG_FILE_NAME) 
             rsc = pyamgx.Resources().create_simple(cfg)
@@ -35,7 +40,7 @@ class EllipticCPL:
             self.d_x = pyamgx.Vector().create(rsc, mode)
             self.d_b = pyamgx.Vector().create(rsc, mode)
 
-            self.d_A.upload(hA)
+            self.d_A.upload_CSR(hA)
 
             # Setup and solve system:
             # self.amgx.setup(d_A)
@@ -60,8 +65,9 @@ class EllipticCPL:
         elif linear_solver is 'amgx':
             self.d_b.upload(b)
             self.d_x.upload(x)
-            self.d_A.replace_coefficients(A.data)
-            self.amgx.setup(d_A)
+            #self.d_A.replace_coefficients(A.data)
+            self.d_A.upload_CSR(A)
+            self.amgx.setup(self.d_A)
             self.amgx.solve(self.d_b, self.d_x)
             self.d_x.download(x)
         else:
@@ -315,8 +321,9 @@ class VectorCalculus:
                         g.cellsOnEdge, g.boundaryCellMark, \
                         self.cellRankInterior, g.dvEdge, g.dcEdge, \
                         g.areaCell)
-            D1s_augmented_coo = coo_matrix((valEntries[:nEntries]*self.areaCell[self.cellInterior[rows[:nEntries]]-1], (rows[:nEntries], \
-                                   cols[:nEntries])), shape=(nCellsInterior, g.nCells))
+            D1s_augmented_coo = coo_matrix(( \
+                        valEntries[:nEntries]*self.areaCell[self.cellInterior[rows[:nEntries]]-1], \
+                        (rows[:nEntries], cols[:nEntries])), shape=(nCellsInterior, g.nCells))
             # Convert to csc sparse format
             D1s_augmented = D1s_augmented_coo.tocsc( )
 
@@ -325,7 +332,7 @@ class VectorCalculus:
             D1s.eliminate_zeros( )
 
             # Construct the Poisson object
-            self.POpd = Poisson(D1s, self.linear_solver, env)
+#            self.POpd = Poisson(D1s, self.linear_solver, env)
 
         # Construct matrix for discrete Laplacian on all cells, corresponding to the
         # Poisson problem with Neumann BC's, or to the Poisson problem on a global sphere (no boundary)
@@ -336,7 +343,7 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nCells, g.nCells))
         D2s_coo.eliminate_zeros( )
 
-        self.POpn = Poisson(D2s_coo, self.linear_solver, env)
+        #self.POpn = Poisson(D2s_coo, self.linear_solver, env)
         
 
         if not c.on_a_global_sphere:
@@ -350,7 +357,7 @@ class VectorCalculus:
             E1s_coo = coo_matrix((valEntries[:nEntries]*self.areaTriangle[rows[:nEntries]], \
                                   (rows[:nEntries], cols[:nEntries])), shape=(g.nVertices, g.nVertices))
             E1s_coo.eliminate_zeros( )
-            self.POdd = Poisson(E1s_coo, c.linear_solver, env)
+#            self.POdd = Poisson(E1s_coo, c.linear_solver, env)
 
         # Construct matrix for discrete Laplacian on the triangles, corresponding to the
         # Poisson problem with Neumann BC's, or to the Poisson problem on a global sphere (no boundary)
@@ -360,7 +367,7 @@ class VectorCalculus:
         E2s_coo = coo_matrix((valEntries[:nEntries]*g.areaTriangle[rows[:nEntries]], (rows[:nEntries], \
                                cols[:nEntries])), shape=(g.nVertices, g.nVertices))
         E2s_coo.eliminate_zeros( )
-        self.POdn = Poisson(E2s_coo, c.linear_solver, env)
+#        self.POdn = Poisson(E2s_coo, c.linear_solver, env)
 
         ## Construct the matrix representing the discrete div (on primal mesh)
         nEntries, rows, cols, valEntries = \
@@ -416,7 +423,7 @@ class VectorCalculus:
             self.d_mGradn = Device_CSR(self.mGradn, env)
 
         ## Construct the matrix representing the discrete grad operator for the primal
-        ## mesh. 
+        ## mesh. phi is assume to be zero at index = 0.
         nEntries, rows, cols, valEntries = \
             cmp.construct_matrix_discrete_gradn_phi(g.cellsOnEdge, g.dcEdge)
         A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
@@ -426,8 +433,8 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mGradn_phi = Device_CSR(self.mGradn_phi, env)
             
-        ## Construct the matrix representing the discrete grad operator for
-        ## the primal mesh. 
+        ## Construct the matrix representing the discrete skew grad operator 
+        ## on the dual mesh; homogeneous Dirichlet assumed.
         nEntries, rows, cols, valEntries = \
             cmp.construct_matrix_discrete_skewgrad(g.verticesOnEdge, g.dvEdge)
         A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
@@ -530,9 +537,39 @@ class VectorCalculus:
             self.mAreaCell_psi.eliminate_zeros( )
             
         if c.use_gpu:                        # Need to update at every step
-            self.d_mAreaCell = Device_CSR(self.mAreaCell.to_csr(), env)
+            self.d_mAreaCell = Device_CSR(self.mAreaCell, env)
 
+        ## Construct the coefficient matrix for the coupled elliptic
+        ## system for psi and phi
+        AMC = self.mAreaCell_psi * self.mVertex2cell * self.mCurl_trig
+        AD = self.mAreaCell_phi * self.mDiv
+        SN = self.mSkewgrad * self.mCell2vertex_psi
+        
+        self.leftM = bmat([[AMC],[AD]], format='csr')
+        self.rightM = bmat([[SN, self.mGradn_phi]], format='csr')
 
+        self.leftM.eliminate_zeros( )
+        self.rightM.eliminate_zeros( )
+
+        self.mThicknessInv = eye(g.nEdges)   # This is only a space holder
+#        if c.use_gpu:                        # Need to update at every step
+#            d_mThicknessInv = Device_CSR(self.mThicknessInv.to_csr(), env)
+        
+        thickness_edge = np.zeros(g.nEdges)
+        thickness_edge[:] = 1000.    # Any non-zero should suffice
+        self.mThicknessInv.data[0,:] = 1./thickness_edge
+        
+        self.coefM = self.leftM * self.mThicknessInv * self.rightM
+
+        if c.on_a_global_sphere:
+            self.coefM[0,0] = 1.
+            self.coefM[g.nCells, g.nCells] = 1.
+        else:
+            self.coefM[self.cellBoundary-1, self.cellBoundary-1] = 1.
+            self.coefM[g.nCells, g.nCells] = 1.
+        
+        self.POcpl = EllipticCPL(self.coefM, c.linear_solver, env)
+            
         self.scalar_cell = np.zeros(g.nCells)
         self.scalar_vertex = np.zeros(g.nVertices)
         if not c.on_a_global_sphere:
@@ -787,6 +824,18 @@ class VectorCalculus:
         else:
             return self.mEdge2cell.dot(sEdge)
 
+
+    def update_matrix_for_coupled_elliptic(self, thickness_edge, c, g):
+        self.mThicknessInv.data[0,:] = 1./thickness_edge
+        
+        self.coefM = self.leftM * self.mThicknessInv * self.rightM
+
+        if c.on_a_global_sphere:
+            self.coefM[0,0] = 1.
+            self.coefM[g.nCells, g.nCells] = 1.
+        else:
+            self.coefM[self.cellBoundary-1, self.cellBoundary-1] = 1.
+            self.coefM[g.nCells, g.nCells] = 1.
         
         
         
