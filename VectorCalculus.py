@@ -651,7 +651,7 @@ class VectorCalculus:
 
     def discrete_laplace(self, sCell):
         '''
-        No-slip boundary conditions implied on the boundary.
+        Homogeneous Neumann BC's implied on the boundary.
         '''
 
         if c.use_gpu:
@@ -742,6 +742,30 @@ class VectorCalculus:
         else:
             return self.mGrad_tn.dot(sVertex)
 
+
+    # The discrete skew gradient operator on the dual mesh, assuming
+    # homogeneous Dirichlet BC's
+    def discrete_skewgrad(self, sVertex):
+        '''With implied Neumann BC's'''
+
+        if c.use_gpu:
+            assert len(sVertex) == self.d_mSkewgrad.shape[1], \
+                "Dimensions do not match."
+            d_vectorIn = self.env.cuda.to_device(sVertex)
+
+            vOut = np.zeros(self.d_mSkewgrad.shape[0])
+            d_vectorOut = self.env.cuda.to_device(vOut)
+            self.env.cuSparse.csrmv(trans='N', m=self.d_mSkewgrad.shape[0], \
+                n=self.d_mSkewgrad.shape[1], nnz=self.d_mSkewgrad.nnz, alpha=1.0, \
+                descr=self.d_mSkewgrad.cuSparseDescr, csrVal=self.d_mSkewgrad.dData, \
+                csrRowPtr=self.d_mSkewgrad.dPtr, csrColInd=self.d_mSkewgrad.dInd, \
+                           x=d_vectorIn, beta=0., y=d_vectorOut)
+            d_vectorOut.copy_to_host(vOut)
+            return vOut
+
+        else:
+            return self.mSkewgrad.dot(sVertex)
+        
 
     def cell2vertex(self, sCell):
 

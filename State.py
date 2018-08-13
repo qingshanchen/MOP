@@ -46,6 +46,7 @@ class state_data:
         self.eta_cell = np.zeros(g.nCells)
         self.eta_edge = np.zeros(g.nEdges)
         self.kinetic_energy = np.zeros(g.nCells)
+        self.geoPot = np.zeros(g.nCells)
         
         self.tend_thickness = np.zeros(g.nCells)
         self.tend_vorticity = np.zeros(g.nCells)
@@ -59,6 +60,11 @@ class state_data:
         self.vpWind_cell = np.zeros(g.nCells)
         self.vpWind_vertex = np.zeros(g.nVertices)
 
+        # Some generic temporary vectors
+        self.vEdge = np.zeros(g.nEdges)
+        self.vCell = np.zeros(g.nCells)
+        self.vVertex = np.zeros(g.nVertices)
+        
         # Time keeper
         self.time = 0.0
 
@@ -322,23 +328,35 @@ class state_data:
 
     def compute_tendencies(self, g, c, vc):
 
-        thicknessTransport = self.thickness_edge[:] * self.nVelocity[:]
-        self.tend_thickness[:] = -vc.discrete_div(thicknessTransport)
+        self.tend_thickness[:] = -vc.discrete_laplace(self.phi_cell)
+
+        self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.psi_cell)
+        self.vVertex[:] = vc.discrete_curl_trig(self.vEdge)
+        self.tend_vorticity[:] = 0.5 * vc.vertex2cell(self.vVertex)
+
+        self.vVertex[:] = vc.cell2vertex(self.psi_cell)
+        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad(self.vVertex)
+        self.tend_vorticity[:] -= 0.5 * vc.discrete_div(self.vEdge)
+
+        self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.phi_cell)
+        self.tend_vorticity[:] -= vc.discrete_div(self.vEdge)
         
-        absVorTransport = self.eta_edge[:] * self.nVelocity[:]
-        self.tend_vorticity[:] = -vc.discrete_div(absVorTransport)
         self.tend_vorticity[:] += self.curlWind_cell / self.thickness[:]
         self.tend_vorticity[:] -= c.bottomDrag * self.vorticity[:]
         self.tend_vorticity[:] += c.delVisc * vc.discrete_laplace(self.vorticity)
-        
-        absVorCirc = self.eta_edge[:] * self.tVelocity[:]
-        geoPotent = c.gravity * (self.thickness[:] + g.bottomTopographyCell[:])  + self.kinetic_energy[:]
-        self.tend_divergence[:] = vc.discrete_curl(absVorCirc)
-        self.tend_divergence[:] -= vc.discrete_laplace(geoPotent)
-        self.tend_divergence[:] += self.divWind_cell/self.thickness[:]
-        self.tend_divergence[:] -= c.bottomDrag * self.divergence[:]
-        self.tend_divergence[:] += c.delVisc * vc.discrete_laplace(self.divergence)
 
+        self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.psi_cell)
+        self.tend_divergence[:] = vc.discrete_div(self.vEdge)
+
+        self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.phi_cell)
+        self.vVertex[:] = vc.discrete_curl_trig(self.vEdge)
+        self.tend_divergence[:] += 0.5 * vc.vertex2cell(self.vVertex)
+
+        self.vVertex[:] = vc.cell2vertex(self.phi_cell)
+        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad(self.vVertex)
+        self.tend_divergence[:] -= 0.5 * vc.discrete_div(self.vEdge)
+
+        self.tend_divergence[:] -= vc.discrete_laplace(self.geoPot)
         
     def compute_diagnostics(self, g, vc, c):
         # Compute diagnostic variables from pv_cell
@@ -353,40 +371,8 @@ class state_data:
         self.thickness_edge[:] = vc.cell2edge(self.thickness)
         self.thickness_vertex[:] = vc.cell2vertex(self.thickness)
 
-        self.compute_psi_cell(vc, c)
-        self.compute_phi_cell(vc, c)
-
-        # Only to recalculate vorticity on the boundary to ensure zero average. Necessary for a global domain, or a bounded domain with no-slip BCs
-        #print("max and min of vorticity: %e %e " % (np.max(self.vorticity), np.min(self.vorticity)))
-        if c.on_a_global_sphere or c.no_slip_BC or c.delVisc > np.finfo('float32').tiny:
-            self.vorticity[:] = vc.discrete_laplace(self.psi_cell)
-
-            
-        elif c.free_slip_BC:
-            self.vorticity[vc.cellBoundary[:]-1] = 0.
-
-        # Only to re-calcualte divergence[0] to ensure zero average. This is absoutely necessary when there are external forcings
-        #print("max and min of divergence: %e %e " % (np.max(self.divergence), np.min(self.divergence)))
-        self.divergence[:] = vc.discrete_laplace(self.phi_cell)
-
-        # Map vorticity and divergence to the dual mesh, and then compute the streamfunction and velocity potential
-        # on dual mesh
-        self.vorticity_vertex[:] = vc.cell2vertex(self.vorticity)
-        self.divergence_vertex[:] = vc.cell2vertex(self.divergence)
-
-        # Compute psi_vertex and phi_vertex from vorticity_vertex and divergence_vertex
-        #self.psi_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.psi_cell)
-        #self.phi_vertex[:] = cmp.cell2vertex(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.verticesOnEdge, self.phi_cell)
-        self.compute_psi_vertex(vc, c)
-        self.compute_phi_vertex(vc, c)
+        self.compute_psi_phi(vc, g, c)
         
-        # compute the normal and tangential velocity components
-        self.nVelocity = vc.discrete_grad_n(self.phi_cell)
-        self.nVelocity -= vc.discrete_grad_td(self.psi_vertex)
-        
-        self.tVelocity = vc.discrete_grad_n(self.psi_cell)
-        self.tVelocity += vc.discrete_grad_tn(self.phi_vertex)
-
         # Compute the absolute vorticity
         self.eta_cell = self.vorticity + g.fCell
 
@@ -396,58 +382,40 @@ class state_data:
         # Map from cell to edge
         self.pv_edge[:] = vc.cell2edge(self.pv_cell)
 
-        # Compute absolute vorticity on edge
-        self.eta_edge[:] = self.pv_edge[:] * self.thickness_edge[:]
+        # Compute the kinetic energy
+        self.nVelocity[:] = vc.discrete_grad_n(self.phi_cell)
+        self.nVelocity -= vc.discrete_grad_td(self.psi_vertex)
+        self.nVelocity /= self.thickness_edge
 
-        # Compute kinetic energy
-        #self.compute_kinetic_energy(g, c)
-        kenergy_edge = 0.5 * (self.nVelocity * self.nVelocity + self.tVelocity * self.tVelocity )
-#        self.kinetic_energy[:] = cmp.edge2cell(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, kenergy_edge)
-        self.kinetic_energy[:] = vc.edge2cell(kenergy_edge)
+        self.kinetic_energy[:] = vc.edge2cell(self.nVelocity * self.nVelocity)
+
+        self.geoPot[:] = c.gravity * (self.thickness[:] + g.bottomTopographyCell[:])  + self.kinetic_energy[:]
 
 
     def compute_psi_phi(self, vc, g, c):
         # To compute the psi_cell and phi_cell
 
-        import time
         # Update the coefficient matrix for the coupled system
-        t0a = time.clock( )
-        t0b = time.time( )
         vc.update_matrix_for_coupled_elliptic(self.thickness_edge, c, g)
-        t1a = time.clock( )
-        t1b = time.time( )
+        
+        self.vortdiv[:g.nCells] = self.vorticity * g.areaCell
+        self.vortdiv[g.nCells:] = self.divergence * g.areaCell
         
         if c.on_a_global_sphere:
             # A global domain with no boundary
-            self.vortdiv[:g.nCells] = self.vorticity * g.areaCell
-            self.vortdiv[g.nCells:] = self.divergence * g.areaCell
             self.vortdiv[0] = 0.   # Set first element to zeor to make psi_cell[0] zero
             self.vortdiv[g.nCells] = 0.   # Set first element to zeor to make phi_cell[0] zero
             
         else:
             # A bounded domain with homogeneous Dirichlet for the psi and
             # homogeneous Neumann for phi
-            self.vortdiv[:g.nCells] = self.vorticity * g.areaCell
-            self.vortdiv[g.nCells:] = self.divergence * g.areaCell
             self.vortdiv[vc.cellBoundary-1] = 0.   # Set boundary elements to zeor to make psi_cell zero there
             self.vortdiv[g.nCells] = 0.   # Set first element to zeor to make phi_cell[0] zero
 
-        t2a = time.clock( )
-        t2b = time.time( )
         vc.POcpl.solve(vc.coefM, self.vortdiv, self.psiphi, linear_solver = c.linear_solver)
         self.psi_cell[:] = self.psiphi[:g.nCells]
         self.phi_cell[:] = self.psiphi[g.nCells:]
-        t3a = time.clock( )
-        t3b = time.time( )
 
-        print("cpu time to update matrix: %f" % (t1a-t0a))
-        print("wall time to update matrix: %f" % (t1b-t0b))
-        print("cpu time to prepare the rhs: %f" % (t2a-t1a))
-        print("wall time to prepare the rhs: %f" % (t2b-t1b))
-        print("cpu time to solve the linear system: %f" % (t3a-t2a))
-        print("wall time to solve the linear system: %f" % (t3b-t2b))
-        return 0
-        
 
     def save(self, c, g, k):
         # Open the output file to save current data data
