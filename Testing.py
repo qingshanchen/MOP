@@ -1,13 +1,8 @@
 import numpy as np
 import time
-from LinearAlgebra import cg, cudaCG, cudaPCG, pcg
-#from pyamg import rootnode_solver
-#from pyamg.util.linalg import norm
-from numpy import ones, array, arange, zeros, abs, random
 from scipy.sparse import isspmatrix_bsr, isspmatrix_csr
 from scipy.sparse.linalg import factorized, splu
-#from solver_diagnostics import solver_diagnostics
-from accelerate import cuda
+#from accelerate import cuda
 from copy import deepcopy as deepcopy
 import numba
 from swe_comp import swe_comp as cmp

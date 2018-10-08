@@ -4,17 +4,15 @@ from Grid import grid_data
 from ComputeEnvironment import ComputeEnvironment
 from VectorCalculus import VectorCalculus
 import netCDF4 as nc
-from matplotlib import use
-use('Agg')
-import matplotlib.pyplot as plt
+#from matplotlib import use
+#use('Agg')
+#import matplotlib.pyplot as plt
 from swe_comp import swe_comp as cmp
 import os
 from copy import deepcopy as deepcopy
-from scipy.io import mmwrite
-from scipy.sparse.linalg import spsolve
-
 
 max_int = np.iinfo('int32').max
+max_double = np.finfo('float64').max
 
 
 class state_data:
@@ -45,8 +43,13 @@ class state_data:
         self.thickness_edge = np.zeros(g.nEdges)
         self.eta_cell = np.zeros(g.nCells)
         self.eta_edge = np.zeros(g.nEdges)
-        self.kinetic_energy = np.zeros(g.nCells)
+        self.kenergy = np.zeros(g.nCells)
         self.geoPot = np.zeros(g.nCells)
+
+        self.SS0 = 0.     # Sea Surface at rest
+        self.kinetic_energy = 0.
+        self.pot_energy = 0.
+        self.pot_enstrophy = 0.
         
         self.tend_thickness = np.zeros(g.nCells)
         self.tend_vorticity = np.zeros(g.nCells)
@@ -97,6 +100,8 @@ class state_data:
             self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
             self.divergence[:] = 0.
             #self.compute_diagnostics(g, c)
+
+            self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
             
 
         elif c.test_case == 2:
@@ -165,6 +170,8 @@ class state_data:
 
                 raise ValueError("Abort after testing in start_from_function")
 
+            self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
+
         elif c.test_case == 5:
             a = c.earth_radius
             u0 = 20.
@@ -191,6 +198,8 @@ class state_data:
             self.psi_vertex[:] -= self.psi_vertex[0]
             self.phi_vertex[:] = 0.
             
+            self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
+
             #self.compute_diagnostics(g, c)
 
             self.curlWind_cell[:] = 0.
@@ -226,6 +235,8 @@ class state_data:
             self.curlWind_cell[:] = -tau0 * np.pi/(latwidth*r) * \
                                     np.sin(np.pi*(g.latCell[:]-latmin) / latwidth)
             self.divWind_cell[:] = 0.
+            
+            self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
 
         elif c.test_case == 12:
             # One gyre with no forcing, for a bounded domain over NA
@@ -250,6 +261,8 @@ class state_data:
             # Eliminate lateral diffusion
             #c.delVisc = 0.
             #c.del2Visc = 0.
+            
+            self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
             
         else:
             raise ValueError("Invaid choice for the test case.")
@@ -304,7 +317,7 @@ class state_data:
         out.createVariable('divergence', 'f8', ('Time', 'nCells', 'nVertLevels'))
         out.createVariable('nVelocity', 'f8', ('Time', 'nEdges', 'nVertLevels'))
         out.createVariable('tVelocity', 'f8', ('Time', 'nEdges', 'nVertLevels'))
-        out.createVariable('kinetic_energy', 'f8', ('Time', 'nCells', 'nVertLevels'))
+        out.createVariable('kenergy', 'f8', ('Time', 'nCells', 'nVertLevels'))
         out.createVariable('curlWind_cell', 'f8', ('nCells',))
 
         # Record parameters used for this simulation
@@ -328,8 +341,10 @@ class state_data:
 
     def compute_tendencies(self, g, c, vc):
 
+        # Tendency for thicknetss 
         self.tend_thickness[:] = -vc.discrete_laplace(self.phi_cell)
 
+        # Tendency for vorticity
         self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.psi_cell)
         self.vVertex[:] = vc.discrete_curl_trig(self.vEdge)
         self.tend_vorticity[:] = 0.5 * vc.vertex2cell(self.vVertex)
@@ -345,6 +360,7 @@ class state_data:
         self.tend_vorticity[:] -= c.bottomDrag * self.vorticity[:]
         self.tend_vorticity[:] += c.delVisc * vc.discrete_laplace(self.vorticity)
 
+        # Tendency for divergence
         self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.psi_cell)
         self.tend_divergence[:] = vc.discrete_div(self.vEdge)
 
@@ -372,6 +388,13 @@ class state_data:
         self.thickness_vertex[:] = vc.cell2vertex(self.thickness)
 
         self.compute_psi_phi(vc, g, c)
+
+        if c.on_a_global_sphere:
+            # Reset value of vorticity and divergence at cell 0
+            self.vorticity[0] = -1 * np.sum(self.vorticity[1:]*g.areaCell[1:]) / g.areaCell[0]
+            self.divergence[0] = -1 * np.sum(self.divergence[1:]*g.areaCell[1:]) / g.areaCell[0]
+        else:
+            raise ValueError
         
         # Compute the absolute vorticity
         self.eta_cell = self.vorticity + g.fCell
@@ -387,9 +410,14 @@ class state_data:
         self.nVelocity -= vc.discrete_grad_td(self.psi_vertex)
         self.nVelocity /= self.thickness_edge
 
-        self.kinetic_energy[:] = vc.edge2cell(self.nVelocity * self.nVelocity)
+        self.kenergy[:] = vc.edge2cell(self.nVelocity * self.nVelocity)
 
-        self.geoPot[:] = c.gravity * (self.thickness[:] + g.bottomTopographyCell[:])  + self.kinetic_energy[:]
+        self.geoPot[:] = c.gravity * (self.thickness[:] + g.bottomTopographyCell[:])  + self.kenergy[:]
+
+        # Compute kinetic energy, total energy, and potential enstrophy
+        self.kinetic_energy = np.sum(self.nVelocity**2 * self.thickness_edge * g.areaEdge)
+        self.pot_energy = 0.5 * c.gravity * np.sum((self.thickness[:] + g.bottomTopographyCell - self.SS0)**2 * g.areaCell[:])
+        self.pot_enstrophy = 0.5 * np.sum(g.areaCell[:] * self.thickness * self.pv_cell[:]**2)
 
 
     def compute_psi_phi(self, vc, g, c):
@@ -431,8 +459,8 @@ class state_data:
         if k==0:
             out.variables['curlWind_cell'][:] = self.curlWind_cell[:]
 
-        #self.compute_kinetic_energy(g, c)
-        out.variables['kinetic_energy'][k,:,0]= self.kinetic_energy[:]
+        #self.compute_kenergy(g, c)
+        out.variables['kenergy'][k,:,0]= self.kenergy[:]
         
         out.close( )
         
@@ -474,29 +502,15 @@ def timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, g, vc, c):
                 s_intm.phi_cell[:] = 1.5*s_pre.phi_cell[:] - 0.5*s_old.phi_cell[:]
                 s_intm.psi_vertex[:] = 1.5*s_pre.psi_vertex[:] - 0.5*s_old.psi_vertex[:]
                 s_intm.phi_vertex[:] = 1.5*s_pre.phi_vertex[:] - 0.5*s_old.phi_vertex[:]
-#                s_intm.psi_vertex_pred[:] = s_intm.psi_vertex[:]
-#                s_intm.psi_cell[:] = 15./8*s_pre.psi_cell[:] - 5./4*s_old.psi_cell[:] + 3./8*s_old1.psi_cell[:]
-#                s_intm.phi_cell[:] = 15./8*s_pre.phi_cell[:] - 5./4*s_old.phi_cell[:] + 3./8*s_old1.phi_cell[:]
-#                s_intm.psi_vertex[:] = 15./8*s_pre.psi_vertex[:] - 5./4*s_old.psi_vertex[:] + 3./8*s_old1.psi_vertex[:]
-#                s_intm.phi_vertex[:] = 15./8*s_pre.phi_vertex[:] - 5./4*s_old.phi_vertex[:] + 3./8*s_old1.phi_vertex[:]
 
             if i == 1:
                 pass
-#                s_intm.psi_cell[:] = .5*s_intm.psi_cell[:] + 0.5*(1.5*s_pre.psi_cell[:] - 0.5*s_old.psi_cell[:])
-#                s_intm.phi_cell[:] = .5*s_intm.phi_cell[:] + 0.5*(1.5*s_pre.phi_cell[:] - 0.5*s_old.phi_cell[:])
-#                s_intm.psi_vertex_pred[:] = s_intm.psi_vertex[:]
-#                s_intm.phi_vertex[:] = .5*s_intm.phi_vertex[:] + 0.5*(1.5*s_pre.phi_vertex[:] - 0.5*s_old.phi_vertex[:])
                 
             if i==2:
                 s_intm.psi_cell[:] = 2*s_intm.psi_cell[:] - s_pre.psi_cell[:]
                 s_intm.phi_cell[:] = 2*s_intm.phi_cell[:] - s_pre.phi_cell[:]
                 s_intm.psi_vertex[:] = 2*s_intm.psi_vertex[:] - s_pre.psi_vertex[:]
                 s_intm.phi_vertex[:] = 2*s_intm.phi_vertex[:] - s_pre.phi_vertex[:]
-#                s_intm.psi_vertex_pred[:] = s_intm.psi_vertex[:]
-#                s_intm.psi_cell[:] = 8./3*s_intm.psi_cell[:] - 2.*s_pre.psi_cell[:] + 1./3*s_old.psi_cell[:]
-#                s_intm.phi_cell[:] = 8./3*s_intm.phi_cell[:] - 2.*s_pre.phi_cell[:] + 1./3*s_old.phi_cell[:]
-#                s_intm.psi_vertex[:] = 8./3*s_intm.psi_vertex[:] - 2.*s_pre.psi_vertex[:] + 1./3*s_old.psi_vertex[:]
-#                s_intm.phi_vertex[:] = 8./3*s_intm.phi_vertex[:] - 2.*s_pre.phi_vertex[:] + 1./3*s_old.phi_vertex[:]
 
             s_intm.compute_diagnostics(g, vc, c)
 
@@ -529,7 +543,7 @@ def timestepping_euler(s, g, c):
     s.tend_vorticity += c.delVisc * cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, s_pre.vorticity)
 
     absVorCirc = s_pre.eta_edge[:] * s_pre.tVelocity[:]
-    geoPotent = c.gravity * (s_pre.thickness[:] + g.bottomTopographyCell[:])  + s_pre.kinetic_energy[:]
+    geoPotent = c.gravity * (s_pre.thickness[:] + g.bottomTopographyCell[:])  + s_pre.kenergy[:]
     s.tend_divergence = cmp.discrete_curl(g.cellsOnEdge, g.dvEdge, g.areaCell, absVorCirc) - \
                       cmp.discrete_laplace(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, geoPotent)
     s.tend_divergence += s.divWind_cell/s_pre.thickness[:]

@@ -43,15 +43,14 @@ def main( ):
 
     print("========== Setting the initial state of the model ================")
     s.initialization(g, vc, c)
-#    raise ValueError("Just for testing.")
     
     print("========== Making a copy of the state object =====================")
     s_init = deepcopy(s)
 
     print("========== Declaring variables for holding statistics ============")
     # Compute energy and enstrophy
-    kenergy = np.zeros(c.nTimeSteps+1)
-    penergy = np.zeros(c.nTimeSteps+1)
+    kinetic_energy = np.zeros(c.nTimeSteps+1)
+    pot_energy = np.zeros(c.nTimeSteps+1)
     total_energy = np.zeros(c.nTimeSteps+1)
     mass = np.zeros(c.nTimeSteps+1)
     penstrophy = np.zeros(c.nTimeSteps+1)
@@ -59,18 +58,16 @@ def main( ):
     pv_min = np.zeros(c.nTimeSteps+1)
 
     print("========== Computing some initial statistics =====================")
-    h0 = np.mean(s_init.thickness[:])
-    kenergy[0] = np.sum(s.thickness[:]*s.kinetic_energy[:]*g.areaCell[:])
-    penergy[0] = 0.5*c.gravity* np.sum((s.thickness[:]-h0)**2 * g.areaCell[:])
-    total_energy[0] = kenergy[0] + penergy[0]
+    kinetic_energy[0] = s.kinetic_energy
+    pot_energy[0] = s.pot_energy
+    total_energy[0] = kinetic_energy[0] + pot_energy[0]
     mass[0] = np.sum(s.thickness[:] * g.areaCell[:])
-    penstrophy[0] = 0.5 * np.sum(g.areaCell[:] * s.thickness * s.pv_cell[:]**2)
+    penstrophy[0] = s.pot_enstrophy
     pv_max[0] = np.max(s.pv_cell)
     pv_min[0] = np.min(s.pv_cell)
 
-
     print(("Running test case \#%d" % c.test_case))
-    print(("K-nergy, p-energy, t-energy, p-enstrophy, mass: %e, %e, %e, %e, %e" % (kenergy[0], penergy[0], total_energy[0], penstrophy[0], mass[0])))
+    print(("K-nergy, p-energy, t-energy, p-enstrophy, mass: %e, %e, %e, %e, %e" % (kinetic_energy[0], pot_energy[0], total_energy[0], penstrophy[0], mass[0])))
 
     error1 = np.zeros((c.nTimeSteps+1, 3)); error1[0,:] = 0.
     error2 = np.zeros((c.nTimeSteps+1, 3)); error2[0,:] = 0.
@@ -97,20 +94,19 @@ def main( ):
             raise ValueError("Invalid choice for time stepping")
 
         # Compute energy and enstrophy
-        kenergy[iStep+1] = np.sum(s.thickness[:]*s.kinetic_energy[:]*g.areaCell[:])
-        penergy[iStep+1] = 0.5*c.gravity* np.sum((s.thickness[:]-h0)**2 * g.areaCell[:])
-        total_energy[iStep+1] = kenergy[iStep+1] + penergy[iStep+1]
+        kinetic_energy[iStep+1] = s.kinetic_energy
+        pot_energy[iStep+1] = s.pot_energy
+        total_energy[iStep+1] = kinetic_energy[iStep+1] + pot_energy[iStep+1]
         mass[iStep+1] = np.sum(s.thickness[:] * g.areaCell[:])
-        penstrophy[iStep+1] = 0.5 * np.sum(g.areaCell[:] * s.thickness[:] * s.pv_cell[:]**2)
+        penstrophy[iStep+1] = s.pot_enstrophy
         pv_max[iStep+1] = np.max(s.pv_cell)
         pv_min[iStep+1] = np.min(s.pv_cell)
-#        aVorticity_total[iStep+1] = np.sum(g.areaCell * s.eta[:])
         
         print(("K-nergy, p-energy, t-energy, p-enstrophy, mass: %.15e, %.15e, %.15e, %.15e, %.15e" % \
-              (kenergy[iStep+1], penergy[iStep+1], total_energy[iStep+1], penstrophy[iStep+1], mass[iStep+1])))
+              (kinetic_energy[iStep+1], pot_energy[iStep+1], total_energy[iStep+1], penstrophy[iStep+1], mass[iStep+1])))
         print("min thickness: %f" % np.min(s.thickness))
 
-        if kenergy[iStep+1] != kenergy[iStep+1]:
+        if kinetic_energy[iStep+1] != kinetic_energy[iStep+1]:
             raise ValueError("Exceptions detected in energy. Stop now")
         
         if np.mod(iStep+1, c.save_interval) == 0:
@@ -145,7 +141,7 @@ def main( ):
     plt.close('all')
 
     plt.figure(0)
-    plt.plot(days, kenergy, '--', label="Kinetic energy", hold=True)
+    plt.plot(days, kinetic_energy, '--', label="Kinetic energy", hold=True)
     plt.xlabel('Time (days)')
     plt.ylabel('Energy')
     #plt.ylim(2.5e17, 2.6e17)
@@ -153,7 +149,7 @@ def main( ):
     plt.savefig('energy.png', format='PNG')
 
     plt.figure(6)
-    plt.plot(days, penergy, '-.', label="Potential energy", hold=True)
+    plt.plot(days, pot_energy, '-.', label="Potential energy", hold=True)
     plt.plot(days, total_energy, '-', label="Total energy")
     plt.xlabel('Time (days)')
     plt.ylabel('Energy')

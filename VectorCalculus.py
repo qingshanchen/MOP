@@ -3,9 +3,6 @@ import Parameters as c
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix, eye, diags, bmat
 from scipy.sparse.linalg import spsolve, splu, factorized
 from swe_comp import swe_comp as cmp
-from LinearAlgebra import cg, pcg, cudaCG, cudaPCG
-#from pyamg import rootnode_solver
-#import time
 
 class EllipticCPL:
     def __init__(self, A, linear_solver, env):

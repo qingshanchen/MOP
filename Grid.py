@@ -90,6 +90,7 @@ class grid_data:
         # Create new grid_data variables
         self.bottomTopographyCell = np.zeros(self.nCells)
         self.bottomTopographyVertex = np.zeros(self.nVertices)
+        self.areaEdge = self.dvEdge * self.dcEdge / 2.
 
         grid.close()
 
