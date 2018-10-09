@@ -72,7 +72,7 @@ class state_data:
         self.time = 0.0
 
             
-    def start_from_function(self, g, c):
+    def start_from_function(self, vc, g, c):
 
         latmin = np.min(g.latCell[:]); latmax = np.max(g.latCell[:])
         lonmin = np.min(g.lonCell[:]); lonmax = np.max(g.lonCell[:])
@@ -114,13 +114,13 @@ class state_data:
 
             self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
             self.divergence[:] = 0.
-            self.psi_cell[:] = -a * u0 * np.sin(g.latCell[:])
-            self.psi_cell[:] -= self.psi_cell[0]
-            self.phi_cell[:] = 0.
-            self.psi_vertex[:] = -a * u0 * np.sin(g.latVertex[:])
-            self.psi_vertex[:] -= self.psi_vertex[0]
-            self.phi_vertex[:] = 0.
-            #self.compute_diagnostics(g, c)
+            #self.psi_cell[:] = -a * u0 * np.sin(g.latCell[:])
+            #self.psi_cell[:] -= self.psi_cell[0]
+            #self.phi_cell[:] = 0.
+            #self.psi_vertex[:] = -a * u0 * np.sin(g.latVertex[:])
+            #self.psi_vertex[:] -= self.psi_vertex[0]
+            #self.phi_vertex[:] = 0.
+            #self.compute_diagnostics(g, vc, c)
 
             if False:
                 # To check that vorticity and
@@ -191,12 +191,13 @@ class state_data:
             self.thickness[:] = h[:] - g.bottomTopographyCell[:]
             self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
             self.divergence[:] = 0.
-            self.psi_cell[:] = -a * u0 * np.sin(g.latCell[:])
-            self.psi_cell[:] -= self.psi_cell[0]
-            self.phi_cell[:] = 0.
-            self.psi_vertex[:] = -a * u0 * np.sin(g.latVertex[:])
-            self.psi_vertex[:] -= self.psi_vertex[0]
-            self.phi_vertex[:] = 0.
+#            self.psi_cell[:] = -a * u0 * np.sin(g.latCell[:])
+#            self.psi_cell[:] -= self.psi_cell[0]
+#            self.phi_cell[:] = 0.
+#            self.psi_vertex[:] = -a * u0 * np.sin(g.latVertex[:])
+#            self.psi_vertex[:] -= self.psi_vertex[0]
+#            self.phi_vertex[:] = 0.
+            raise ValueError("Need to set initial psi and phi")
             
             self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
 
@@ -306,7 +307,7 @@ class state_data:
         if c.restart:
             self.restart_from_file(g,c)
         else:
-            self.start_from_function(g, c)
+            self.start_from_function(vc, g, c)
             self.compute_diagnostics(g, vc, c)
             
         # Open the output file and create new state variables
@@ -390,9 +391,10 @@ class state_data:
         self.compute_psi_phi(vc, g, c)
 
         if c.on_a_global_sphere:
+            pass 
             # Reset value of vorticity and divergence at cell 0
-            self.vorticity[0] = -1 * np.sum(self.vorticity[1:]*g.areaCell[1:]) / g.areaCell[0]
-            self.divergence[0] = -1 * np.sum(self.divergence[1:]*g.areaCell[1:]) / g.areaCell[0]
+            #self.vorticity[0] = -1 * np.sum(self.vorticity[1:]*g.areaCell[1:]) / g.areaCell[0]
+            #self.divergence[0] = -1 * np.sum(self.divergence[1:]*g.areaCell[1:]) / g.areaCell[0]
         else:
             raise ValueError
         
@@ -475,7 +477,7 @@ def timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, g, vc, c):
     s_intm = deepcopy(s_pre)
 
     # Update the time stamp first
-    s.time += dt
+    s.time = s_pre.time + dt
 
     s.thickness[:] = s_pre.thickness[:]
     s.vorticity[:] = s_pre.vorticity[:]

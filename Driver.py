@@ -141,7 +141,7 @@ def main( ):
     plt.close('all')
 
     plt.figure(0)
-    plt.plot(days, kinetic_energy, '--', label="Kinetic energy", hold=True)
+    plt.plot(days, kinetic_energy, '--', label="Kinetic energy")
     plt.xlabel('Time (days)')
     plt.ylabel('Energy')
     #plt.ylim(2.5e17, 2.6e17)
@@ -149,7 +149,7 @@ def main( ):
     plt.savefig('energy.png', format='PNG')
 
     plt.figure(6)
-    plt.plot(days, pot_energy, '-.', label="Potential energy", hold=True)
+    plt.plot(days, pot_energy, '-.', label="Potential energy")
     plt.plot(days, total_energy, '-', label="Total energy")
     plt.xlabel('Time (days)')
     plt.ylabel('Energy')
@@ -173,8 +173,8 @@ def main( ):
     plt.savefig('mass.png', format='PNG')
 
     plt.figure(7)
-    plt.plot(days, pv_max, '-.', hold=True, label='PV max')
-    plt.plot(days, pv_min, '--', hold=True, label='PV min')
+    plt.plot(days, pv_max, '-.', label='PV max')
+    plt.plot(days, pv_min, '--', label='PV min')
     plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
 #    plt.ylim([-0.0001, 0.0001])
     plt.xlabel('Days')
@@ -194,7 +194,7 @@ def main( ):
     
     if c.test_case == 2:
         plt.figure(2); 
-        plt.plot(days, error1[:,0], '--', label=r'$L^1$ norm', hold=True)
+        plt.plot(days, error1[:,0], '--', label=r'$L^1$ norm')
         plt.plot(days, error2[:,0], '-', label=r'$L^2$ norm')
         plt.plot(days, errorInf[:,0], '-.', label=r'$L^\infty$ norm')
         plt.legend(loc=1)
@@ -203,7 +203,7 @@ def main( ):
         plt.savefig('error-h.png', format='PNG')
 
         plt.figure(3); 
-        plt.plot(days, error1[:,1], '--', label=r'$L^1$ norm', hold=True)
+        plt.plot(days, error1[:,1], '--', label=r'$L^1$ norm')
         plt.plot(days, error2[:,1], '-', label=r'$L^2$ norm')
         plt.plot(days, errorInf[:,1], '-.', label=r'$L^\infty$ norm')
         plt.legend(loc=1)
@@ -212,7 +212,7 @@ def main( ):
         plt.savefig('error-vorticity.png', format='PNG')
 
         plt.figure(4); 
-        plt.plot(days, error1[:,2], '--', label=r'$L^1$ norm', hold=True)
+        plt.plot(days, error1[:,2], '--', label=r'$L^1$ norm')
         plt.plot(days, error2[:,2], '-', label=r'$L^2$ norm')
         plt.plot(days, errorInf[:,2], '-.', label=r'$L^\infty$ norm')
         plt.legend(loc=1)
