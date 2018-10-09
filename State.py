@@ -197,7 +197,7 @@ class state_data:
 #            self.psi_vertex[:] = -a * u0 * np.sin(g.latVertex[:])
 #            self.psi_vertex[:] -= self.psi_vertex[0]
 #            self.phi_vertex[:] = 0.
-            raise ValueError("Need to set initial psi and phi")
+#            raise ValueError("Need to set initial psi and phi")
             
             self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
 

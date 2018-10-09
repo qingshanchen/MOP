@@ -1,7 +1,7 @@
 import numpy as np
 
 ### Parameters essential
-test_case = 2
+test_case = 5
 on_a_global_sphere = True
 use_gpu = True
 
@@ -10,9 +10,9 @@ use_gpu = True
 timestepping = 'RK4'
 
 # Duration, time stepping size, saving interval
-dt = 360.   #1440 for 480km
+dt = 180.   #1440 for 480km
 #dt = 360.   #360 for NA818
-nYears = 5./360
+nYears = 50./360
 save_inter_days = 1
 
 # Model configuraitons, boundary conditions
