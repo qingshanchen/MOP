@@ -1,18 +1,18 @@
 import numpy as np
 
 ### Parameters essential
-test_case = 5
+test_case = 2
 on_a_global_sphere = True
-use_gpu = True
+use_gpu = False
 
 ### Parameters secondary
 # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
 timestepping = 'RK4'
 
 # Duration, time stepping size, saving interval
-dt = 180.   #1440 for 480km
+dt = 720.   #1440 for 480km
 #dt = 360.   #360 for NA818
-nYears = 50./360
+nYears = 5./360
 save_inter_days = 1
 
 # Model configuraitons, boundary conditions
@@ -23,7 +23,7 @@ no_slip_BC = False
 free_slip_BC = False
 
 # Solver config
-linear_solver = 'amgx'      # lu, cg, cudaCG, cudaPCG, amg, amgx
+linear_solver = 'lu'      # lu, cg, cudaCG, cudaPCG, amg, amgx
 err_tol = 1e-8
 max_iter = 5000
 #max_iter_dual = 25

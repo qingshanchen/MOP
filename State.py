@@ -106,21 +106,20 @@ class state_data:
 
         elif c.test_case == 2:
             a = c.earth_radius
-            gh0 = 2.94e4
             u0 = 2*np.pi*a / (12*86400)
+            gh0 = 2.94e4
             gh = np.sin(g.latCell[:])**2
             gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
             self.thickness[:] = gh / c.gravity
+            h0 = gh0 / c.gravity
 
             self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
             self.divergence[:] = 0.
-            #self.psi_cell[:] = -a * u0 * np.sin(g.latCell[:])
-            #self.psi_cell[:] -= self.psi_cell[0]
-            #self.phi_cell[:] = 0.
-            #self.psi_vertex[:] = -a * u0 * np.sin(g.latVertex[:])
-            #self.psi_vertex[:] -= self.psi_vertex[0]
-            #self.phi_vertex[:] = 0.
-            #self.compute_diagnostics(g, vc, c)
+            
+            self.psi_cell[:] = -a * h0 * u0 * np.sin(g.latCell[:]) 
+            self.psi_cell[:] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (np.sin(g.latCell[:]))**3 / 3.
+            self.psi_cell -= self.psi_cell[0]
+            self.phi_cell[:] = 0.
 
             if False:
                 # To check that vorticity and
@@ -388,6 +387,27 @@ class state_data:
         self.thickness_edge[:] = vc.cell2edge(self.thickness)
         self.thickness_vertex[:] = vc.cell2vertex(self.thickness)
 
+        ## For debugging ##
+        # To check the closeness between psi_cell and vorticity
+#        self.psi_vertex[:] = vc.cell2vertex(self.psi_cell)
+#        nVelocity = vc.discrete_grad_n(self.phi_cell)
+#        nVelocity -= vc.discrete_grad_td(self.psi_vertex)
+#        nVelocity /= self.thickness_edge
+#        vorticity = vc.vertex2cell(vc.discrete_curl_trig(nVelocity))
+#        err = vorticity - self.vorticity
+#        print("vorticity computed using normal vel.")
+#        print("relative error = %e" % (np.sqrt(np.sum(err**2*g.areaCell)/np.sum(self.vorticity**2*g.areaCell))))
+
+#        self.phi_vertex[:] = vc.cell2vertex(self.phi_cell)
+#        tVelocity = vc.discrete_grad_n(self.psi_cell)
+#        tVelocity += vc.discrete_grad_tn(self.phi_vertex)
+#        tVelocity /= self.thickness_edge
+#        vorticity = vc.discrete_curl(tVelocity)
+#        err = vorticity - self.vorticity
+#        print("vorticity computed using tang vel.")
+#        print("relative error = %e" % (np.sqrt(np.sum(err**2*g.areaCell)/np.sum(self.vorticity**2*g.areaCell))))
+        ## End of debugging ##
+        
         self.compute_psi_phi(vc, g, c)
 
         if c.on_a_global_sphere:
@@ -408,10 +428,29 @@ class state_data:
         self.pv_edge[:] = vc.cell2edge(self.pv_cell)
 
         # Compute the kinetic energy
+        self.psi_vertex[:] = vc.cell2vertex(self.psi_cell)
         self.nVelocity[:] = vc.discrete_grad_n(self.phi_cell)
         self.nVelocity -= vc.discrete_grad_td(self.psi_vertex)
         self.nVelocity /= self.thickness_edge
 
+        ### For debugging ###
+#        vorticity = vc.vertex2cell(vc.discrete_curl_trig(self.nVelocity))
+#        err = vorticity - self.vorticity
+#        print("vorticity computed using normal vel.")
+#        print("relative error = %e" % (np.sqrt(np.sum(err**2*g.areaCell)/np.sum(self.vorticity**2*g.areaCell))))
+
+#        self.phi_vertex[:] = vc.cell2vertex(self.phi_cell)
+#        tVelocity = vc.discrete_grad_n(self.psi_cell)
+#        tVelocity += vc.discrete_grad_tn(self.phi_vertex)
+#        tVelocity /= self.thickness_edge
+#        vorticity = vc.discrete_curl(tVelocity)
+#        err = vorticity - self.vorticity
+#        print("vorticity computed using tang vel.")
+#        print("relative error = %e" % (np.sqrt(np.sum(err**2*g.areaCell)/np.sum(self.vorticity**2*g.areaCell))))
+        
+#        raise ValueError("Stop for debugging")
+        ### End of debugging ###
+        
         self.kenergy[:] = vc.edge2cell(self.nVelocity * self.nVelocity)
 
         self.geoPot[:] = c.gravity * (self.thickness[:] + g.bottomTopographyCell[:])  + self.kenergy[:]
@@ -430,6 +469,8 @@ class state_data:
         
         self.vortdiv[:g.nCells] = self.vorticity * g.areaCell
         self.vortdiv[g.nCells:] = self.divergence * g.areaCell
+        self.psiphi[:g.nCells] = self.psi_cell[:]
+        self.psiphi[g.nCells:] = self.phi_cell[:]
         
         if c.on_a_global_sphere:
             # A global domain with no boundary
