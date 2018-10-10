@@ -506,6 +506,22 @@ class state_data:
         out.variables['kenergy'][k,:,0]= self.kenergy[:]
         
         out.close( )
+
+    def compute_tc2_errors(self, iStep, s_init, error1, error2, errorInf, g):
+        # For test case #2, compute the errors
+        error1[iStep+1, 0] = np.sum(np.abs(self.thickness[:] - s_init.thickness[:])*g.areaCell[:]) / np.sum(np.abs(s_init.thickness[:])*g.areaCell[:])
+        error1[iStep+1, 1] = np.sum(np.abs(self.vorticity[:] - s_init.vorticity[:])*g.areaCell[:]) / np.sum(np.abs(s_init.vorticity[:])*g.areaCell[:])
+        error1[iStep+1, 2] = np.max(np.abs(self.divergence[:] - s_init.divergence[:])) 
+
+        error2[iStep+1, 0] = np.sqrt(np.sum((self.thickness[:] - s_init.thickness[:])**2*g.areaCell[:]))
+        error2[iStep+1,0] /= np.sqrt(np.sum((s_init.thickness[:])**2*g.areaCell[:]))
+        error2[iStep+1, 1] = np.sqrt(np.sum((self.vorticity[:] - s_init.vorticity[:])**2*g.areaCell[:]))
+        error2[iStep+1,1] /= np.sqrt(np.sum((s_init.vorticity[:])**2*g.areaCell[:]))
+        error2[iStep+1, 2] = np.max(np.abs(self.divergence[:] - s_init.divergence[:])) 
+
+        errorInf[iStep+1, 0] = np.max(np.abs(self.thickness[:] - s_init.thickness[:])) / np.max(np.abs(s_init.thickness[:]))
+        errorInf[iStep+1, 1] = np.max(np.abs(self.vorticity[:] - s_init.vorticity[:])) / np.max(np.abs(s_init.vorticity[:]))
+        errorInf[iStep+1, 2] = np.max(np.abs(self.divergence[:] - s_init.divergence[:]))
         
     
 def timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, g, vc, c):

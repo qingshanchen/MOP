@@ -22,7 +22,6 @@ def main( ):
     # Create a grid_data object, a state_data object, and a parameter object.
     # -----------------------------------------------------------
 
-#    c = parameters()
     print("=========== Setting up the compute environment====================")
     env = ComputeEnvironment(c)
 
@@ -53,7 +52,7 @@ def main( ):
     pot_energy = np.zeros(c.nTimeSteps+1)
     total_energy = np.zeros(c.nTimeSteps+1)
     mass = np.zeros(c.nTimeSteps+1)
-    penstrophy = np.zeros(c.nTimeSteps+1)
+    pot_enstrophy = np.zeros(c.nTimeSteps+1)
     pv_max = np.zeros(c.nTimeSteps+1)
     pv_min = np.zeros(c.nTimeSteps+1)
 
@@ -62,16 +61,17 @@ def main( ):
     pot_energy[0] = s.pot_energy
     total_energy[0] = kinetic_energy[0] + pot_energy[0]
     mass[0] = np.sum(s.thickness[:] * g.areaCell[:])
-    penstrophy[0] = s.pot_enstrophy
+    pot_enstrophy[0] = s.pot_enstrophy
     pv_max[0] = np.max(s.pv_cell)
     pv_min[0] = np.min(s.pv_cell)
 
     print(("Running test case \#%d" % c.test_case))
-    print(("K-nergy, p-energy, t-energy, p-enstrophy, mass: %e, %e, %e, %e, %e" % (kinetic_energy[0], pot_energy[0], total_energy[0], penstrophy[0], mass[0])))
+    print(("K-nergy, p-energy, t-energy, p-enstrophy, mass: %e, %e, %e, %e, %e" % (kinetic_energy[0], pot_energy[0], total_energy[0], pot_enstrophy[0], mass[0])))
 
-    error1 = np.zeros((c.nTimeSteps+1, 3)); error1[0,:] = 0.
-    error2 = np.zeros((c.nTimeSteps+1, 3)); error2[0,:] = 0.
-    errorInf = np.zeros((c.nTimeSteps+1, 3)); errorInf[0,:] = 0.
+    if c.test_case == 2:
+        error1 = np.zeros((c.nTimeSteps+1, 3)); error1[0,:] = 0.
+        error2 = np.zeros((c.nTimeSteps+1, 3)); error2[0,:] = 0.
+        errorInf = np.zeros((c.nTimeSteps+1, 3)); errorInf[0,:] = 0.
 
     s.save(c, g, 0)
 
@@ -84,7 +84,7 @@ def main( ):
     
     for iStep in range(c.nTimeSteps):
 
-        print(("Doing step %d/%d " % (iStep, c.nTimeSteps)))
+        print(("Doing step %d/%d " % (iStep+1, c.nTimeSteps)))
 
         if c.timestepping == 'RK4':
             timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, g, vc, c)
@@ -98,12 +98,12 @@ def main( ):
         pot_energy[iStep+1] = s.pot_energy
         total_energy[iStep+1] = kinetic_energy[iStep+1] + pot_energy[iStep+1]
         mass[iStep+1] = np.sum(s.thickness[:] * g.areaCell[:])
-        penstrophy[iStep+1] = s.pot_enstrophy
+        pot_enstrophy[iStep+1] = s.pot_enstrophy
         pv_max[iStep+1] = np.max(s.pv_cell)
         pv_min[iStep+1] = np.min(s.pv_cell)
         
         print(("K-nergy, p-energy, t-energy, p-enstrophy, mass: %.15e, %.15e, %.15e, %.15e, %.15e" % \
-              (kinetic_energy[iStep+1], pot_energy[iStep+1], total_energy[iStep+1], penstrophy[iStep+1], mass[iStep+1])))
+              (kinetic_energy[iStep+1], pot_energy[iStep+1], total_energy[iStep+1], pot_enstrophy[iStep+1], mass[iStep+1])))
         print("min thickness: %f" % np.min(s.thickness))
 
         if kinetic_energy[iStep+1] != kinetic_energy[iStep+1]:
@@ -114,20 +114,7 @@ def main( ):
             s.save(c,g,k)
 
         if c.test_case == 2:
-            # For test case #2, compute the errors
-            error1[iStep+1, 0] = np.sum(np.abs(s.thickness[:] - s_init.thickness[:])*g.areaCell[:]) / np.sum(np.abs(s_init.thickness[:])*g.areaCell[:])
-            error1[iStep+1, 1] = np.sum(np.abs(s.vorticity[:] - s_init.vorticity[:])*g.areaCell[:]) / np.sum(np.abs(s_init.vorticity[:])*g.areaCell[:])
-            error1[iStep+1, 2] = np.max(np.abs(s.divergence[:] - s_init.divergence[:])) 
-
-            error2[iStep+1, 0] = np.sqrt(np.sum((s.thickness[:] - s_init.thickness[:])**2*g.areaCell[:]))
-            error2[iStep+1,0] /= np.sqrt(np.sum((s_init.thickness[:])**2*g.areaCell[:]))
-            error2[iStep+1, 1] = np.sqrt(np.sum((s.vorticity[:] - s_init.vorticity[:])**2*g.areaCell[:]))
-            error2[iStep+1,1] /= np.sqrt(np.sum((s_init.vorticity[:])**2*g.areaCell[:]))
-            error2[iStep+1, 2] = np.max(np.abs(s.divergence[:] - s_init.divergence[:])) 
-
-            errorInf[iStep+1, 0] = np.max(np.abs(s.thickness[:] - s_init.thickness[:])) / np.max(np.abs(s_init.thickness[:]))
-            errorInf[iStep+1, 1] = np.max(np.abs(s.vorticity[:] - s_init.vorticity[:])) / np.max(np.abs(s_init.vorticity[:]))
-            errorInf[iStep+1, 2] = np.max(np.abs(s.divergence[:] - s_init.divergence[:]))
+            s.compute_tc2_errors(iStep, s_init, error1, error2, errorInf, g)
 
         s_tmp = s_old1
         s_old1 = s_old
@@ -158,12 +145,12 @@ def main( ):
     plt.savefig('total-energy.png', format='PNG')
     
     plt.figure(1)
-    plt.plot(days, penstrophy)
+    plt.plot(days, pot_enstrophy)
     plt.xlabel('Time (days)')
     plt.ylabel('Enstrophy')
     #plt.ylim(0.74, 0.78)
     plt.savefig('enstrophy.png', format='PNG')
-    print(("Change in potential enstrophy = %.15e " % (penstrophy[-1] - penstrophy[0])))
+    print(("Change in potential enstrophy = %.15e " % (pot_enstrophy[-1] - pot_enstrophy[0])))
 
     plt.figure(5)
     plt.plot(days, mass)
@@ -181,7 +168,6 @@ def main( ):
     plt.ylabel('Max/Min potential vorticity')
     plt.legend(loc=1)
     plt.savefig('pv_max_min.png', format='PNG')
-    plt.savefig('pv_max_min.pdf', format='PDF')
 
     #plt.figure(8)
     #plt.plot(Years, aVorticity_total)
