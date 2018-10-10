@@ -143,6 +143,7 @@ def main( ):
     #plt.ylim(8.0e20,8.15e20)
     plt.legend(loc=1)
     plt.savefig('total-energy.png', format='PNG')
+    print(("Change in total energy = %e " % (np.abs(total_energy[-1] - total_energy[0])/total_energy[0])))
     
     plt.figure(1)
     plt.plot(days, pot_enstrophy)
@@ -150,7 +151,7 @@ def main( ):
     plt.ylabel('Enstrophy')
     #plt.ylim(0.74, 0.78)
     plt.savefig('enstrophy.png', format='PNG')
-    print(("Change in potential enstrophy = %.15e " % (pot_enstrophy[-1] - pot_enstrophy[0])))
+    print(("Change in potential enstrophy = %e " % (np.abs(pot_enstrophy[-1] - pot_enstrophy[0])/pot_enstrophy[0])))
 
     plt.figure(5)
     plt.plot(days, mass)
@@ -158,6 +159,7 @@ def main( ):
     plt.ylabel('Mass')
     #plt.ylim(1.175e18, 1.225e18)
     plt.savefig('mass.png', format='PNG')
+    print(("Change in mass = %e " % (np.abs(mass[-1] - mass[0])/mass[0])))
 
     plt.figure(7)
     plt.plot(days, pv_max, '-.', label='PV max')

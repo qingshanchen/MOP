@@ -24,7 +24,6 @@ class state_data:
         self.divergence = self.thickness.copy()
 
         # Diagnostic variables
-        self.thickness_vertex = np.zeros(g.nVertices)
         self.vorticity_vertex = np.zeros(g.nVertices)
         self.divergence_vertex = np.zeros(g.nVertices)
         self.vortdiv = np.zeros(2*g.nCells)
@@ -349,8 +348,7 @@ class state_data:
         self.vVertex[:] = vc.discrete_curl_trig(self.vEdge)
         self.tend_vorticity[:] = 0.5 * vc.vertex2cell(self.vVertex)
 
-        self.vVertex[:] = vc.cell2vertex(self.psi_cell)
-        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad(self.vVertex)
+        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad(self.psi_vertex)
         self.tend_vorticity[:] -= 0.5 * vc.discrete_div(self.vEdge)
 
         self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.phi_cell)
@@ -385,7 +383,6 @@ class state_data:
             self.divergence[:] = 0.
 
         self.thickness_edge[:] = vc.cell2edge(self.thickness)
-        self.thickness_vertex[:] = vc.cell2vertex(self.thickness)
 
         ## For debugging ##
         # To check the closeness between psi_cell and vorticity
