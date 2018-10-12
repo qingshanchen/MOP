@@ -494,6 +494,47 @@ subroutine construct_matrix_discrete_div(nEdges, nCells, &
 end subroutine construct_matrix_discrete_div
 
 
+! Construct the discrete divergence operator on the dual mesh
+! The orientation on the edge is assumed to be from vertex0 (first
+! cell) to vertex1 (second cell)
+subroutine construct_matrix_discrete_div_trig(nEdges, nVertices, &
+  verticesOnEdge, dcEdge, areaTriangle,  &
+  nEntries, rows, cols, valEntries)
+  integer, intent(in) :: nEdges, nVertices
+  integer, intent(in) :: verticesOnEdge(0:nEdges-1, 0:1)
+  real*8, intent(in)  :: dcEdge(0:nEdges-1), &
+       areaTriangle(0:nVertices-1)
+  double precision, intent(out) :: valEntries(0:2*nEdges-1)
+  integer, intent(out)          :: nEntries, rows(0:2*nEdges-1), cols(0:2*nEdges-1) 
+
+  integer :: iEdge, vertex0, vertex1, iEntry
+
+  iEntry = 0
+
+  do iEdge = 0, nEdges-1
+      vertex0 = verticesOnEdge(iEdge,0) - 1
+      vertex1 = verticesOnEdge(iEdge,1) - 1
+
+      if (vertex0 .GE. 0) then 
+          rows(iEntry) = vertex0
+          cols(iEntry) = iEdge
+          valEntries(iEntry) = dcEdge(iEdge) / areaTriangle(vertex0)
+          iEntry = iEntry + 1
+      end if
+
+      if (vertex1 .GE. 0) then
+          rows(iEntry) = vertex1
+          cols(iEntry) = iEdge
+          valEntries(iEntry) = -dcEdge(iEdge) / areaTriangle(vertex1)
+          iEntry = iEntry + 1
+      end if
+        
+   end do
+   nEntries = iEntry
+
+end subroutine construct_matrix_discrete_div_trig
+
+
 subroutine discrete_div_t(nEdges, nVertices, &
                           grad_t, verticesOnEdge, dcEdge, areaTriangle, &
                           divergence_t)
@@ -1248,9 +1289,10 @@ subroutine construct_matrix_discrete_grad_tn(nEdges, &
    nEntries = iEntry
 end subroutine construct_matrix_discrete_grad_tn
 
-! Construct the discrete skew gradient operator on the dual mesh
+! Construct the discrete skew gradient operator on the dual mesh;
+! the resulting vector is along the normal direction.
 ! Homogeneous Dirichlet BC's assumed 
-subroutine construct_matrix_discrete_skewgrad(nEdges, &
+subroutine construct_matrix_discrete_skewgrad_t(nEdges, &
      verticesOnEdge, dvEdge, &
      nEntries, rows, cols, valEntries)
   integer, intent(in) :: nEdges
@@ -1294,6 +1336,40 @@ subroutine construct_matrix_discrete_skewgrad(nEdges, &
 
    nEntries = iEntry
 
-end subroutine construct_matrix_discrete_skewgrad
+end subroutine construct_matrix_discrete_skewgrad_t
+
+
+! Construct the discrete skew gradient operator on the primal mesh;
+! the resulting vector is along the tangential direction.
+subroutine construct_matrix_discrete_skewgrad_n(nEdges, &
+     cellsOnEdge, dcEdge, &
+     nEntries, rows, cols, valEntries)
+  integer, intent(in) :: nEdges
+  integer, intent(in) :: cellsOnEdge(0:nEdges-1, 0:1)
+  double precision, intent(in)  :: dcEdge(0:nEdges-1)
+  double precision, intent(out) :: valEntries(0:2*nEdges-1)
+  integer, intent(out) :: nEntries, rows(0:2*nEdges-1), cols(0:2*nEdges-1)
+
+  integer :: iEdge, cell0, cell1, iEntry
+
+  iEntry = 0
+  do iEdge = 0, nEdges-1
+        cell0 = cellsOnEdge(iEdge,0) - 1
+        cell1 = cellsOnEdge(iEdge,1) - 1
+
+        rows(iEntry) = iEdge
+        cols(iEntry) = cell0
+        valEntries(iEntry) = -1./dcEdge(iEdge)
+        iEntry = iEntry + 1
+
+        rows(iEntry) = iEdge
+        cols(iEntry) = cell1
+        valEntries(iEntry) = 1./dcEdge(iEdge)
+        iEntry = iEntry + 1
+   end do
+
+   nEntries = iEntry
+
+end subroutine construct_matrix_discrete_skewgrad_n
 
 end module

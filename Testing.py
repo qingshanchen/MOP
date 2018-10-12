@@ -254,13 +254,13 @@ def run_tests(env, g, vc, c, s):
         phi_cell_true = np.random.rand(g.nCells) * 2.4e+9
         phi_cell_true[0] = 0.
 
-        psi_vertex = vc.cell2vertex(psi_cell_true)
+        phi_vertex = vc.cell2vertex(phi_cell_true)
 
-        hu = vc.discrete_grad_n(phi_cell_true)
-        hu -= vc.discrete_grad_td(psi_vertex)
-        u = hu / s.thickness_edge
-        s.vorticity = vc.vertex2cell(vc.discrete_curl_trig(u))
-        s.divergence = vc.discrete_div(u)
+        hv = vc.discrete_grad_n(psi_cell_true)
+        hv += vc.discrete_grad_tn(phi_vertex)
+        v = hv / s.thickness_edge
+        s.vorticity = vc.discrete_curl(v)
+        s.divergence = vc.vertex2cell(vc.discrete_div_trig(v))
 
         cpu0 = time.clock( )
         wall0 = time.time( )

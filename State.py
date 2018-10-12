@@ -348,7 +348,7 @@ class state_data:
         self.vVertex[:] = vc.discrete_curl_trig(self.vEdge)
         self.tend_vorticity[:] = 0.5 * vc.vertex2cell(self.vVertex)
 
-        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad(self.psi_vertex)
+        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_trig(self.psi_vertex)
         self.tend_vorticity[:] -= 0.5 * vc.discrete_div(self.vEdge)
 
         self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.phi_cell)
@@ -367,7 +367,7 @@ class state_data:
         self.tend_divergence[:] += 0.5 * vc.vertex2cell(self.vVertex)
 
         self.vVertex[:] = vc.cell2vertex(self.phi_cell)
-        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad(self.vVertex)
+        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_trig(self.vVertex)
         self.tend_divergence[:] -= 0.5 * vc.discrete_div(self.vEdge)
 
         self.tend_divergence[:] -= vc.discrete_laplace(self.geoPot)
@@ -425,13 +425,17 @@ class state_data:
         self.pv_edge[:] = vc.cell2edge(self.pv_cell)
 
         # Compute the kinetic energy
-        self.psi_vertex[:] = vc.cell2vertex(self.psi_cell)
-        self.nVelocity[:] = vc.discrete_grad_n(self.phi_cell)
-        self.nVelocity -= vc.discrete_grad_td(self.psi_vertex)
-        self.nVelocity /= self.thickness_edge
+        self.phi_vertex[:] = vc.cell2vertex(self.phi_cell)
+        self.tVelocity[:] = vc.discrete_grad_n(self.psi_cell)
+        self.tVelocity += vc.discrete_grad_tn(self.phi_vertex)
+        self.tVelocity /= self.thickness_edge
 
         ### For debugging ###
-#        vorticity = vc.vertex2cell(vc.discrete_curl_trig(self.nVelocity))
+#        self.psi_vertex[:] = vc.cell2vertex(self.psi_cell)
+#        nVelocity = vc.discrete_grad_n(self.phi_cell)
+#        nVelocity -= vc.discrete_grad_td(self.psi_vertex)
+#        nVelocity /= self.thickness_edge
+#        vorticity = vc.vertex2cell(vc.discrete_curl_trig(nVelocity))
 #        err = vorticity - self.vorticity
 #        print("vorticity computed using normal vel.")
 #        print("relative error = %e" % (np.sqrt(np.sum(err**2*g.areaCell)/np.sum(self.vorticity**2*g.areaCell))))
@@ -448,12 +452,12 @@ class state_data:
 #        raise ValueError("Stop for debugging")
         ### End of debugging ###
         
-        self.kenergy[:] = vc.edge2cell(self.nVelocity * self.nVelocity)
+        self.kenergy[:] = vc.edge2cell(self.tVelocity * self.tVelocity)
 
         self.geoPot[:] = c.gravity * (self.thickness[:] + g.bottomTopographyCell[:])  + self.kenergy[:]
 
         # Compute kinetic energy, total energy, and potential enstrophy
-        self.kinetic_energy = np.sum(self.nVelocity**2 * self.thickness_edge * g.areaEdge)
+        self.kinetic_energy = np.sum(self.tVelocity**2 * self.thickness_edge * g.areaEdge)
         self.pot_energy = 0.5 * c.gravity * np.sum((self.thickness[:] + g.bottomTopographyCell - self.SS0)**2 * g.areaCell[:])
         self.pot_enstrophy = 0.5 * np.sum(g.areaCell[:] * self.thickness * self.pv_cell[:]**2)
 

@@ -312,70 +312,26 @@ class VectorCalculus:
             self.cellInner = cellInner_tmp[:nCellsInner]
             self.cellOuter = cellOuter_tmp[:nCellsOuter]
 
-            # Construct matrix for discrete Laplacian on interior cells, with homogeneous Dirichlet BC
-            nEntries, rows, cols, valEntries = \
-              cmp.construct_discrete_laplace_interior(g.boundaryEdgeMark[:], \
-                        g.cellsOnEdge, g.boundaryCellMark, \
-                        self.cellRankInterior, g.dvEdge, g.dcEdge, \
-                        g.areaCell)
-            D1s_augmented_coo = coo_matrix(( \
-                        valEntries[:nEntries]*self.areaCell[self.cellInterior[rows[:nEntries]]-1], \
-                        (rows[:nEntries], cols[:nEntries])), shape=(nCellsInterior, g.nCells))
-            # Convert to csc sparse format
-            D1s_augmented = D1s_augmented_coo.tocsc( )
-
-            # Construct a square matrix corresponding to the interior primary cells.
-            D1s = D1s_augmented[:, self.cellInterior[:]-1]
-            D1s.eliminate_zeros( )
-
-            # Construct the Poisson object
-#            self.POpd = Poisson(D1s, self.linear_solver, env)
-
-        # Construct matrix for discrete Laplacian on all cells, corresponding to the
-        # Poisson problem with Neumann BC's, or to the Poisson problem on a global sphere (no boundary)
-        nEntries, rows, cols, valEntries = \
-          cmp.construct_discrete_laplace_neumann(g.cellsOnEdge, g.dvEdge, g.dcEdge, \
-                    g.areaCell)
-        D2s_coo = coo_matrix((valEntries[:nEntries]*g.areaCell[rows[:nEntries]], (rows[:nEntries], \
-                               cols[:nEntries])), shape=(g.nCells, g.nCells))
-        D2s_coo.eliminate_zeros( )
-
-        #self.POpn = Poisson(D2s_coo, self.linear_solver, env)
-        
-
-        if not c.on_a_global_sphere:
-            # Construct matrix for discrete Laplacian on the triangles, corresponding to
-            # the homogeneous Dirichlet boundary conditions
-            nEntries, rows, cols, valEntries = \
-              cmp.construct_discrete_laplace_triangle(g.boundaryEdgeMark[:], \
-                            g.verticesOnEdge, g.dvEdge, g.dcEdge, g.areaTriangle)
-            E1_coo = coo_matrix((valEntries[:nEntries], (rows[:nEntries], \
-                                   cols[:nEntries])), shape=(g.nVertices, g.nVertices))
-            E1s_coo = coo_matrix((valEntries[:nEntries]*self.areaTriangle[rows[:nEntries]], \
-                                  (rows[:nEntries], cols[:nEntries])), shape=(g.nVertices, g.nVertices))
-            E1s_coo.eliminate_zeros( )
-#            self.POdd = Poisson(E1s_coo, c.linear_solver, env)
-
-        # Construct matrix for discrete Laplacian on the triangles, corresponding to the
-        # Poisson problem with Neumann BC's, or to the Poisson problem on a global sphere (no boundary)
-        nEntries, rows, cols, valEntries = \
-          cmp.construct_discrete_laplace_triangle_neumann(g.boundaryEdgeMark, g.verticesOnEdge, \
-                      g.dvEdge, g.dcEdge, g.areaTriangle)
-        E2s_coo = coo_matrix((valEntries[:nEntries]*g.areaTriangle[rows[:nEntries]], (rows[:nEntries], \
-                               cols[:nEntries])), shape=(g.nVertices, g.nVertices))
-        E2s_coo.eliminate_zeros( )
-#        self.POdn = Poisson(E2s_coo, c.linear_solver, env)
-
         ## Construct the matrix representing the discrete div (on primal mesh)
         nEntries, rows, cols, valEntries = \
             cmp.construct_matrix_discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell)
         A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
                                cols[:nEntries])), shape=(g.nCells, g.nEdges))
-        self.mDiv = A.tocsr( )
+        self.mDivn = A.tocsr( )
 
         if c.use_gpu:
-            self.d_mDiv = Device_CSR(self.mDiv, env)
+            self.d_mDivn = Device_CSR(self.mDivn, env)
 
+        ## Construct the matrix representing the discrete div on the dual mesh
+        nEntries, rows, cols, valEntries = \
+            cmp.construct_matrix_discrete_div_trig(g.verticesOnEdge, g.dcEdge, g.areaTriangle)
+        A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
+                               cols[:nEntries])), shape=(g.nVertices, g.nEdges))
+        self.mDivt = A.tocsr( )
+
+        if c.use_gpu:
+            self.d_mDivt = Device_CSR(self.mDivt, env)
+            
         ## Construct the matrix representing the discrete curl (on primal mesh)
         nEntries, rows, cols, valEntries = \
             cmp.construct_matrix_discrete_curl(g.cellsOnEdge, g.dvEdge, g.areaCell)
@@ -431,16 +387,26 @@ class VectorCalculus:
             self.d_mGradn_phi = Device_CSR(self.mGradn_phi, env)
             
         ## Construct the matrix representing the discrete skew grad operator 
-        ## on the dual mesh; homogeneous Dirichlet assumed.
+        ## on the primal mesh; 
         nEntries, rows, cols, valEntries = \
-            cmp.construct_matrix_discrete_skewgrad(g.verticesOnEdge, g.dvEdge)
+            cmp.construct_matrix_discrete_skewgrad_n(g.cellsOnEdge, g.dcEdge)
         A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
-                               cols[:nEntries])), shape=(g.nEdges, g.nVertices))
-        self.mSkewgrad = A.tocsr( )
+                               cols[:nEntries])), shape=(g.nEdges, g.nCells))
+        self.mSkewgradn = A.tocsr( )
 
         if c.use_gpu:
-            self.d_mSkewgrad = Device_CSR(self.mSkewgrad, env)
-            
+            self.d_mSkewgradn = Device_CSR(self.mSkewgradn, env)
+
+        ## Construct the matrix representing the discrete skew grad operator 
+        ## on the dual mesh; homogeneous Dirichlet assumed.
+        nEntries, rows, cols, valEntries = \
+            cmp.construct_matrix_discrete_skewgrad_t(g.verticesOnEdge, g.dvEdge)
+        A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
+                               cols[:nEntries])), shape=(g.nEdges, g.nVertices))
+        self.mSkewgradt = A.tocsr( )
+
+        if c.use_gpu:
+            self.d_mSkewgradt = Device_CSR(self.mSkewgradt, env)
 
         ## Construct the matrix representing the discrete grad operator for the dual
         ## mesh, with implied homogeneous Dirichlet BC's 
@@ -448,10 +414,10 @@ class VectorCalculus:
             cmp.construct_matrix_discrete_grad_td(g.verticesOnEdge, g.dvEdge)
         A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
                                cols[:nEntries])), shape=(g.nEdges, g.nVertices))
-        self.mGrad_td = A.tocsr( )
+        self.mGradtd = A.tocsr( )
 
         if c.use_gpu:
-            self.d_mGrad_td = Device_CSR(self.mGrad_td, env)
+            self.d_mGradtd = Device_CSR(self.mGradtd, env)
 
         ## Construct the matrix representing the discrete grad operator for the dual
         ## mesh, with implied homogeneous Neumann BC's
@@ -459,10 +425,10 @@ class VectorCalculus:
             cmp.construct_matrix_discrete_grad_tn(g.verticesOnEdge, g.dvEdge)
         A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
                                cols[:nEntries])), shape=(g.nEdges, g.nVertices))
-        self.mGrad_tn = A.tocsr( )
+        self.mGradtn = A.tocsr( )
 
         if c.use_gpu:
-            self.d_mGrad_tn = Device_CSR(self.mGrad_tn, env)
+            self.d_mGradtn = Device_CSR(self.mGradtn, env)
 
 
         ## Construct the matrix representing the mapping from the primary mesh onto the dual
@@ -533,17 +499,17 @@ class VectorCalculus:
             self.mAreaCell_psi = diags(areaCell_psi, 0, format='csr')
             self.mAreaCell_psi.eliminate_zeros( )
             
-        if c.use_gpu:                        # Need to update at every step
+        if c.use_gpu:
             self.d_mAreaCell = Device_CSR(self.mAreaCell, env)
 
         ## Construct the coefficient matrix for the coupled elliptic
         ## system for psi and phi
-        AMC = self.mAreaCell_psi * self.mVertex2cell * self.mCurl_trig
-        AD = self.mAreaCell_phi * self.mDiv
-        SN = self.mSkewgrad * self.mCell2vertex_psi
+        AC = self.mAreaCell_psi * self.mCurl
+        AMD = self.mAreaCell_phi * self.mVertex2cell * self.mDivt
+        GN = self.mGradtn * self.mCell2vertex
         
-        self.leftM = bmat([[AMC],[AD]], format='csr')
-        self.rightM = bmat([[SN, self.mGradn_phi]], format='csr')
+        self.leftM = bmat([[AC],[AMD]], format='csr')
+        self.rightM = bmat([[self.mSkewgradn, GN]], format='csr')
 
         self.leftM.eliminate_zeros( )
         self.rightM.eliminate_zeros( )
@@ -579,23 +545,47 @@ class VectorCalculus:
         '''
 
         if c.use_gpu:
-            assert len(vEdge) == self.d_mDiv.shape[1], \
+            assert len(vEdge) == self.d_mDivn.shape[1], \
                 "Dimensions do not match."
             d_vectorIn = self.env.cuda.to_device(vEdge)
 
-            sCell = np.zeros(self.d_mDiv.shape[0])
+            sCell = np.zeros(self.d_mDivn.shape[0])
             d_vectorOut = self.env.cuda.to_device(sCell)
-            self.env.cuSparse.csrmv(trans='N', m=self.d_mDiv.shape[0], \
-                n=self.d_mDiv.shape[1], nnz=self.d_mDiv.nnz, alpha=1.0, \
-                descr=self.d_mDiv.cuSparseDescr, csrVal=self.d_mDiv.dData, \
-                csrRowPtr=self.d_mDiv.dPtr, csrColInd=self.d_mDiv.dInd, \
+            self.env.cuSparse.csrmv(trans='N', m=self.d_mDivn.shape[0], \
+                n=self.d_mDivn.shape[1], nnz=self.d_mDivn.nnz, alpha=1.0, \
+                descr=self.d_mDivn.cuSparseDescr, csrVal=self.d_mDivn.dData, \
+                csrRowPtr=self.d_mDivn.dPtr, csrColInd=self.d_mDivn.dInd, \
                            x=d_vectorIn, beta=0., y=d_vectorOut)
             d_vectorOut.copy_to_host(sCell)
             return sCell
 
         else:
-            return self.mDiv.dot(vEdge)
+            return self.mDivn.dot(vEdge)
 
+
+    def discrete_div_trig(self, vEdge):
+        '''
+        No flux boundary conditions implied on the boundary.
+        '''
+
+        if c.use_gpu:
+            assert len(vEdge) == self.d_mDivt.shape[1], \
+                "Dimensions do not match."
+            d_vectorIn = self.env.cuda.to_device(vEdge)
+
+            sCell = np.zeros(self.d_mDivt.shape[0])
+            d_vectorOut = self.env.cuda.to_device(sCell)
+            self.env.cuSparse.csrmv(trans='N', m=self.d_mDivt.shape[0], \
+                n=self.d_mDivt.shape[1], nnz=self.d_mDivt.nnz, alpha=1.0, \
+                descr=self.d_mDivt.cuSparseDescr, csrVal=self.d_mDivt.dData, \
+                csrRowPtr=self.d_mDivt.dPtr, csrColInd=self.d_mDivt.dInd, \
+                           x=d_vectorIn, beta=0., y=d_vectorOut)
+            d_vectorOut.copy_to_host(sCell)
+            return sCell
+
+        else:
+            return self.mDivt.dot(vEdge)
+        
 
     def discrete_curl(self, vEdge):
         '''
@@ -698,22 +688,22 @@ class VectorCalculus:
         '''With implied Dirichlet BC's'''
 
         if c.use_gpu:
-            assert len(sVertex) == self.d_mGrad_td.shape[1], \
+            assert len(sVertex) == self.d_mGradtd.shape[1], \
                 "Dimensions do not match."
             d_vectorIn = self.env.cuda.to_device(sVertex)
 
-            vOut = np.zeros(self.d_mGrad_td.shape[0])
+            vOut = np.zeros(self.d_mGradtd.shape[0])
             d_vectorOut = self.env.cuda.to_device(vOut)
-            self.env.cuSparse.csrmv(trans='N', m=self.d_mGrad_td.shape[0], \
-                n=self.d_mGrad_td.shape[1], nnz=self.d_mGrad_td.nnz, alpha=1.0, \
-                descr=self.d_mGrad_td.cuSparseDescr, csrVal=self.d_mGrad_td.dData, \
-                csrRowPtr=self.d_mGrad_td.dPtr, csrColInd=self.d_mGrad_td.dInd, \
+            self.env.cuSparse.csrmv(trans='N', m=self.d_mGradtd.shape[0], \
+                n=self.d_mGradtd.shape[1], nnz=self.d_mGradtd.nnz, alpha=1.0, \
+                descr=self.d_mGradtd.cuSparseDescr, csrVal=self.d_mGradtd.dData, \
+                csrRowPtr=self.d_mGradtd.dPtr, csrColInd=self.d_mGradtd.dInd, \
                            x=d_vectorIn, beta=0., y=d_vectorOut)
             d_vectorOut.copy_to_host(vOut)
             return vOut
 
         else:
-            return self.mGrad_td.dot(sVertex)
+            return self.mGradtd.dot(sVertex)
 
 
     # The discrete gradient operator on the dual mesh, assuming
@@ -722,46 +712,46 @@ class VectorCalculus:
         '''With implied Neumann BC's'''
 
         if c.use_gpu:
-            assert len(sVertex) == self.d_mGrad_tn.shape[1], \
+            assert len(sVertex) == self.d_mGradtn.shape[1], \
                 "Dimensions do not match."
             d_vectorIn = self.env.cuda.to_device(sVertex)
 
-            vOut = np.zeros(self.d_mGrad_tn.shape[0])
+            vOut = np.zeros(self.d_mGradtn.shape[0])
             d_vectorOut = self.env.cuda.to_device(vOut)
-            self.env.cuSparse.csrmv(trans='N', m=self.d_mGrad_tn.shape[0], \
-                n=self.d_mGrad_tn.shape[1], nnz=self.d_mGrad_tn.nnz, alpha=1.0, \
-                descr=self.d_mGrad_tn.cuSparseDescr, csrVal=self.d_mGrad_tn.dData, \
-                csrRowPtr=self.d_mGrad_tn.dPtr, csrColInd=self.d_mGrad_tn.dInd, \
+            self.env.cuSparse.csrmv(trans='N', m=self.d_mGradtn.shape[0], \
+                n=self.d_mGradtn.shape[1], nnz=self.d_mGradtn.nnz, alpha=1.0, \
+                descr=self.d_mGradtn.cuSparseDescr, csrVal=self.d_mGradtn.dData, \
+                csrRowPtr=self.d_mGradtn.dPtr, csrColInd=self.d_mGradtn.dInd, \
                            x=d_vectorIn, beta=0., y=d_vectorOut)
             d_vectorOut.copy_to_host(vOut)
             return vOut
 
         else:
-            return self.mGrad_tn.dot(sVertex)
+            return self.mGradtn.dot(sVertex)
 
 
     # The discrete skew gradient operator on the dual mesh, assuming
     # homogeneous Dirichlet BC's
-    def discrete_skewgrad(self, sVertex):
+    def discrete_skewgrad_trig(self, sVertex):
         '''With implied Neumann BC's'''
 
         if c.use_gpu:
-            assert len(sVertex) == self.d_mSkewgrad.shape[1], \
+            assert len(sVertex) == self.d_mSkewgradt.shape[1], \
                 "Dimensions do not match."
             d_vectorIn = self.env.cuda.to_device(sVertex)
 
-            vOut = np.zeros(self.d_mSkewgrad.shape[0])
+            vOut = np.zeros(self.d_mSkewgradt.shape[0])
             d_vectorOut = self.env.cuda.to_device(vOut)
-            self.env.cuSparse.csrmv(trans='N', m=self.d_mSkewgrad.shape[0], \
-                n=self.d_mSkewgrad.shape[1], nnz=self.d_mSkewgrad.nnz, alpha=1.0, \
-                descr=self.d_mSkewgrad.cuSparseDescr, csrVal=self.d_mSkewgrad.dData, \
-                csrRowPtr=self.d_mSkewgrad.dPtr, csrColInd=self.d_mSkewgrad.dInd, \
+            self.env.cuSparse.csrmv(trans='N', m=self.d_mSkewgradt.shape[0], \
+                n=self.d_mSkewgradt.shape[1], nnz=self.d_mSkewgradt.nnz, alpha=1.0, \
+                descr=self.d_mSkewgradt.cuSparseDescr, csrVal=self.d_mSkewgradt.dData, \
+                csrRowPtr=self.d_mSkewgradt.dPtr, csrColInd=self.d_mSkewgradt.dInd, \
                            x=d_vectorIn, beta=0., y=d_vectorOut)
             d_vectorOut.copy_to_host(vOut)
             return vOut
 
         else:
-            return self.mSkewgrad.dot(sVertex)
+            return self.mSkewgradt.dot(sVertex)
         
 
     def cell2vertex(self, sCell):

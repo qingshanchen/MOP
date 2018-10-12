@@ -10,7 +10,7 @@ use_gpu = True
 timestepping = 'RK4'
 
 # Duration, time stepping size, saving interval
-dt = 720.   #1440 for 480km
+dt = 30.   #1440 for 480km
 #dt = 360.   #360 for NA818
 nYears = 5./360
 save_inter_days = 1
