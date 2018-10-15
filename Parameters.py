@@ -23,7 +23,7 @@ no_slip_BC = False
 free_slip_BC = False
 
 # Solver config
-linear_solver = 'lu'      # lu, cg, cudaCG, cudaPCG, amg, amgx
+linear_solver = 'amgx'      # lu, cg, cudaCG, cudaPCG, amg, amgx
 err_tol = 1e-8
 max_iter = 5000
 #max_iter_dual = 25

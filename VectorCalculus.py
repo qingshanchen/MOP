@@ -519,7 +519,7 @@ class VectorCalculus:
 
     # The discrete skew gradient operator along the normal direction, assuming
     # homogeneous Dirichlet BC's
-    def discrete_skewgrad_trig(self, sVertex):
+    def discrete_skewgrad_n(self, sVertex):
         '''With implied Neumann BC's'''
 
         if c.use_gpu:
@@ -539,6 +539,28 @@ class VectorCalculus:
 
         else:
             return self.mSkewgrad_n.dot(sVertex)
+
+    # The discrete skew gradient operator along the tangential direction
+    def discrete_skewgrad_t(self, sVertex):
+        '''With implied Neumann BC's'''
+
+        if c.use_gpu:
+            assert len(sVertex) == self.d_mSkewgrad_t.shape[1], \
+                "Dimensions do not match."
+            d_vectorIn = self.env.cuda.to_device(sVertex)
+
+            vOut = np.zeros(self.d_mSkewgrad_t.shape[0])
+            d_vectorOut = self.env.cuda.to_device(vOut)
+            self.env.cuSparse.csrmv(trans='N', m=self.d_mSkewgrad_t.shape[0], \
+                n=self.d_mSkewgrad_t.shape[1], nnz=self.d_mSkewgrad_t.nnz, alpha=1.0, \
+                descr=self.d_mSkewgrad_t.cuSparseDescr, csrVal=self.d_mSkewgrad_t.dData, \
+                csrRowPtr=self.d_mSkewgrad_t.dPtr, csrColInd=self.d_mSkewgrad_t.dInd, \
+                           x=d_vectorIn, beta=0., y=d_vectorOut)
+            d_vectorOut.copy_to_host(vOut)
+            return vOut
+
+        else:
+            return self.mSkewgrad_t.dot(sVertex)
         
 
     def cell2vertex(self, sCell):

@@ -53,6 +53,7 @@ def main( ):
     total_energy = np.zeros(c.nTimeSteps+1)
     mass = np.zeros(c.nTimeSteps+1)
     pot_enstrophy = np.zeros(c.nTimeSteps+1)
+    total_vorticity = np.zeros(c.nTimeSteps+1)
     pv_max = np.zeros(c.nTimeSteps+1)
     pv_min = np.zeros(c.nTimeSteps+1)
 
@@ -62,6 +63,7 @@ def main( ):
     total_energy[0] = kinetic_energy[0] + pot_energy[0]
     mass[0] = np.sum(s.thickness[:] * g.areaCell[:])
     pot_enstrophy[0] = s.pot_enstrophy
+    total_vorticity[0] = np.sum(s.pv_cell * s.thickness * g.areaCell)
     pv_max[0] = np.max(s.pv_cell)
     pv_min[0] = np.min(s.pv_cell)
 
@@ -99,6 +101,7 @@ def main( ):
         total_energy[iStep+1] = kinetic_energy[iStep+1] + pot_energy[iStep+1]
         mass[iStep+1] = np.sum(s.thickness[:] * g.areaCell[:])
         pot_enstrophy[iStep+1] = s.pot_enstrophy
+        total_vorticity[iStep+1] = np.sum(s.pv_cell * s.thickness * g.areaCell)
         pv_max[iStep+1] = np.max(s.pv_cell)
         pv_min[iStep+1] = np.min(s.pv_cell)
         
@@ -171,14 +174,14 @@ def main( ):
     plt.legend(loc=1)
     plt.savefig('pv_max_min.png', format='PNG')
 
-    #plt.figure(8)
-    #plt.plot(Years, aVorticity_total)
-    #plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
-    ##plt.ylim([-0.0001, 0.0001])
-    #plt.xlabel('Years')
-    #plt.ylabel('Total absolute vorticity')
-    #plt.savefig('aVort_total.png', format='PNG')
-    #plt.savefig('aVort_total.pdf', format='PDF')
+    plt.figure(8)
+    plt.plot(days, total_vorticity)
+    plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
+    #plt.ylim([-0.0001, 0.0001])
+    plt.xlabel('Days')
+    plt.ylabel('Total absolute vorticity')
+    plt.savefig('aVort_total.png', format='PNG')
+    print("Initial and final total vorticity:%e, %e" % (total_vorticity[0], total_vorticity[-1]))
     
     if c.test_case == 2:
         plt.figure(2); 

@@ -120,54 +120,6 @@ class state_data:
             self.psi_cell -= self.psi_cell[0]
             self.phi_cell[:] = 0.
 
-            if False:
-                # To check that vorticity and
-                psi_true = -a * u0 * np.sin(g.latCell)
-                psi_vertex_true = -a * u0 * np.sin(g.latVertex)
-                psi_vertex_true -= psi_true[0]
-                psi_true -= psi_true[0]
-                u_true = u0 * np.cos(g.latEdge)
-
-                print(("Max in nVelocity: %e" % np.max(self.nVelocity)))
-                print(("Max in u_true: %e" % np.max(u_true)))
-                edgeInd = np.argmax(self.nVelocity)
-                cell0 = g.cellsOnEdge[edgeInd, 0] - 1
-                cell1 = g.cellsOnEdge[edgeInd, 1] - 1
-                vertex0 = g.verticesOnEdge[edgeInd,0] - 1
-                vertex1 = g.verticesOnEdge[edgeInd,1] - 1
-                nVector = np.array([g.xCell[cell1] - g.xCell[cell0], g.yCell[cell1] - g.yCell[cell0], g.zCell[cell1] - g.zCell[cell0]])
-                nVector /= np.sqrt(np.sum(nVector**2))
-                hVector = np.array([-g.yEdge[edgeInd], g.xEdge[edgeInd], 0])
-                hVector /= np.sqrt(np.sum(hVector**2))
-                print(("latEdge[%d] = %e" % (edgeInd, g.latEdge[edgeInd]))) 
-                print(("lonEdge[%d] = %e" % (edgeInd, g.lonEdge[edgeInd]))) 
-                print(("Actual horizontal velocity at edge %d: %e" % (edgeInd, u_true[edgeInd])))
-                print(("Actual normal velocity component: %e" % (u_true[edgeInd]*np.dot(nVector, hVector))))
-                print(("Approximate normal velocity component: %e" % (self.nVelocity[edgeInd],)))
-                print(("Actual psi at vertex %d: %e" % (vertex0, -a*u0*np.sin(g.latVertex[vertex0]) + a*u0*np.sin(g.latCell[0]))))
-                print(("Approximate psi at vertex %d: %e" % (vertex0, self.psi_vertex[vertex0])))
-                print(("Actual psi at vertex %d: %e" % (vertex1, -a*u0*np.sin(g.latVertex[vertex1]) + a*u0*np.sin(g.latCell[0]))))
-                print(("Approximate psi at vertex %d: %e" % (vertex1, self.psi_vertex[vertex1])))
-                print(("dvEdge[%d] = %e" % (edgeInd, g.dvEdge[edgeInd])))
-                print("")
-
-
-                print(("Max in tVelocity: %e" % np.max(self.tVelocity)))
-                print(("Max in u_true: %e" % np.max(u_true)))
-                print("")
-
-                print(("Max in psi: %e" % np.max(self.psi_cell)))
-                print(("Max in psi_vertex: %e" % np.max(self.psi_vertex)))
-                print(("L-infinity error in psi: %e" % (np.max(np.abs(self.psi_cell - psi_true)) / np.max(np.abs(psi_true)),) ))
-                print(("L-infinity error in psi_vertex: %e" % (np.max(np.abs(self.psi_vertex - psi_vertex_true)) / np.max(np.abs(psi_vertex_true)),) ))
-                print("")
-
-                print(("Max in phi: %e" % np.max(self.phi_cell)))
-                print(("Max in phi_vertex: %e" % np.max(self.phi_vertex)))
-                print("")
-
-                raise ValueError("Abort after testing in start_from_function")
-
             self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
 
         elif c.test_case == 5:
@@ -348,7 +300,7 @@ class state_data:
         self.vVertex[:] = vc.discrete_curl_t(self.vEdge)
         self.tend_vorticity[:] = 0.5 * vc.vertex2cell(self.vVertex)
 
-        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_trig(self.psi_vertex)
+        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_n(self.psi_vertex)
         self.tend_vorticity[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
 
         self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.phi_cell)
@@ -366,8 +318,7 @@ class state_data:
         self.vVertex[:] = vc.discrete_curl_t(self.vEdge)
         self.tend_divergence[:] += 0.5 * vc.vertex2cell(self.vVertex)
 
-        self.vVertex[:] = vc.cell2vertex(self.phi_cell)
-        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_trig(self.vVertex)
+        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_n(self.phi_vertex)
         self.tend_divergence[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
 
         self.tend_divergence[:] -= vc.discrete_laplace_v(self.geoPot)
@@ -384,34 +335,18 @@ class state_data:
 
         self.thickness_edge[:] = vc.cell2edge(self.thickness)
 
-        ## For debugging ##
-        # To check the closeness between psi_cell and vorticity
-#        self.psi_vertex[:] = vc.cell2vertex(self.psi_cell)
-#        nVelocity = vc.discrete_grad_n(self.phi_cell)
-#        nVelocity -= vc.discrete_grad_td(self.psi_vertex)
-#        nVelocity /= self.thickness_edge
-#        vorticity = vc.vertex2cell(vc.discrete_curl_t(nVelocity))
-#        err = vorticity - self.vorticity
-#        print("vorticity computed using normal vel.")
-#        print("relative error = %e" % (np.sqrt(np.sum(err**2*g.areaCell)/np.sum(self.vorticity**2*g.areaCell))))
-
-#        self.phi_vertex[:] = vc.cell2vertex(self.phi_cell)
-#        tVelocity = vc.discrete_grad_n(self.psi_cell)
-#        tVelocity += vc.discrete_grad_tn(self.phi_vertex)
-#        tVelocity /= self.thickness_edge
-#        vorticity = vc.discrete_curl(tVelocity)
-#        err = vorticity - self.vorticity
-#        print("vorticity computed using tang vel.")
-#        print("relative error = %e" % (np.sqrt(np.sum(err**2*g.areaCell)/np.sum(self.vorticity**2*g.areaCell))))
-        ## End of debugging ##
-        
         self.compute_psi_phi(vc, g, c)
 
+        self.psi_vertex[:] = vc.cell2vertex(self.psi_cell)
+        self.phi_vertex[:] = vc.cell2vertex(self.phi_cell)
+
         if c.on_a_global_sphere:
-            pass 
+            pass
             # Reset value of vorticity and divergence at cell 0
             #self.vorticity[0] = -1 * np.sum(self.vorticity[1:]*g.areaCell[1:]) / g.areaCell[0]
             #self.divergence[0] = -1 * np.sum(self.divergence[1:]*g.areaCell[1:]) / g.areaCell[0]
+            #print("Total vorticity = %e" % (np.sum(self.vorticity * g.areaCell)))
+            #print("Total divergence = %e" % (np.sum(self.divergence * g.areaCell)))
         else:
             raise ValueError
         
@@ -425,33 +360,11 @@ class state_data:
         self.pv_edge[:] = vc.cell2edge(self.pv_cell)
 
         # Compute the kinetic energy
-        self.phi_vertex[:] = vc.cell2vertex(self.phi_cell)
-        self.tVelocity[:] = vc.discrete_grad_n(self.psi_cell)
+        #self.phi_vertex[:] = vc.cell2vertex(self.phi_cell)
+        self.tVelocity[:] = vc.discrete_skewgrad_t(self.psi_cell)
         self.tVelocity += vc.discrete_grad_tn(self.phi_vertex)
         self.tVelocity /= self.thickness_edge
 
-        ### For debugging ###
-#        self.psi_vertex[:] = vc.cell2vertex(self.psi_cell)
-#        nVelocity = vc.discrete_grad_n(self.phi_cell)
-#        nVelocity -= vc.discrete_grad_td(self.psi_vertex)
-#        nVelocity /= self.thickness_edge
-#        vorticity = vc.vertex2cell(vc.discrete_curl_t(nVelocity))
-#        err = vorticity - self.vorticity
-#        print("vorticity computed using normal vel.")
-#        print("relative error = %e" % (np.sqrt(np.sum(err**2*g.areaCell)/np.sum(self.vorticity**2*g.areaCell))))
-
-#        self.phi_vertex[:] = vc.cell2vertex(self.phi_cell)
-#        tVelocity = vc.discrete_grad_n(self.psi_cell)
-#        tVelocity += vc.discrete_grad_tn(self.phi_vertex)
-#        tVelocity /= self.thickness_edge
-#        vorticity = vc.discrete_curl(tVelocity)
-#        err = vorticity - self.vorticity
-#        print("vorticity computed using tang vel.")
-#        print("relative error = %e" % (np.sqrt(np.sum(err**2*g.areaCell)/np.sum(self.vorticity**2*g.areaCell))))
-        
-#        raise ValueError("Stop for debugging")
-        ### End of debugging ###
-        
         self.kenergy[:] = vc.edge2cell(self.tVelocity * self.tVelocity)
 
         self.geoPot[:] = c.gravity * (self.thickness[:] + g.bottomTopographyCell[:])  + self.kenergy[:]
