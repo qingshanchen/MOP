@@ -4,9 +4,6 @@ from Grid import grid_data
 from ComputeEnvironment import ComputeEnvironment
 from VectorCalculus import VectorCalculus
 import netCDF4 as nc
-#from matplotlib import use
-#use('Agg')
-#import matplotlib.pyplot as plt
 from swe_comp import swe_comp as cmp
 import os
 from copy import deepcopy as deepcopy
@@ -141,17 +138,8 @@ class state_data:
             self.thickness[:] = h[:] - g.bottomTopographyCell[:]
             self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
             self.divergence[:] = 0.
-#            self.psi_cell[:] = -a * u0 * np.sin(g.latCell[:])
-#            self.psi_cell[:] -= self.psi_cell[0]
-#            self.phi_cell[:] = 0.
-#            self.psi_vertex[:] = -a * u0 * np.sin(g.latVertex[:])
-#            self.psi_vertex[:] -= self.psi_vertex[0]
-#            self.phi_vertex[:] = 0.
-#            raise ValueError("Need to set initial psi and phi")
             
             self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
-
-            #self.compute_diagnostics(g, c)
 
             self.curlWind_cell[:] = 0.
             self.divWind_cell[:] = 0.
@@ -360,7 +348,6 @@ class state_data:
         self.pv_edge[:] = vc.cell2edge(self.pv_cell)
 
         # Compute the kinetic energy
-        #self.phi_vertex[:] = vc.cell2vertex(self.phi_cell)
         self.tVelocity[:] = vc.discrete_skewgrad_t(self.psi_cell)
         self.tVelocity += vc.discrete_grad_tn(self.phi_vertex)
         self.tVelocity /= self.thickness_edge
@@ -473,8 +460,6 @@ def timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, g, vc, c):
             if i == 0:
                 s_intm.psi_cell[:] = 1.5*s_pre.psi_cell[:] - 0.5*s_old.psi_cell[:]
                 s_intm.phi_cell[:] = 1.5*s_pre.phi_cell[:] - 0.5*s_old.phi_cell[:]
-                s_intm.psi_vertex[:] = 1.5*s_pre.psi_vertex[:] - 0.5*s_old.psi_vertex[:]
-                s_intm.phi_vertex[:] = 1.5*s_pre.phi_vertex[:] - 0.5*s_old.phi_vertex[:]
 
             if i == 1:
                 pass
@@ -482,19 +467,14 @@ def timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, g, vc, c):
             if i==2:
                 s_intm.psi_cell[:] = 2*s_intm.psi_cell[:] - s_pre.psi_cell[:]
                 s_intm.phi_cell[:] = 2*s_intm.phi_cell[:] - s_pre.phi_cell[:]
-                s_intm.psi_vertex[:] = 2*s_intm.psi_vertex[:] - s_pre.psi_vertex[:]
-                s_intm.phi_vertex[:] = 2*s_intm.phi_vertex[:] - s_pre.phi_vertex[:]
 
             s_intm.compute_diagnostics(g, vc, c)
 
     # Prediction using the latest s_intm values
     s.psi_cell[:] = s_intm.psi_cell[:]
     s.phi_cell[:] = s_intm.phi_cell[:]
-    s.psi_vertex[:] = s_intm.psi_vertex[:]
-    s.phi_vertex[:] = s_intm.phi_vertex[:]
     
     s.compute_diagnostics(g, vc, c)
-
 
 def timestepping_euler(s, g, c):
 

@@ -12,7 +12,7 @@ timestepping = 'RK4'
 # Duration, time stepping size, saving interval
 dt = 180.   #1440 for 480km
 #dt = 360.   #360 for NA818
-nYears = .1/360
+nYears = 5./360
 save_inter_days = 1
 
 # Model configuraitons, boundary conditions
