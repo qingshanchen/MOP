@@ -42,6 +42,10 @@ def main( ):
 
     print("========== Setting the initial state of the model ================")
     s.initialization(g, vc, c)
+
+    ## Debug
+#    print('s.kinetic_energy = %e' % s.kinetic_energy)
+#    print('s.pot_energy = %e' % s.pot_energy)
     
     print("========== Making a copy of the state object =====================")
     s_init = deepcopy(s)
@@ -68,7 +72,7 @@ def main( ):
     pv_min[0] = np.min(s.pv_cell)
 
     print(("Running test case \#%d" % c.test_case))
-    print(("K-nergy, p-energy, t-energy, p-enstrophy, mass: %e, %e, %e, %e, %e" % (kinetic_energy[0], pot_energy[0], total_energy[0], pot_enstrophy[0], mass[0])))
+    print(("K-energy, p-energy, t-energy, p-enstrophy, mass: %.15e, %.15e, %.15e, %.15e, %.15e" % (kinetic_energy[0], pot_energy[0], total_energy[0], pot_enstrophy[0], mass[0])))
 
     if c.test_case == 2:
         error1 = np.zeros((c.nTimeSteps+1, 3)); error1[0,:] = 0.
@@ -105,7 +109,7 @@ def main( ):
         pv_max[iStep+1] = np.max(s.pv_cell)
         pv_min[iStep+1] = np.min(s.pv_cell)
         
-        print(("K-nergy, p-energy, t-energy, p-enstrophy, mass: %.15e, %.15e, %.15e, %.15e, %.15e" % \
+        print(("K-energy, p-energy, t-energy, p-enstrophy, mass: %.15e, %.15e, %.15e, %.15e, %.15e" % \
               (kinetic_energy[iStep+1], pot_energy[iStep+1], total_energy[iStep+1], pot_enstrophy[iStep+1], mass[iStep+1])))
         print("min thickness: %f" % np.min(s.thickness))
 

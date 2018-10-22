@@ -1,19 +1,22 @@
 import numpy as np
 
 ### Parameters essential
-test_case = 2
+test_case = 5
 on_a_global_sphere = True
 use_gpu = True
+
+restart = True
+restart_file = 'restart.nc'
 
 ### Parameters secondary
 # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
 timestepping = 'RK4'
 
 # Duration, time stepping size, saving interval
-dt = 180.   #1440 for 480km
+dt = 90.   #1440 for 480km
 #dt = 360.   #360 for NA818
-nYears = 5./360
-save_inter_days = 1
+nYears = .1/360
+save_inter_days = .1
 
 # Model configuraitons, boundary conditions
 delVisc = 0.  # 80 for NA818
@@ -28,9 +31,6 @@ err_tol = 1e-8
 max_iter = 5000
 #max_iter_dual = 25
 #dual_init = 'interpolation'    # 'extrapolation', 'interpolation'
-
-restart = False
-restart_file = 'restart.nc'
 
 # Size of the phyiscal domain
 earth_radius = 6371000.0

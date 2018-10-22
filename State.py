@@ -214,29 +214,26 @@ class state_data:
 
         start_ind = len(rdata.dimensions['Time']) - 1
 
-        self.pv_cell[:] = rdata.variables['pv_cell'][start_ind,:,0]
-        self.vorticity_cell[:] = rdata.variables['vorticity_cell'][start_ind,:,0]
+        self.thickness[:] = rdata.variables['thickness'][start_ind,:,0]
+        self.vorticity[:] = rdata.variables['vorticity_cell'][start_ind,:,0]
+        self.divergence[:] = rdata.variables['divergence'][start_ind,:,0]
         self.psi_cell[:] = rdata.variables['psi_cell'][start_ind,:,0]
-        self.psi_vertex[:] = rdata.variables['psi_vertex'][start_ind,:,0]
-        self.u[:] = rdata.variables['u'][start_ind,:,0]
+        self.phi_cell[:] = rdata.variables['phi_cell'][start_ind,:,0]
+#        self.u[:] = rdata.variables['u'][start_ind,:,0]
         self.time = rdata.variables['xtime'][start_ind]
-#        self.pv_edge[:] = cmp.compute_pv_edge( \
-#                 g.cellsOnEdge, g.boundaryCellMark, self.pv_cell)
-        self.pv_edge[:] = cmp.compute_pv_edge_apvm( \
-             g.cellsOnEdge, g.boundaryCellMark, g.dcEdge, c.dt, self.pv_cell, self.u, c.apvm_factor)
 
-        nVertices = np.size(self.psi_vertex)
-        self.curlWind_cell[:] = rdata.variables['curlWind_cell'][:]
+        g.bottomTopographyCell[:] = rdata.variables['bottomTopographyCell'][:]
+        self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
+        
+#        nVertices = np.size(self.psi_vertex)
+#        self.curlWind_cell[:] = rdata.variables['curlWind_cell'][:]
 
         # Read simulation parameters
         c.test_case = int(rdata.test_case)
-        c.free_surface = bool(rdata.free_surface)
         c.dt = float(rdata.dt)
         c.delVisc = float(rdata.delVisc)
         c.bottomDrag = float(rdata.bottomDrag)
-        c.on_sphere = bool(rdata.on_sphere)
         c.earth_radius = float(rdata.radius)
-        c.f0 = float(rdata.f0)
         
         rdata.close( )
 
@@ -244,6 +241,7 @@ class state_data:
 
         if c.restart:
             self.restart_from_file(g,c)
+            self.compute_diagnostics(g, vc, c)
         else:
             self.start_from_function(vc, g, c)
             self.compute_diagnostics(g, vc, c)
@@ -254,10 +252,13 @@ class state_data:
         out.createVariable('thickness', 'f8', ('Time', 'nCells', 'nVertLevels'))
         out.createVariable('vorticity_cell', 'f8', ('Time', 'nCells', 'nVertLevels'))
         out.createVariable('divergence', 'f8', ('Time', 'nCells', 'nVertLevels'))
+        out.createVariable('psi_cell', 'f8', ('Time', 'nCells', 'nVertLevels'))
+        out.createVariable('phi_cell', 'f8', ('Time', 'nCells', 'nVertLevels'))
         out.createVariable('nVelocity', 'f8', ('Time', 'nEdges', 'nVertLevels'))
         out.createVariable('tVelocity', 'f8', ('Time', 'nEdges', 'nVertLevels'))
         out.createVariable('kenergy', 'f8', ('Time', 'nCells', 'nVertLevels'))
         out.createVariable('curlWind_cell', 'f8', ('nCells',))
+        out.createVariable('bottomTopographyCell', 'f8', ('nCells',))
 
         # Record parameters used for this simulation
         out.test_case = "%d" % (c.test_case)
@@ -397,11 +398,14 @@ class state_data:
         out.variables['thickness'][k,:,0] = self.thickness[:]
         out.variables['vorticity_cell'][k,:,0] = self.vorticity[:]
         out.variables['divergence'][k,:,0] = self.divergence[:]
+        out.variables['psi_cell'][k,:,0] = self.psi_cell[:]
+        out.variables['phi_cell'][k,:,0] = self.phi_cell[:]
         out.variables['nVelocity'][k,:,0] = self.nVelocity[:]
         out.variables['tVelocity'][k,:,0] = self.tVelocity[:]
 
         if k==0:
             out.variables['curlWind_cell'][:] = self.curlWind_cell[:]
+            out.variables['bottomTopographyCell'][:] = g.bottomTopographyCell[:]
 
         #self.compute_kenergy(g, c)
         out.variables['kenergy'][k,:,0]= self.kenergy[:]
