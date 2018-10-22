@@ -5,7 +5,7 @@ test_case = 5
 on_a_global_sphere = True
 use_gpu = True
 
-restart = True
+restart = False
 restart_file = 'restart.nc'
 
 ### Parameters secondary
@@ -16,7 +16,7 @@ timestepping = 'RK4'
 dt = 90.   #1440 for 480km
 #dt = 360.   #360 for NA818
 nYears = .1/360
-save_inter_days = .1
+save_inter_days = 1.
 
 # Model configuraitons, boundary conditions
 delVisc = 0.  # 80 for NA818

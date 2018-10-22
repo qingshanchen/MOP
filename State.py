@@ -39,7 +39,8 @@ class state_data:
         self.thickness_edge = np.zeros(g.nEdges)
         self.eta_cell = np.zeros(g.nCells)
         self.eta_edge = np.zeros(g.nEdges)
-        self.kenergy = np.zeros(g.nCells)
+#        self.kenergy = np.zeros(g.nCells)
+        self.kenergy_edge = np.zeros(g.nEdges)
         self.geoPot = np.zeros(g.nCells)
 
         self.SS0 = 0.     # Sea Surface at rest
@@ -219,15 +220,11 @@ class state_data:
         self.divergence[:] = rdata.variables['divergence'][start_ind,:,0]
         self.psi_cell[:] = rdata.variables['psi_cell'][start_ind,:,0]
         self.phi_cell[:] = rdata.variables['phi_cell'][start_ind,:,0]
-#        self.u[:] = rdata.variables['u'][start_ind,:,0]
         self.time = rdata.variables['xtime'][start_ind]
 
         g.bottomTopographyCell[:] = rdata.variables['bottomTopographyCell'][:]
         self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
         
-#        nVertices = np.size(self.psi_vertex)
-#        self.curlWind_cell[:] = rdata.variables['curlWind_cell'][:]
-
         # Read simulation parameters
         c.test_case = int(rdata.test_case)
         c.dt = float(rdata.dt)
@@ -256,7 +253,7 @@ class state_data:
         out.createVariable('phi_cell', 'f8', ('Time', 'nCells', 'nVertLevels'))
         out.createVariable('nVelocity', 'f8', ('Time', 'nEdges', 'nVertLevels'))
         out.createVariable('tVelocity', 'f8', ('Time', 'nEdges', 'nVertLevels'))
-        out.createVariable('kenergy', 'f8', ('Time', 'nCells', 'nVertLevels'))
+#        out.createVariable('kenergy', 'f8', ('Time', 'nCells', 'nVertLevels'))
         out.createVariable('curlWind_cell', 'f8', ('nCells',))
         out.createVariable('bottomTopographyCell', 'f8', ('nCells',))
 
@@ -348,17 +345,18 @@ class state_data:
         # Map from cell to edge
         self.pv_edge[:] = vc.cell2edge(self.pv_cell)
 
-        # Compute the kinetic energy
-        self.tVelocity[:] = vc.discrete_skewgrad_t(self.psi_cell)
-        self.tVelocity += vc.discrete_grad_tn(self.phi_vertex)
-        self.tVelocity /= self.thickness_edge
+        # Compute kinetic energy on the edge
+        self.compute_kenergy_edge_tangent(vc, g, c)
+#        self.compute_kenergy_edge_normal(vc, g, c)
 
-        self.kenergy[:] = vc.edge2cell(self.tVelocity * self.tVelocity)
-
-        self.geoPot[:] = c.gravity * (self.thickness[:] + g.bottomTopographyCell[:])  + self.kenergy[:]
+#        self.compute_geoPot_tangent(vc, g, c)
+        self.geoPot[:] = c.gravity * (self.thickness[:] + g.bottomTopographyCell[:])
+        self.geoPot[:] += vc.edge2cell(self.kenergy_edge[:])
 
         # Compute kinetic energy, total energy, and potential enstrophy
-        self.kinetic_energy = np.sum(self.tVelocity**2 * self.thickness_edge * g.areaEdge)
+#        self.kinetic_energy = np.sum(self.tVelocity**2 * self.thickness_edge * g.areaEdge)
+        self.kinetic_energy = np.sum(self.kenergy_edge * self.thickness_edge * g.areaEdge)
+        
         self.pot_energy = 0.5 * c.gravity * np.sum((self.thickness[:] + g.bottomTopographyCell - self.SS0)**2 * g.areaCell[:])
         self.pot_enstrophy = 0.5 * np.sum(g.areaCell[:] * self.thickness * self.pv_cell[:]**2)
 
@@ -408,7 +406,7 @@ class state_data:
             out.variables['bottomTopographyCell'][:] = g.bottomTopographyCell[:]
 
         #self.compute_kenergy(g, c)
-        out.variables['kenergy'][k,:,0]= self.kenergy[:]
+#        out.variables['kenergy'][k,:,0]= self.kenergy[:]
         
         out.close( )
 
@@ -427,6 +425,24 @@ class state_data:
         errorInf[iStep+1, 0] = np.max(np.abs(self.thickness[:] - s_init.thickness[:])) / np.max(np.abs(s_init.thickness[:]))
         errorInf[iStep+1, 1] = np.max(np.abs(self.vorticity[:] - s_init.vorticity[:])) / np.max(np.abs(s_init.vorticity[:]))
         errorInf[iStep+1, 2] = np.max(np.abs(self.divergence[:] - s_init.divergence[:]))
+
+
+    def compute_kenergy_edge_tangent(self, vc, g, c):
+        # Compute the kinetic energy
+        self.tVelocity[:] = vc.discrete_skewgrad_t(self.psi_cell)
+        self.tVelocity += vc.discrete_grad_tn(self.phi_vertex)
+        self.tVelocity /= self.thickness_edge
+
+        self.kenergy_edge[:] = self.tVelocity * self.tVelocity
+
+
+    def compute_kenergy_edge_normal(self, vc, g, c):
+        # Compute the kinetic energy
+        self.nVelocity[:] = vc.discrete_grad_n(self.phi_cell)
+        self.nVelocity -= vc.discrete_grad_td(self.psi_vertex)
+        self.nVelocity /= self.thickness_edge
+
+        self.kenergy_edge[:] = self.nVelocity * self.nVelocity
         
     
 def timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, g, vc, c):

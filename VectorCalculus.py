@@ -271,42 +271,122 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mEdge2cell = Device_CSR(self.mEdge2cell, env)
 
-
-        # A diagonal matrix representing scaling by cell areas
-        self.mAreaCell = diags(g.areaCell, 0, format='csr')
-        self.mAreaCell_phi = self.mAreaCell.copy( )
-        self.mAreaCell_phi[0,0] = 0.
-        self.mAreaCell_phi.eliminate_zeros( )
-
-        if c.on_a_global_sphere:
-            self.mAreaCell_psi = self.mAreaCell_phi.copy( )
-        else:
-            areaCell_psi = g.areaCell.copy( )
-            areaCell_psi[self.cellBoundary - 1] = 0.
-            self.mAreaCell_psi = diags(areaCell_psi, 0, format='csr')
-            self.mAreaCell_psi.eliminate_zeros( )
-            
-        if c.use_gpu:
-            self.d_mAreaCell = Device_CSR(self.mAreaCell, env)
-
-        ## Construct the coefficient matrix for the coupled elliptic
-        ## system for psi and phi
-        AC = self.mAreaCell_psi * self.mCurl_v
-        AMD = self.mAreaCell_phi * self.mVertex2cell * self.mDiv_t
-        GN = self.mGrad_tn * self.mCell2vertex
-        
-        self.leftM = bmat([[AC],[AMD]], format='csr')
-        self.rightM = bmat([[self.mSkewgrad_t, GN]], format='csr')
-
-        self.leftM.eliminate_zeros( )
-        self.rightM.eliminate_zeros( )
-
         self.mThicknessInv = eye(g.nEdges)   # This is only a space holder
 #        if c.use_gpu:                        # Need to update at every step
 #            d_mThicknessInv = Device_CSR(self.mThicknessInv.to_csr(), env)
+
+        self.leftM, self.rightM, self.coefM = self.construct_EllipticCPL_coefM_tangent(env, g, c)
+#        self.leftM, self.rightM, self.coefM = self.construct_EllipticCPL_coefM_normal(env, g, c)
+        
+        self.POcpl = EllipticCPL(self.coefM, c.linear_solver, env)
+            
+        self.scalar_cell = np.zeros(g.nCells)
+        self.scalar_vertex = np.zeros(g.nVertices)
+        if not c.on_a_global_sphere:
+            self.scalar_cell_interior = np.zeros(nCellsInterior)
+
+    def construct_EllipticCPL_coefM_tangent(self, env, g, c):
+        # A diagonal matrix representing scaling by cell areas
+        mAreaCell = diags(g.areaCell, 0, format='csr')
+        mAreaCell_phi = mAreaCell.copy( )
+        mAreaCell_phi[0,0] = 0.
+        mAreaCell_phi.eliminate_zeros( )
+
+        if c.on_a_global_sphere:
+            mAreaCell_psi = mAreaCell_phi.copy( )
+        else:
+            areaCell_psi = g.areaCell.copy( )
+            areaCell_psi[self.cellBoundary - 1] = 0.
+            mAreaCell_psi = diags(areaCell_psi, 0, format='csr')
+            mAreaCell_psi.eliminate_zeros( )
+            
+#        if c.use_gpu:
+#            self.d_mAreaCell = Device_CSR(mAreaCell, env)
+
+        ## Construct the coefficient matrix for the coupled elliptic
+        ## system for psi and phi
+        AC = mAreaCell_psi * self.mCurl_v
+        AMD = mAreaCell_phi * self.mVertex2cell * self.mDiv_t
+        GN = self.mGrad_tn * self.mCell2vertex
+        
+        leftM = bmat([[AC],[AMD]], format='csr')
+        rightM = bmat([[self.mSkewgrad_t, GN]], format='csr')
+
+        leftM.eliminate_zeros( )
+        rightM.eliminate_zeros( )
+
         
         thickness_edge = np.zeros(g.nEdges)
         thickness_edge[:] = 1000.    # Any non-zero should suffice
+        self.mThicknessInv.data[0,:] = 1./thickness_edge
+        
+        coefM = leftM * self.mThicknessInv * rightM
+
+        if c.on_a_global_sphere:
+            coefM[0,0] = 1.
+            coefM[g.nCells, g.nCells] = 1.
+        else:
+            coefM[self.cellBoundary-1, self.cellBoundary-1] = 1.
+            coefM[g.nCells, g.nCells] = 1.
+
+        return leftM, rightM, coefM
+
+
+    def construct_EllipticCPL_coefM_normal(self, env, g, c):
+        # A diagonal matrix representing scaling by cell areas
+        mAreaCell = diags(g.areaCell, 0, format='csr')
+        mAreaCell_phi = mAreaCell.copy( )
+        mAreaCell_phi[0,0] = 0.
+        mAreaCell_phi.eliminate_zeros( )
+
+        if c.on_a_global_sphere:
+            mAreaCell_psi = mAreaCell_phi.copy( )
+        else:
+            areaCell_psi = g.areaCell.copy( )
+            areaCell_psi[self.cellBoundary - 1] = 0.
+            mAreaCell_psi = diags(areaCell_psi, 0, format='csr')
+            mAreaCell_psi.eliminate_zeros( )
+            
+#        if c.use_gpu:
+#            self.d_mAreaCell = Device_CSR(mAreaCell, env)
+
+        ## Construct the coefficient matrix for the coupled elliptic
+        ## system for psi and phi
+        AMC = mAreaCell_psi * self.mVertex2cell * self.mCurl_t
+        AD = mAreaCell_phi * self.mDiv_v
+        SN = self.mSkewgrad_n * self.mCell2vertex_psi
+        
+        leftM = bmat([[AMC],[AD]], format='csr')
+        rightM = bmat([[SN, self.mGrad_n]], format='csr')
+
+        #AC = mAreaCell_psi * self.mCurl_v
+        #AMD = mAreaCell_phi * self.mVertex2cell * self.mDiv_t
+        #GN = self.mGrad_tn * self.mCell2vertex
+        
+        #leftM = bmat([[AC],[AMD]], format='csr')
+        #rightM = bmat([[self.mSkewgrad_t, GN]], format='csr')
+
+        leftM.eliminate_zeros( )
+        rightM.eliminate_zeros( )
+
+        
+        thickness_edge = np.zeros(g.nEdges)
+        thickness_edge[:] = 1000.    # Any non-zero should suffice
+        self.mThicknessInv.data[0,:] = 1./thickness_edge
+        
+        coefM = leftM * self.mThicknessInv * rightM
+
+        if c.on_a_global_sphere:
+            coefM[0,0] = 1.
+            coefM[g.nCells, g.nCells] = 1.
+        else:
+            coefM[self.cellBoundary-1, self.cellBoundary-1] = 1.
+            coefM[g.nCells, g.nCells] = 1.
+
+        return leftM, rightM, coefM
+    
+            
+    def update_matrix_for_coupled_elliptic(self, thickness_edge, c, g):
         self.mThicknessInv.data[0,:] = 1./thickness_edge
         
         self.coefM = self.leftM * self.mThicknessInv * self.rightM
@@ -317,13 +397,6 @@ class VectorCalculus:
         else:
             self.coefM[self.cellBoundary-1, self.cellBoundary-1] = 1.
             self.coefM[g.nCells, g.nCells] = 1.
-        
-        self.POcpl = EllipticCPL(self.coefM, c.linear_solver, env)
-            
-        self.scalar_cell = np.zeros(g.nCells)
-        self.scalar_vertex = np.zeros(g.nVertices)
-        if not c.on_a_global_sphere:
-            self.scalar_cell_interior = np.zeros(nCellsInterior)
 
             
     def discrete_div_v(self, vEdge):
@@ -645,17 +718,6 @@ class VectorCalculus:
             return self.mEdge2cell.dot(sEdge)
 
 
-    def update_matrix_for_coupled_elliptic(self, thickness_edge, c, g):
-        self.mThicknessInv.data[0,:] = 1./thickness_edge
-        
-        self.coefM = self.leftM * self.mThicknessInv * self.rightM
-
-        if c.on_a_global_sphere:
-            self.coefM[0,0] = 1.
-            self.coefM[g.nCells, g.nCells] = 1.
-        else:
-            self.coefM[self.cellBoundary-1, self.cellBoundary-1] = 1.
-            self.coefM[g.nCells, g.nCells] = 1.
         
         
         
