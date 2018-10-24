@@ -275,8 +275,12 @@ class VectorCalculus:
 #        if c.use_gpu:                        # Need to update at every step
 #            d_mThicknessInv = Device_CSR(self.mThicknessInv.to_csr(), env)
 
-        self.leftM, self.rightM, self.coefM = self.construct_EllipticCPL_coefM_tangent(env, g, c)
-#        self.leftM, self.rightM, self.coefM = self.construct_EllipticCPL_coefM_normal(env, g, c)
+        if c.component_for_hamiltonian == 'normal':
+            self.leftM, self.rightM, self.coefM = self.construct_EllipticCPL_coefM_n(env, g, c)
+        elif c.component_for_hamiltonian == 'tangential':
+            self.leftM, self.rightM, self.coefM = self.construct_EllipticCPL_coefM_t(env, g, c)
+        else:
+            raise ValueError("Invalid value for component_for_hamiltonian")
         
         self.POcpl = EllipticCPL(self.coefM, c.linear_solver, env)
             
@@ -285,7 +289,7 @@ class VectorCalculus:
         if not c.on_a_global_sphere:
             self.scalar_cell_interior = np.zeros(nCellsInterior)
 
-    def construct_EllipticCPL_coefM_tangent(self, env, g, c):
+    def construct_EllipticCPL_coefM_t(self, env, g, c):
         # A diagonal matrix representing scaling by cell areas
         mAreaCell = diags(g.areaCell, 0, format='csr')
         mAreaCell_phi = mAreaCell.copy( )
@@ -332,7 +336,7 @@ class VectorCalculus:
         return leftM, rightM, coefM
 
 
-    def construct_EllipticCPL_coefM_normal(self, env, g, c):
+    def construct_EllipticCPL_coefM_n(self, env, g, c):
         # A diagonal matrix representing scaling by cell areas
         mAreaCell = diags(g.areaCell, 0, format='csr')
         mAreaCell_phi = mAreaCell.copy( )

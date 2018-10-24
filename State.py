@@ -346,15 +346,17 @@ class state_data:
         self.pv_edge[:] = vc.cell2edge(self.pv_cell)
 
         # Compute kinetic energy on the edge
-        self.compute_kenergy_edge_tangent(vc, g, c)
-#        self.compute_kenergy_edge_normal(vc, g, c)
+        if c.component_for_hamiltonian == 'normal':
+            self.compute_kenergy_edge_n(vc, g, c)
+        elif c.component_for_hamiltonian == 'tangential':
+            self.compute_kenergy_edge_t(vc, g, c)
+        else:
+            raise ValueError("Invalid value for component_for_hamiltonian")
 
-#        self.compute_geoPot_tangent(vc, g, c)
         self.geoPot[:] = c.gravity * (self.thickness[:] + g.bottomTopographyCell[:])
         self.geoPot[:] += vc.edge2cell(self.kenergy_edge[:])
 
         # Compute kinetic energy, total energy, and potential enstrophy
-#        self.kinetic_energy = np.sum(self.tVelocity**2 * self.thickness_edge * g.areaEdge)
         self.kinetic_energy = np.sum(self.kenergy_edge * self.thickness_edge * g.areaEdge)
         
         self.pot_energy = 0.5 * c.gravity * np.sum((self.thickness[:] + g.bottomTopographyCell - self.SS0)**2 * g.areaCell[:])
@@ -427,7 +429,7 @@ class state_data:
         errorInf[iStep+1, 2] = np.max(np.abs(self.divergence[:] - s_init.divergence[:]))
 
 
-    def compute_kenergy_edge_tangent(self, vc, g, c):
+    def compute_kenergy_edge_t(self, vc, g, c):
         # Compute the kinetic energy
         self.tVelocity[:] = vc.discrete_skewgrad_t(self.psi_cell)
         self.tVelocity += vc.discrete_grad_tn(self.phi_vertex)
@@ -436,7 +438,7 @@ class state_data:
         self.kenergy_edge[:] = self.tVelocity * self.tVelocity
 
 
-    def compute_kenergy_edge_normal(self, vc, g, c):
+    def compute_kenergy_edge_n(self, vc, g, c):
         # Compute the kinetic energy
         self.nVelocity[:] = vc.discrete_grad_n(self.phi_cell)
         self.nVelocity -= vc.discrete_grad_td(self.psi_vertex)

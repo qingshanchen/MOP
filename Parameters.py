@@ -9,11 +9,14 @@ restart = False
 restart_file = 'restart.nc'
 
 ### Parameters secondary
+# Choose how the Hamiltonian is defined
+component_for_hamiltonian = 'normal'     # 'normal' or 'tangential'
+
 # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
 timestepping = 'RK4'
 
 # Duration, time stepping size, saving interval
-dt = 90.   #1440 for 480km
+dt = 720.   #1440 for 480km
 #dt = 360.   #360 for NA818
 nYears = .1/360
 save_inter_days = 1.
