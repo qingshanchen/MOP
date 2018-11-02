@@ -1,7 +1,7 @@
 import numpy as np
 
 ### Parameters essential
-test_case = 5
+test_case = 2
 on_a_global_sphere = True
 use_gpu = True
 
@@ -10,7 +10,7 @@ restart_file = 'restart.nc'
 
 ### Parameters secondary
 # Choose how the Hamiltonian is defined
-component_for_hamiltonian = 'normal'     # 'normal' or 'tangential'
+component_for_hamiltonian = 'normal_tangent'     # 'normal' or 'tangential' or 'normal_tangent"
 
 # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
 timestepping = 'RK4'

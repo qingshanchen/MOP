@@ -120,6 +120,35 @@ class state_data:
 
             self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
 
+
+            ## For debugging ##
+            if False:
+                # To check the consistency between psi_cell and vorticity
+                self.thickness_edge = vc.cell2edge(self.thickness)
+                self.psi_vertex[:] = vc.cell2vertex(self.psi_cell)
+                nVelocity = vc.discrete_grad_n(self.phi_cell)
+                nVelocity -= vc.discrete_grad_td(self.psi_vertex)
+                nVelocity /= self.thickness_edge
+                vorticity1 = vc.vertex2cell(vc.discrete_curl_t(nVelocity))
+                err = vorticity1 - self.vorticity
+                print("vorticity computed using normal vel.")
+                print("relative error = %e" % (np.sqrt(np.sum(err**2*g.areaCell)/np.sum(self.vorticity**2*g.areaCell))))
+
+                self.phi_vertex[:] = vc.cell2vertex(self.phi_cell)
+                tVelocity = vc.discrete_grad_n(self.psi_cell)
+                tVelocity += vc.discrete_grad_tn(self.phi_vertex)
+                tVelocity /= self.thickness_edge
+                vorticity2 = vc.discrete_curl_v(tVelocity)
+                err = vorticity2 - self.vorticity
+                print("vorticity computed using tang vel.")
+                print("relative error = %e" % (np.sqrt(np.sum(err**2*g.areaCell)/np.sum(self.vorticity**2*g.areaCell))))
+
+                err = 0.5*(vorticity1 + vorticity2) - self.vorticity
+                print("vorticity computed using both normal and tang vel.")
+                print("relative error = %e" % (np.sqrt(np.sum(err**2*g.areaCell)/np.sum(self.vorticity**2*g.areaCell))))
+                raise ValueError("Testing the consistency between streamfunction and vorticity.")
+                ## End of debugging ##
+            
         elif c.test_case == 5:
             a = c.earth_radius
             u0 = 20.
