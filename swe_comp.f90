@@ -976,7 +976,7 @@ subroutine construct_discrete_laplace_neumann(nCells, nEdges, &
 
 end subroutine construct_discrete_laplace_neumann
 
-
+!! Homogeneous Dirichlet BC's assumed.
 subroutine construct_discrete_laplace_triangle(nVertices, nEdges, &
      boundaryEdge, verticesOnEdge, dvEdge, dcEdge, areaTriangle, &
      nEntries, rows, cols, valEntries)
@@ -1036,8 +1036,8 @@ subroutine construct_discrete_laplace_triangle(nVertices, nEdges, &
   
 end subroutine construct_discrete_laplace_triangle
 
-
-subroutine construct_discrete_laplace_triangle_neumann(nVertices, nEdges, &
+!! Homogeneous Neumann BC's assumed.
+subroutine construct_matrix_discrete_laplace_triangle_neumann(nVertices, nEdges, &
      boundaryEdge, verticesOnEdge, dvEdge, dcEdge, areaTriangle, &
      nEntries, rows, cols, valEntries)
 
@@ -1103,7 +1103,7 @@ subroutine construct_discrete_laplace_triangle_neumann(nVertices, nEdges, &
      end if
   end do
   
-end subroutine construct_discrete_laplace_triangle_neumann
+end subroutine construct_matrix_discrete_laplace_triangle_neumann
 
 
 subroutine separate_boundary_interior_edges(nEdges, &

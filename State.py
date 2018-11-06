@@ -307,8 +307,13 @@ class state_data:
 
     def compute_tendencies(self, g, c, vc):
 
-        # Tendency for thicknetss 
-        self.tend_thickness[:] = -vc.discrete_laplace_v(self.phi_cell)
+        # Tendency for thicknetss
+        if c.component_for_hamiltonian == 'normal_tangent':
+            self.vVertex[:] = vc.discrete_laplace_t(self.phi_vertex)
+            self.tend_thickness[:] = -0.5 * vc.vertex2cell(self.vVertex)
+            self.tend_thickness[:] += -0.5 * vc.discrete_laplace_v(self.phi_cell)
+        else:
+            self.tend_thickness[:] = -vc.discrete_laplace_v(self.phi_cell)
 
         # Tendency for vorticity
         self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.psi_cell)
@@ -318,25 +323,90 @@ class state_data:
         self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_n(self.psi_vertex)
         self.tend_vorticity[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
 
-        self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.phi_cell)
-        self.tend_vorticity[:] -= vc.discrete_div_v(self.vEdge)
+        if c.component_for_hamiltonian == 'normal_tangent':
+            self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.phi_cell)
+            self.tend_vorticity[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
+            
+            self.vEdge[:] = self.pv_edge * vc.discrete_grad_tn(self.phi_vertex)
+            self.vVertex[:] = vc.discrete_div_t(self.vEdge)
+            self.tend_vorticity[:] -= 0.5 * vc.vertex2cell(self.vVertex)
+
+        elif c.component_for_hamiltonian in ['normal', 'tangential']:
+            self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.phi_cell)
+            self.tend_vorticity[:] -= vc.discrete_div_v(self.vEdge)
+            
+        else:
+            raise ValueError("Invalid value of component_for_hamiltonian")
         
         self.tend_vorticity[:] += self.curlWind_cell / self.thickness[:]
         self.tend_vorticity[:] -= c.bottomDrag * self.vorticity[:]
         self.tend_vorticity[:] += c.delVisc * vc.discrete_laplace_v(self.vorticity)
 
         # Tendency for divergence
-        self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.psi_cell)
-        self.tend_divergence[:] = vc.discrete_div_v(self.vEdge)
+        if c.component_for_hamiltonian == 'normal_tangent':
+            self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.psi_cell)
+            self.tend_divergence[:] = 0.5 * vc.discrete_div_v(self.vEdge)
+            
+            tend_divergence_1 = 0.5 * vc.discrete_div_v(self.vEdge)
+
+            self.vEdge[:] = self.pv_edge * vc.discrete_grad_td(self.psi_vertex)
+            self.vVertex[:] = vc.discrete_div_t(self.vEdge)
+            self.tend_divergence[:] += 0.5 * vc.vertex2cell(self.vVertex)
+            
+            tend_divergence_1[:] += 0.5 * vc.vertex2cell(self.vVertex)
+            
+        elif c.component_for_hamiltonian in ['normal', 'tangential']:
+            self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.psi_cell)
+            self.tend_divergence[:] = vc.discrete_div_v(self.vEdge)
+
+            tend_divergence_1 = vc.discrete_div_v(self.vEdge)
+            
+        else:
+            raise ValueError("Invalid value of component_for_hamiltonian")
 
         self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.phi_cell)
         self.vVertex[:] = vc.discrete_curl_t(self.vEdge)
         self.tend_divergence[:] += 0.5 * vc.vertex2cell(self.vVertex)
 
+        tend_divergence_2 = 0.5 * vc.vertex2cell(self.vVertex)
+        
         self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_n(self.phi_vertex)
         self.tend_divergence[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
 
-        self.tend_divergence[:] -= vc.discrete_laplace_v(self.geoPot)
+        tend_divergence_2[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
+        
+        if c.component_for_hamiltonian == 'normal_tangent':
+            self.tend_divergence[:] -= 0.5 * vc.discrete_laplace_v(self.geoPot)
+
+            tend_divergence_3 = -0.5 * vc.discrete_laplace_v(self.geoPot)
+            
+            self.vVertex[:] = vc.cell2vertex(self.geoPot)
+            self.vVertex[:] = vc.discrete_laplace_t(self.vVertex)
+            self.tend_divergence[:] -= 0.5 * vc.vertex2cell(self.vVertex)
+
+            tend_divergence_3[:] -= 0.5 * vc.vertex2cell(self.vVertex)
+            
+        elif c.component_for_hamiltonian in ['normal', 'tangential']:
+            self.tend_divergence[:] -= vc.discrete_laplace_v(self.geoPot)
+
+            tend_divergence_3 = -vc.discrete_laplace_v(self.geoPot)
+            
+        else:
+            raise ValueError("Invalid value of component_for_hamiltonian")
+
+        ## Debugging ##
+        print("max of tend_thickness: %e" % np.max(np.abs(self.tend_thickness)))
+        print("max of tend_vorticity: %e" % np.max(np.abs(self.tend_vorticity)))
+        print("max of tend_divergence: %e" % np.max(np.abs(self.tend_divergence)))
+        print("max of tend_divergence_1: %e" % np.max(np.abs(tend_divergence_1)))
+        print("max of tend_divergence_2: %e" % np.max(np.abs(tend_divergence_2)))
+        print("max of tend_divergence_3: %e" % np.max(np.abs(tend_divergence_3)))
+#        print("first component of tend_divergence: %e" % \
+#              ( np.max(np.abs(vc.discrete_div_v(self.pv_edge * vc.discrete_grad_n(self.psi_cell)) \
+#                              - vc.discrete_laplace_v(self.geoPot))),))
+#        print("second component of tend_divergence: %e" % (np.max(np.abs(vc.discrete_div_t( self.pv_edge * vc.discrete_grad_td(self.psi_vertex)) - vc.discrete_laplace_t(vc.cell2vertex(self.geoPot)))),))
+        raise ValueError("Stop for debugging")
+        ## End of debugging ##
         
     def compute_diagnostics(self, g, vc, c):
         # Compute diagnostic variables from pv_cell
@@ -379,6 +449,8 @@ class state_data:
             self.compute_kenergy_edge_n(vc, g, c)
         elif c.component_for_hamiltonian == 'tangential':
             self.compute_kenergy_edge_t(vc, g, c)
+        elif c.component_for_hamiltonian == 'normal_tangent':
+            self.compute_kenergy_edge_nt(vc, g, c)
         else:
             raise ValueError("Invalid value for component_for_hamiltonian")
 
@@ -474,7 +546,20 @@ class state_data:
         self.nVelocity /= self.thickness_edge
 
         self.kenergy_edge[:] = self.nVelocity * self.nVelocity
+
+
+    def compute_kenergy_edge_nt(self, vc, g, c):
+        # Compute the kinetic energy
+        self.nVelocity[:] = vc.discrete_grad_n(self.phi_cell)
+        self.nVelocity -= vc.discrete_grad_td(self.psi_vertex)
+        self.nVelocity /= self.thickness_edge
+
+        self.tVelocity[:] = vc.discrete_skewgrad_t(self.psi_cell)
+        self.tVelocity += vc.discrete_grad_tn(self.phi_vertex)
+        self.tVelocity /= self.thickness_edge
         
+        self.kenergy_edge[:] = 0.5 * self.nVelocity * self.nVelocity
+        self.kenergy_edge[:] += 0.5 * self.tVelocity * self.tVelocity
     
 def timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, g, vc, c):
 

@@ -163,6 +163,19 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mLaplace_v = Device_CSR(self.mLaplace_v, env)
 
+        ## Construct the matrix representing the discrete Laplace operator the dual
+        ## mesh (triangular mesh). Homogeneous Neuman BC's are assumed.
+        nEntries, rows, cols, valEntries = \
+            cmp.construct_matrix_discrete_laplace_triangle_neumann(g.boundaryEdgeMark, \
+                                       g.verticesOnEdge, g.dvEdge, g.dcEdge, g.areaTriangle)
+                                                  
+        A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
+                               cols[:nEntries])), shape=(g.nVertices, g.nVertices))
+        self.mLaplace_t = A.tocsr( )
+
+        if c.use_gpu:
+            self.d_mLaplace_t = Device_CSR(self.mLaplace_t, env)
+            
         ## Construct the matrix representing the discrete grad operator along the normal direction.
         nEntries, rows, cols, valEntries = \
             cmp.construct_matrix_discrete_grad_n(g.cellsOnEdge, g.dcEdge)
@@ -591,6 +604,30 @@ class VectorCalculus:
             return self.mLaplace_v.dot(sCell)
 
 
+    def discrete_laplace_t(self, sVertex):
+        '''
+        Homogeneous Neumann BC's implied on the boundary.
+        '''
+
+        if c.use_gpu:
+            assert len(sVertex) == self.d_mLaplace_t.shape[1], \
+                "Dimensions do not match."
+            d_vectorIn = self.env.cuda.to_device(sVertex)
+
+            vOut = np.zeros(self.d_mLaplace_t.shape[0])
+            d_vectorOut = self.env.cuda.to_device(vOut)
+            self.env.cuSparse.csrmv(trans='N', m=self.d_mLaplace_t.shape[0], \
+                n=self.d_mLaplace_t.shape[1], nnz=self.d_mLaplace_t.nnz, alpha=1.0, \
+                descr=self.d_mLaplace_t.cuSparseDescr, csrVal=self.d_mLaplace_t.dData, \
+                csrRowPtr=self.d_mLaplace_t.dPtr, csrColInd=self.d_mLaplace_t.dInd, \
+                           x=d_vectorIn, beta=0., y=d_vectorOut)
+            d_vectorOut.copy_to_host(vOut)
+            return vOut
+
+        else:
+            return self.mLaplace_t.dot(sVertex)
+
+        
     # The discrete gradient operator along the normal direction
     def discrete_grad_n(self, sCell):
 
