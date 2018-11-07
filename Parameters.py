@@ -16,7 +16,7 @@ component_for_hamiltonian = 'normal_tangent'     # 'normal' or 'tangential' or '
 timestepping = 'RK4'
 
 # Duration, time stepping size, saving interval
-dt = 1440.   #1440 for 480km
+dt = 720.   #2880 for 480km
 #dt = 360.   #360 for NA818
 nYears = 5./360
 save_inter_days = 1.
