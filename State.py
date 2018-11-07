@@ -110,6 +110,13 @@ class state_data:
             self.thickness[:] = gh / c.gravity
             h0 = gh0 / c.gravity
 
+            ###
+            #print("gh[10258] = %e" % gh[10258])
+            #print("h[10258] = %e" % self.thickness[10258])
+            #print("g*h[10258] = %e" % (c.gravity*self.thickness[10258]))
+            #print("g = %f" % c.gravity)
+            ###
+
             self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
             self.divergence[:] = 0.
             
@@ -347,19 +354,19 @@ class state_data:
             self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.psi_cell)
             self.tend_divergence[:] = 0.5 * vc.discrete_div_v(self.vEdge)
             
-            tend_divergence_1 = 0.5 * vc.discrete_div_v(self.vEdge)
+#            tend_divergence_1 = 0.5 * vc.discrete_div_v(self.vEdge)
 
             self.vEdge[:] = self.pv_edge * vc.discrete_grad_td(self.psi_vertex)
             self.vVertex[:] = vc.discrete_div_t(self.vEdge)
             self.tend_divergence[:] += 0.5 * vc.vertex2cell(self.vVertex)
             
-            tend_divergence_1[:] += 0.5 * vc.vertex2cell(self.vVertex)
+#            tend_divergence_1[:] += 0.5 * vc.vertex2cell(self.vVertex)
             
         elif c.component_for_hamiltonian in ['normal', 'tangential']:
             self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.psi_cell)
             self.tend_divergence[:] = vc.discrete_div_v(self.vEdge)
 
-            tend_divergence_1 = vc.discrete_div_v(self.vEdge)
+#            tend_divergence_1 = vc.discrete_div_v(self.vEdge)
             
         else:
             raise ValueError("Invalid value of component_for_hamiltonian")
@@ -368,44 +375,44 @@ class state_data:
         self.vVertex[:] = vc.discrete_curl_t(self.vEdge)
         self.tend_divergence[:] += 0.5 * vc.vertex2cell(self.vVertex)
 
-        tend_divergence_2 = 0.5 * vc.vertex2cell(self.vVertex)
+#        tend_divergence_2 = 0.5 * vc.vertex2cell(self.vVertex)
         
         self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_n(self.phi_vertex)
         self.tend_divergence[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
 
-        tend_divergence_2[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
+#        tend_divergence_2[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
         
         if c.component_for_hamiltonian == 'normal_tangent':
             self.tend_divergence[:] -= 0.5 * vc.discrete_laplace_v(self.geoPot)
 
-            tend_divergence_3 = -0.5 * vc.discrete_laplace_v(self.geoPot)
+#            tend_divergence_3 = -0.5 * vc.discrete_laplace_v(self.geoPot)
             
             self.vVertex[:] = vc.cell2vertex(self.geoPot)
             self.vVertex[:] = vc.discrete_laplace_t(self.vVertex)
             self.tend_divergence[:] -= 0.5 * vc.vertex2cell(self.vVertex)
 
-            tend_divergence_3[:] -= 0.5 * vc.vertex2cell(self.vVertex)
+#            tend_divergence_3[:] -= 0.5 * vc.vertex2cell(self.vVertex)
             
         elif c.component_for_hamiltonian in ['normal', 'tangential']:
             self.tend_divergence[:] -= vc.discrete_laplace_v(self.geoPot)
 
-            tend_divergence_3 = -vc.discrete_laplace_v(self.geoPot)
+#            tend_divergence_3 = -vc.discrete_laplace_v(self.geoPot)
             
         else:
             raise ValueError("Invalid value of component_for_hamiltonian")
 
         ## Debugging ##
-        print("max of tend_thickness: %e" % np.max(np.abs(self.tend_thickness)))
-        print("max of tend_vorticity: %e" % np.max(np.abs(self.tend_vorticity)))
-        print("max of tend_divergence: %e" % np.max(np.abs(self.tend_divergence)))
-        print("max of tend_divergence_1: %e" % np.max(np.abs(tend_divergence_1)))
-        print("max of tend_divergence_2: %e" % np.max(np.abs(tend_divergence_2)))
-        print("max of tend_divergence_3: %e" % np.max(np.abs(tend_divergence_3)))
+#        print("max of tend_thickness: %e" % np.max(np.abs(self.tend_thickness)))
+#        print("max of tend_vorticity: %e" % np.max(np.abs(self.tend_vorticity)))
+#        print("max of tend_divergence: %e" % np.max(np.abs(self.tend_divergence)))
+#        print("max of tend_divergence_1: %e" % np.max(np.abs(tend_divergence_1)))
+#        print("max of tend_divergence_2: %e" % np.max(np.abs(tend_divergence_2)))
+#        print("max of tend_divergence_3: %e" % np.max(np.abs(tend_divergence_3)))
 #        print("first component of tend_divergence: %e" % \
 #              ( np.max(np.abs(vc.discrete_div_v(self.pv_edge * vc.discrete_grad_n(self.psi_cell)) \
 #                              - vc.discrete_laplace_v(self.geoPot))),))
 #        print("second component of tend_divergence: %e" % (np.max(np.abs(vc.discrete_div_t( self.pv_edge * vc.discrete_grad_td(self.psi_vertex)) - vc.discrete_laplace_t(vc.cell2vertex(self.geoPot)))),))
-        raise ValueError("Stop for debugging")
+#        raise ValueError("Stop for debugging")
         ## End of debugging ##
         
     def compute_diagnostics(self, g, vc, c):
