@@ -18,12 +18,14 @@ class EllipticCPL:
 
             hA = A.tocsr( )
             AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_AGGREGATION_JACOBI.json'
+            #AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json'
+            #AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_V_JACOBI.json'
+            #AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS_JACOBI.json'
             #AMGX_CONFIG_FILE_NAME = 'amgx_config/FGMRES_AGGREGATION_JACOBI.json'
+            #AMGX_CONFIG_FILE_NAME = 'amgx_config/FGMRES_CLASSICAL_AGGRESSIVE_PMIS.json'
             #AMGX_CONFIG_FILE_NAME = 'amgx_config/AMG_AGGREGATION_CG.json'
             #AMGX_CONFIG_FILE_NAME = 'amgx_config/PBICGSTAB_AGGREGATION_W_JACOBI.json'
             #AMGX_CONFIG_FILE_NAME = 'amgx_config/AGGREGATION_JACOBI.json'
-            #AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json'
-            #AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS_JACOBI.json'
  
             cfg = pyamgx.Config( ).create_from_file(AMGX_CONFIG_FILE_NAME) 
             rsc = pyamgx.Resources().create_simple(cfg)
