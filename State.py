@@ -272,12 +272,13 @@ class state_data:
 
     def initialization(self, g, vc, c):
 
-        if c.restart:
+        if c.do_restart:
             self.restart_from_file(g,c)
-            self.compute_diagnostics(g, vc, c)
         else:
             self.start_from_function(vc, g, c)
-            self.compute_diagnostics(g, vc, c)
+
+        # Compute diagnostic variables
+        self.compute_diagnostics(g, vc, c)
             
         # Open the output file and create new state variables
         out = nc.Dataset(c.output_file, 'a', format='NETCDF3_64BIT')
@@ -299,7 +300,7 @@ class state_data:
         out.linear_solver = "%s" % (c.linear_solver)
         out.err_tol = "%e" % (c.err_tol)
         out.max_iter = "%d" % (c.max_iter)
-        out.restart = "%s" % (c.restart)
+        out.do_restart = "%s" % (c.do_restart)
         out.dt = "%f" % (c.dt)
         out.delVisc = "%e" % (c.delVisc)
         out.bottomDrag = "%e" % (c.bottomDrag)
@@ -514,9 +515,6 @@ class state_data:
         if k==0:
             out.variables['curlWind_cell'][:] = self.curlWind_cell[:]
             out.variables['bottomTopographyCell'][:] = g.bottomTopographyCell[:]
-
-        #self.compute_kenergy(g, c)
-#        out.variables['kenergy'][k,:,0]= self.kenergy[:]
         
         out.close( )
 

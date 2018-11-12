@@ -43,9 +43,6 @@ def main( ):
     print("========== Setting the initial state of the model ================")
     s.initialization(g, vc, c)
 
-    ## Debug
-#    print('s.kinetic_energy = %e' % s.kinetic_energy)
-#    print('s.pot_energy = %e' % s.pot_energy)
     
     print("========== Making a copy of the state object =====================")
     s_init = deepcopy(s)
@@ -79,7 +76,16 @@ def main( ):
         error2 = np.zeros((c.nTimeSteps+1, 3)); error2[0,:] = 0.
         errorInf = np.zeros((c.nTimeSteps+1, 3)); errorInf[0,:] = 0.
 
-    s.save(c, g, 0)
+    # Save the initial state when starting from function
+    # or when starting from file and told to save the inital state
+    if not c.do_restart:
+        nc_num = 0
+        s.save(c, g, nc_num)
+    elif c.do_restart and c.save_restart_init:
+        nc_num = 0
+        s.save(c, g, nc_num)
+    else:
+        nc_num = -1
 
     # Entering the loop
     t0 = time.clock( )
@@ -117,8 +123,8 @@ def main( ):
             raise ValueError("Exceptions detected in energy. Stop now")
         
         if np.mod(iStep+1, c.save_interval) == 0:
-            k = (iStep+1) / c.save_interval
-            s.save(c,g,k)
+            nc_num += 1
+            s.save(c, g, nc_num)
 
         if c.test_case == 2:
             s.compute_tc2_errors(iStep, s_init, error1, error2, errorInf, g)
