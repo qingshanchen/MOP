@@ -2,7 +2,6 @@ import numpy as np
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 from scipy.sparse.linalg import spsolve, splu
 import netCDF4 as nc
-from swe_comp import swe_comp as cmp
 import os
 
 max_int = np.iinfo('int32').max
