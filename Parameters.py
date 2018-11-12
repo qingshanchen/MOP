@@ -5,7 +5,7 @@ test_case = 2
 on_a_global_sphere = True
 use_gpu = True
 
-do_restart = True
+do_restart = False
 restart_file = 'restart.nc'
 save_restart_init = False
 
@@ -19,7 +19,7 @@ timestepping = 'RK4'
 # Duration, time stepping size, saving interval
 dt = 2880.   #2880 for 480km
 #dt = 360.   #360 for NA818
-nYears = 2./360
+nYears = 1./360
 save_inter_days = 1.
 
 # Model configuraitons, boundary conditions
@@ -31,10 +31,9 @@ free_slip_BC = False
 
 # Solver config
 linear_solver = 'amgx'      # lu, cg, cudaCG, cudaPCG, amg, amgx
-err_tol = 1e-8
-max_iter = 5000
-#max_iter_dual = 25
-#dual_init = 'interpolation'    # 'extrapolation', 'interpolation'
+err_tol = 5e-8
+max_iters = 1000
+print_stats = 0             # 1 for True, 0 for False
 
 # Size of the phyiscal domain
 earth_radius = 6371000.0

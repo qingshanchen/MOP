@@ -27,7 +27,47 @@ class EllipticCPL:
             #AMGX_CONFIG_FILE_NAME = 'amgx_config/PBICGSTAB_AGGREGATION_W_JACOBI.json'
             #AMGX_CONFIG_FILE_NAME = 'amgx_config/AGGREGATION_JACOBI.json'
  
-            cfg = pyamgx.Config( ).create_from_file(AMGX_CONFIG_FILE_NAME) 
+            #cfg = pyamgx.Config( ).create_from_file(AMGX_CONFIG_FILE_NAME)
+            cfg = pyamgx.Config( ).create_from_dict({
+                "config_version": 2, 
+                "determinism_flag": 0, 
+                "solver": {
+                    "preconditioner": {
+                        "print_grid_stats": c.print_stats, 
+                        "algorithm": "AGGREGATION", 
+                        "print_vis_data": 0, 
+                        "solver": "AMG", 
+                        "smoother": {
+                            "relaxation_factor": 0.8, 
+                            "scope": "jacobi", 
+                            "solver": "BLOCK_JACOBI", 
+                            "monitor_residual": 0, 
+                            "print_solve_stats": 0
+                        }, 
+                        "print_solve_stats": 0, 
+                        "presweeps": 2, 
+                        "selector": "SIZE_2", 
+                        "coarse_solver": "NOSOLVER", 
+                        "max_iters": 2, 
+                        "monitor_residual": 0, 
+                        "store_res_history": 0, 
+                        "scope": "amg_solver", 
+                        "max_levels": 1000, 
+                        "postsweeps": 2, 
+                        "cycle": "V"
+                    }, 
+                    "solver": "PCGF", 
+                    "print_solve_stats": c.print_stats, 
+                    "obtain_timings": c.print_stats, 
+                    "max_iters": c.max_iters, 
+                    "monitor_residual": 1, 
+                    "convergence": "RELATIVE_INI", 
+                    "scope": "main", 
+                    "tolerance": c.err_tol, 
+                    "norm": "L2"
+                }
+            })
+                
             rsc = pyamgx.Resources().create_simple(cfg)
             mode = 'dDDI'
 
@@ -90,7 +130,7 @@ class VectorCalculus:
 
         self.linear_solver = c.linear_solver
 
-        self.max_iter = c.max_iter
+        self.max_iters = c.max_iters
         self.err_tol = c.err_tol
 
         self.areaCell = g.areaCell.copy()

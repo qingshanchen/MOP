@@ -298,8 +298,9 @@ class state_data:
         out.test_case = "%d" % (c.test_case)
         out.timestepping = "%s" % (c.timestepping)
         out.linear_solver = "%s" % (c.linear_solver)
-        out.err_tol = "%e" % (c.err_tol)
-        out.max_iter = "%d" % (c.max_iter)
+        if c.linear_solver == 'amgx':
+            out.err_tol = "%e" % (c.err_tol)
+            out.max_iters = "%d" % (c.max_iters)
         out.do_restart = "%s" % (c.do_restart)
         out.dt = "%f" % (c.dt)
         out.delVisc = "%e" % (c.delVisc)
