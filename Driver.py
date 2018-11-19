@@ -223,6 +223,9 @@ def main( ):
 
         print("Final l2 errors for thickness, vorticity, and divergence:")
         print(("                    %e,        %e,     %e" % (error2[-1,0], error2[-1,1], error2[-1,2])))
+
+        print("Final l8 errors for thickness, vorticity, and divergence:")
+        print(("                    %e,        %e,     %e" % (errorInf[-1,0], errorInf[-1,1], errorInf[-1,2])))
         
 
     print(('CPU time used: %f seconds' % (t1-t0)))
