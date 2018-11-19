@@ -395,7 +395,6 @@ def run_tests(env, g, vc, c, s):
 
     if True:
         # Test the linear solver for the coupled elliptic equation on the whole domain
-        # Both normal and tangential components are used to define the Hamiltonian
         # using the EllipticCPL object
         # vorticity and divergence come from SWSTC #2
 

@@ -668,7 +668,7 @@ end subroutine construct_matrix_discrete_grad_tn
 ! Construct the discrete skew gradient operator on the dual mesh;
 ! the resulting vector is along the normal direction.
 ! Homogeneous Dirichlet BC's assumed 
-subroutine construct_matrix_discrete_skewgrad_t(nEdges, &
+subroutine construct_matrix_discrete_skewgrad_nd(nEdges, &
      verticesOnEdge, dvEdge, &
      nEntries, rows, cols, valEntries)
   integer, intent(in) :: nEdges
@@ -712,12 +712,12 @@ subroutine construct_matrix_discrete_skewgrad_t(nEdges, &
 
    nEntries = iEntry
 
-end subroutine construct_matrix_discrete_skewgrad_t
+end subroutine construct_matrix_discrete_skewgrad_nd
 
 
 ! Construct the discrete skew gradient operator on the primal mesh;
 ! the resulting vector is along the tangential direction.
-subroutine construct_matrix_discrete_skewgrad_n(nEdges, &
+subroutine construct_matrix_discrete_skewgrad_t(nEdges, &
      cellsOnEdge, dcEdge, &
      nEntries, rows, cols, valEntries)
   integer, intent(in) :: nEdges
@@ -746,6 +746,6 @@ subroutine construct_matrix_discrete_skewgrad_n(nEdges, &
 
    nEntries = iEntry
 
-end subroutine construct_matrix_discrete_skewgrad_n
+end subroutine construct_matrix_discrete_skewgrad_t
 
 end module

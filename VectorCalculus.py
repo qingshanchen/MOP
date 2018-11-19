@@ -253,7 +253,7 @@ class VectorCalculus:
         ## Construct the matrix representing the discrete skew grad operator 
         ## along the tangential direction.  mSkewgrad_t = mGrad_n
         nEntries, rows, cols, valEntries = \
-            cmp.construct_matrix_discrete_skewgrad_n(g.cellsOnEdge, g.dcEdge)
+            cmp.construct_matrix_discrete_skewgrad_t(g.cellsOnEdge, g.dcEdge)
         A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
                                cols[:nEntries])), shape=(g.nEdges, g.nCells))
         self.mSkewgrad_t = A.tocsr( )
@@ -265,7 +265,7 @@ class VectorCalculus:
         ## along the normal direction. Homogeneous Dirichlet assumed.
         ## mSkewgrad_n = - mGrad_td
         nEntries, rows, cols, valEntries = \
-            cmp.construct_matrix_discrete_skewgrad_t(g.verticesOnEdge, g.dvEdge)
+            cmp.construct_matrix_discrete_skewgrad_nd(g.verticesOnEdge, g.dvEdge)
         A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
                                cols[:nEntries])), shape=(g.nEdges, g.nVertices))
         self.mSkewgrad_n = A.tocsr( )
@@ -337,6 +337,9 @@ class VectorCalculus:
         elif c.component_for_hamiltonian == 'normal_tangent':
             self.leftM_n, self.rightM_n, self.leftM_t, self.rightM_t, self.coefM = \
                                                 self.construct_EllipticCPL_coefM_nt(env, g, c)
+        elif c.component_for_hamiltonian == 'mix':
+            self.AC, self.AMC, self.GN, self.coefM = \
+                                                self.construct_EllipticCPL_coefM_mix(env, g, c)
         else:
             raise ValueError("Invalid value for component_for_hamiltonian")
         
@@ -502,6 +505,49 @@ class VectorCalculus:
             coefM[g.nCells, g.nCells] = 1.
 
         return leftM_n, rightM_n, leftM_t, rightM_t, coefM
+
+    def construct_EllipticCPL_coefM_mix(self, env, g, c):
+        # A diagonal matrix representing scaling by cell areas
+        mAreaCell = diags(g.areaCell, 0, format='csr')
+        mAreaCell_phi = mAreaCell.copy( )
+        mAreaCell_phi[0,0] = 0.
+        mAreaCell_phi.eliminate_zeros( )
+
+        if c.on_a_global_sphere:
+            mAreaCell_psi = mAreaCell_phi.copy( )
+        else:
+            areaCell_psi = g.areaCell.copy( )
+            areaCell_psi[self.cellBoundary - 1] = 0.
+            mAreaCell_psi = diags(areaCell_psi, 0, format='csr')
+            mAreaCell_psi.eliminate_zeros( )
+            
+        ## Construct the coefficient matrix for the coupled elliptic
+        ## system for psi and phi, using the normal vector
+        AMC = mAreaCell_psi * self.mVertex2cell * self.mCurl_t
+        AC = mAreaCell_psi * self.mCurl_v
+        GN = self.mGrad_tn * self.mCell2vertex
+
+        ## Construct an artificial thickness vector
+        thickness_edge = np.zeros(g.nEdges)
+        thickness_edge[:] = 1000.    # Any non-zero should suffice
+        self.mThicknessInv.data[0,:] = 1./thickness_edge
+
+        ## Construct the blocks
+        A11 = AC * self.mThicknessInv * self.mSkewgrad_t
+        A12 = AMC * self.mThicknessInv * self.mGrad_n
+        A12 += AC * self.mThicknessInv * GN
+        A12 *= 0.5
+
+        coefM = bmat([[A11, A12], [-A12, A11]], format = 'csr')
+        
+        if c.on_a_global_sphere:
+            coefM[0,0] = 1.
+            coefM[g.nCells, g.nCells] = 1.
+        else:
+            coefM[self.cellBoundary-1, self.cellBoundary-1] = 1.
+            coefM[g.nCells, g.nCells] = 1.
+
+        return AC, AMC, GN, coefM
     
     
     def update_matrix_for_coupled_elliptic(self, thickness_edge, c, g):
@@ -514,6 +560,14 @@ class VectorCalculus:
         elif c.component_for_hamiltonian == 'normal_tangent':
             self.coefM = 0.5 * self.leftM_n * self.mThicknessInv * self.rightM_n
             self.coefM += 0.5 * self.leftM_t * self.mThicknessInv * self.rightM_t
+        elif c.component_for_hamiltonian == 'mix':
+            A11 = self.AC * self.mThicknessInv * self.mSkewgrad_t
+            A12 = self.AMC * self.mThicknessInv * self.mGrad_n
+            A12 += self.AC * self.mThicknessInv * self.GN
+            A12 *= 0.5
+
+            self.coefM = bmat([[A11, A12], [-A12, A11]], format = 'csr')
+            
         else:
             raise ValueError("Invalid value for component_for_hamiltonian")
 
@@ -764,13 +818,12 @@ class VectorCalculus:
             return self.mSkewgrad_n.dot(sVertex)
 
     # The discrete skew gradient operator along the tangential direction
-    def discrete_skewgrad_t(self, sVertex):
-        '''With implied Neumann BC's'''
+    def discrete_skewgrad_t(self, sCell):
 
         if c.use_gpu:
-            assert len(sVertex) == self.d_mSkewgrad_t.shape[1], \
+            assert len(sCell) == self.d_mSkewgrad_t.shape[1], \
                 "Dimensions do not match."
-            d_vectorIn = self.env.cuda.to_device(sVertex)
+            d_vectorIn = self.env.cuda.to_device(sCell)
 
             vOut = np.zeros(self.d_mSkewgrad_t.shape[0])
             d_vectorOut = self.env.cuda.to_device(vOut)
@@ -783,7 +836,7 @@ class VectorCalculus:
             return vOut
 
         else:
-            return self.mSkewgrad_t.dot(sVertex)
+            return self.mSkewgrad_t.dot(sCell)
         
 
     def cell2vertex(self, sCell):

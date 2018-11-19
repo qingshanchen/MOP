@@ -11,15 +11,15 @@ save_restart_init = False
 
 ### Parameters secondary
 # Choose how the Hamiltonian is defined
-component_for_hamiltonian = 'normal_tangent'     # 'normal' or 'tangential' or 'normal_tangent"
+component_for_hamiltonian = 'mix'     # 'normal' or 'tangential' or 'normal_tangent" or 'mix'
 
 # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
 timestepping = 'RK4'
 
 # Duration, time stepping size, saving interval
-dt = 2880.   #2880 for 480km
+dt = 720.   #2880 for 480km
 #dt = 360.   #360 for NA818
-nYears = 1./360
+nYears = 5./360
 save_inter_days = 1.
 
 # Model configuraitons, boundary conditions

@@ -340,7 +340,7 @@ class state_data:
             self.vVertex[:] = vc.discrete_div_t(self.vEdge)
             self.tend_vorticity[:] -= 0.5 * vc.vertex2cell(self.vVertex)
 
-        elif c.component_for_hamiltonian in ['normal', 'tangential']:
+        elif c.component_for_hamiltonian in ['normal', 'tangential', 'mix']:
             self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.phi_cell)
             self.tend_vorticity[:] -= vc.discrete_div_v(self.vEdge)
             
@@ -364,7 +364,7 @@ class state_data:
             
 #            tend_divergence_1[:] += 0.5 * vc.vertex2cell(self.vVertex)
             
-        elif c.component_for_hamiltonian in ['normal', 'tangential']:
+        elif c.component_for_hamiltonian in ['normal', 'tangential', 'mix']:
             self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.psi_cell)
             self.tend_divergence[:] = vc.discrete_div_v(self.vEdge)
 
@@ -395,7 +395,7 @@ class state_data:
 
 #            tend_divergence_3[:] -= 0.5 * vc.vertex2cell(self.vVertex)
             
-        elif c.component_for_hamiltonian in ['normal', 'tangential']:
+        elif c.component_for_hamiltonian in ['normal', 'tangential', 'mix']:
             self.tend_divergence[:] -= vc.discrete_laplace_v(self.geoPot)
 
 #            tend_divergence_3 = -vc.discrete_laplace_v(self.geoPot)
@@ -460,6 +460,8 @@ class state_data:
             self.compute_kenergy_edge_t(vc, g, c)
         elif c.component_for_hamiltonian == 'normal_tangent':
             self.compute_kenergy_edge_nt(vc, g, c)
+        elif c.component_for_hamiltonian == 'mix':
+            self.compute_kenergy_edge_mix(vc, g, c)
         else:
             raise ValueError("Invalid value for component_for_hamiltonian")
 
@@ -566,7 +568,21 @@ class state_data:
         
         self.kenergy_edge[:] = 0.5 * self.nVelocity * self.nVelocity
         self.kenergy_edge[:] += 0.5 * self.tVelocity * self.tVelocity
-    
+
+    def compute_kenergy_edge_mix(self, vc, g, c):
+        # Compute the kinetic energy
+        self.vEdge = vc.discrete_skewgrad_t(self.psi_cell)
+        self.kenergy_edge[:] = self.vEdge**2
+
+        self.vEdge = vc.discrete_grad_n(self.phi_cell)
+        self.kenergy_edge += self.vEdge**2
+
+        self.kenergy_edge += vc.discrete_skewgrad_n(self.psi_vertex) * vc.discrete_grad_n(self.phi_cell)
+        self.kenergy_edge += vc.discrete_skewgrad_t(self.psi_cell) * vc.discrete_grad_tn(self.phi_vertex)
+
+        self.kenergy_edge /= self.thickness_edge**2
+        
+        
 def timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, g, vc, c):
 
     coef = np.array([0., .5, .5, 1.])
