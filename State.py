@@ -307,7 +307,7 @@ class state_data:
         out.delVisc = "%e" % (c.delVisc)
         out.bottomDrag = "%e" % (c.bottomDrag)
         out.on_a_global_sphere = "%s" % (c.on_a_global_sphere)
-        out.radius = "%e" % (c.earth_radius)
+        out.sphere_radius = "%e" % (c.earth_radius)
         out.no_flux_BC = "%s" % (c.no_flux_BC)
         out.no_slip_BC = "%s" % (c.no_slip_BC)
         out.free_slip_BC = "%s" % (c.free_slip_BC)
