@@ -526,6 +526,9 @@ class VectorCalculus:
         AMC = mAreaCell_psi * self.mVertex2cell * self.mCurl_t
         AC = mAreaCell_psi * self.mCurl_v
         GN = self.mGrad_tn * self.mCell2vertex
+        AMC.eliminate_zeros( )
+        AC.eliminate_zeros( )
+        GN.eliminate_zeros( )
 
         ## Construct an artificial thickness vector
         thickness_edge = np.zeros(g.nEdges)

@@ -16,8 +16,11 @@ component_for_hamiltonian = 'mix'     # 'normal' or 'tangential' or 'normal_tang
 # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
 timestepping = 'RK4'
 
+# Choose energy conserving or energy-enstrophy conserving schemes
+conserve_enstrophy = False     # False for energy-conserving only; True for both energy and enstrophy conserving 
+
 # Duration, time stepping size, saving interval
-dt = 720.   #2880 for 480km
+dt = 2880.   #2880 for 480km
 #dt = 360.   #360 for NA818
 nYears = 5./360
 save_inter_days = 1.
