@@ -296,6 +296,7 @@ class state_data:
 
         # Record parameters used for this simulation
         out.test_case = "%d" % (c.test_case)
+        out.conserve_enstrophy = "%s" % (c.conserve_enstrophy)
         out.timestepping = "%s" % (c.timestepping)
         out.linear_solver = "%s" % (c.linear_solver)
         if c.linear_solver == 'amgx':
