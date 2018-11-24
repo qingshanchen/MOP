@@ -149,6 +149,7 @@ def main( ):
     plt.savefig('energy.png', format='PNG')
 
     plt.figure(6)
+    plt.plot(days, kinetic_energy, '--', label="Kinetic energy")
     plt.plot(days, pot_energy, '-.', label="Potential energy")
     plt.plot(days, total_energy, '-', label="Total energy")
     plt.xlabel('Time (days)')

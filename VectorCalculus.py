@@ -143,13 +143,17 @@ class VectorCalculus:
             # and boundary cells into a separate vector
             nCellsBoundary = np.sum(g.boundaryCellMark[:]>0)
             nCellsInterior = g.nCells - nCellsBoundary
-            self.cellInterior, self.cellBoundary, self.cellRankInterior, \
-                cellInner_tmp, cellOuter_tmp, self.cellRankInner, \
-                nCellsInner, nCellsOuter = \
-                cmp.separate_boundary_interior_inner_cells(nCellsInterior,  \
-                nCellsBoundary, c.max_int, g.boundaryCellMark, g.cellsOnCell, g.nEdgesOnCell)
-            self.cellInner = cellInner_tmp[:nCellsInner]
-            self.cellOuter = cellOuter_tmp[:nCellsOuter]
+            
+            #self.cellInterior, self.cellBoundary, self.cellRankInterior, \
+            #    cellInner_tmp, cellOuter_tmp, self.cellRankInner, \
+            #    nCellsInner, nCellsOuter = \
+            #    cmp.separate_boundary_interior_inner_cells(nCellsInterior,  \
+            #    nCellsBoundary, c.max_int, g.boundaryCellMark, g.cellsOnCell, g.nEdgesOnCell)
+            #self.cellInner = cellInner_tmp[:nCellsInner]
+            #self.cellOuter = cellOuter_tmp[:nCellsOuter]
+
+            self.cellBoundary = cmp.boundary_cells_ordered(\
+                                nCellsBoundary, g.boundaryCellMark, g.cellsOnCell)
 
         ## Construct the matrix representing the discrete div on the primal mesh (Voronoi cells)
         ## No-flux BCs assumed on the boundary
@@ -922,11 +926,3 @@ class VectorCalculus:
 
         else:
             return self.mEdge2cell.dot(sEdge)
-
-
-        
-        
-        
-        
-
-        

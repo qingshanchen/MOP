@@ -3,6 +3,186 @@ implicit none
 
 contains
 
+  subroutine separate_boundary_interior_cells(nCells, &
+       nCellsInterior, nCellsBoundary, max_int, boundaryCell,  &
+       cellInterior, cellBoundary, cellRankInterior)
+  
+  integer, intent(in)   :: nCells, nCellsInterior, nCellsBoundary, max_int
+  integer, intent(in)   :: boundaryCell(0:nCells-1)
+  integer, intent(out)  :: cellInterior(0:nCellsInterior-1), cellBoundary(0:nCellsBoundary-1), &
+       &cellRankInterior(0:nCells-1)
+
+  ! Local variables
+  integer               :: index, index2, iCell
+
+
+  index = 1
+  index2 = 1
+
+
+  do iCell = 0, nCells-1
+     if (boundaryCell(iCell) .EQ. 0) then
+        cellInterior(index-1) = iCell + 1
+        cellRankInterior(iCell) = index
+        index = index + 1
+     else
+        cellBoundary(index2-1) = iCell + 1
+        cellRankInterior(iCell) = max_int
+        index2 = index2 + 1
+     end if
+  end do
+
+end subroutine separate_boundary_interior_cells
+
+! Single out all the boundary cells and list them
+! in the counter-clock wise order.
+! ONLY works when there are no holes within the domain
+subroutine boundary_cells_ordered(nCells, maxEdges, &
+       nCellsBoundary, boundaryCellMark, cellsOnCell, &
+       cellBoundary)
+  
+  integer, intent(in)   :: nCells, nCellsBoundary, maxEdges
+  integer, intent(in)   :: boundaryCellMark(0:nCells-1), cellsOnCell(0:nCells-1,0:maxEdges-1)
+  integer, intent(out)  :: cellBoundary(0:nCellsBoundary)
+
+  ! Local variables
+  integer               :: iCell, cell0, cell1, cell2, index
+
+  index = 0
+
+  ! Locate the first boundary cell
+  do iCell = 0, nCells-1
+     if (boundaryCellMark(iCell) .EQ. 1) then
+        cell0 = iCell + 1
+        cellBoundary(index) = cell0
+        index = index + 1
+        exit
+     end if
+  end do
+
+  cell1 = cell0
+  do
+     cell2 = cellsOnCell(cell1-1,0)
+     cellBoundary(index) = cell2
+     index = index + 1
+
+     if (cell2 == cell0) then
+        exit
+     else
+        cell1 = cell2
+     end if
+
+     if (index > nCells) then
+        write(*,*) "Endless loop!"
+        stop
+     end if
+  end do
+
+  if (index .NE. nCellsBoundary+1) then
+     write(*,*) "Number of boundary cells not correct."
+     stop
+  end if
+
+end subroutine boundary_cells_ordered
+
+
+! cellBoundary: cells on the boundary
+! cellInterior: cells not on the boundary
+! cellRankInterior: the index of an interior cell in the sequence of all interior cells
+! cellInner: cells that are not connected with boundary cells
+! cellOuter: cells that are not inner cells
+subroutine separate_boundary_interior_inner_cells(nCells, maxEdges, &
+     nCellsInterior, nCellsBoundary, max_int, boundaryCell,  cellsOnCell, nEdgesOnCell, &
+     cellInterior, cellBoundary, cellRankInterior, cellInner, cellOuter, &
+     cellRankInner, nInnerCells, nOuterCells)
+
+  
+  integer, intent(in)   :: nCells, nCellsInterior, nCellsBoundary, max_int, maxEdges
+  integer, intent(in)   :: boundaryCell(0:nCells-1), cellsOnCell(0:nCells-1, 0:maxEdges-1), &
+       nEdgesOnCell(0:nCells-1)
+  integer, intent(out)  :: cellInterior(0:nCellsInterior-1),  &
+       cellBoundary(0:nCellsBoundary-1), cellRankInterior(0:nCells-1), &
+       cellInner(0:nCells-1), cellOuter(0:nCells-1), cellRankInner(0:nCells-1), &
+       nInnerCells, nOuterCells
+
+  ! Local variables
+  integer               :: index, index2, iCell, inner_indx, outer_indx
+
+  index = 1
+  index2 = 1
+
+  inner_indx = 1
+  outer_indx = 1
+
+  do iCell = 0, nCells-1
+     if (boundaryCell(iCell) .EQ. 0) then
+        cellInterior(index-1) = iCell + 1
+        cellRankInterior(iCell) = index
+        index = index + 1
+
+        ! To check for inner cells (not connected to boundary cells)
+        if (sum(boundaryCell(cellsOnCell(iCell,0:nEdgesOnCell(iCell)-1)-1)) == 0) then
+           cellInner(inner_indx-1) = iCell + 1
+           cellRankInner(iCell) = inner_indx
+           inner_indx = inner_indx + 1
+        else
+           cellOuter(outer_indx-1) = iCell + 1
+           cellRankInner(iCell) = max_int
+           outer_indx = outer_indx + 1
+        end if
+        
+     else  
+        cellBoundary(index2-1) = iCell + 1
+        cellRankInterior(iCell) = max_int
+        index2 = index2 + 1
+
+        ! A boundary cell is automatically an outer cell
+        cellOuter(outer_indx-1) = iCell + 1 
+        cellRankInner(iCell) = max_int
+        outer_indx = outer_indx + 1
+        
+     end if
+
+     nInnerCells = inner_indx - 1
+     nOuterCells = outer_indx - 1
+     
+  end do
+
+end subroutine separate_boundary_interior_inner_cells
+
+
+subroutine separate_boundary_interior_edges(nEdges, &
+     nEdgesInterior, nEdgesBoundary, max_int, boundaryEdgeMark,  &
+     edgeInterior, edgeBoundary, edgeRankInterior, edgeRankBoundary)
+  
+  integer, intent(in)   :: nEdges, nEdgesInterior, nEdgesBoundary, max_int
+  integer, intent(in)   :: boundaryEdgeMark(0:nEdges-1)
+  integer, intent(out)  :: edgeInterior(0:nEdgesInterior-1), edgeBoundary(0:nEdgesBoundary-1), &
+       edgeRankInterior(0:nEdges-1), edgeRankBoundary(0:nEdges-1)
+
+  ! Local variables
+  integer               :: index, index2, iEdge
+
+  index = 1
+  index2 = 1
+
+
+  do iEdge = 0, nEdges-1
+     if (boundaryEdgeMark(iEdge) .EQ. 0) then
+        edgeInterior(index-1) = iEdge + 1
+        edgeRankInterior(iEdge) = index
+        edgeRankBoundary(iEdge) = max_int
+        index = index + 1
+     else
+        edgeBoundary(index2-1) = iEdge + 1
+        edgeRankInterior(iEdge) = max_int
+        index2 = index2 + 1
+     end if
+  end do
+
+end subroutine separate_boundary_interior_edges
+
+
 subroutine construct_matrix_cell2vertex(nVertices, vertexDegree, &
      cellsOnVertex, kiteAreasOnVertex, areaTriangle,  &
      nEntries, rows, cols, valEntries)
@@ -377,101 +557,6 @@ subroutine construct_matrix_discrete_laplace(nEdges, nCells,  &
 end subroutine construct_matrix_discrete_laplace
 
 
-subroutine separate_boundary_interior_cells(nCells, nCellsInterior, nCellsBoundary, max_int, boundaryCell,  &
-                                            cellInterior, cellBoundary, cellRankInterior)
-  
-  integer, intent(in)   :: nCells, nCellsInterior, nCellsBoundary, max_int
-  integer, intent(in)   :: boundaryCell(0:nCells-1)
-  integer, intent(out)  :: cellInterior(0:nCellsInterior-1), cellBoundary(0:nCellsBoundary-1), &
-       &cellRankInterior(0:nCells-1)
-
-  ! Local variables
-  integer               :: index, index2, iCell
-
-
-  index = 1
-  index2 = 1
-
-
-  do iCell = 0, nCells-1
-     if (boundaryCell(iCell) .EQ. 0) then
-        cellInterior(index-1) = iCell + 1
-        cellRankInterior(iCell) = index
-        index = index + 1
-     else
-        cellBoundary(index2-1) = iCell + 1
-        cellRankInterior(iCell) = max_int
-        index2 = index2 + 1
-     end if
-  end do
-
-end subroutine separate_boundary_interior_cells
-
-! cellBoundary: cells on the boundary
-! cellInterior: cells not on the boundary
-! cellRankInterior: the index of an interior cell in the sequence of all interior cells
-! cellInner: cells that are not connected with boundary cells
-! cellOuter: cells that are not inner cells
-subroutine separate_boundary_interior_inner_cells(nCells, maxEdges, &
-     nCellsInterior, nCellsBoundary, max_int, boundaryCell,  cellsOnCell, nEdgesOnCell, &
-     cellInterior, cellBoundary, cellRankInterior, cellInner, cellOuter, &
-     cellRankInner, nInnerCells, nOuterCells)
-
-  
-  integer, intent(in)   :: nCells, nCellsInterior, nCellsBoundary, max_int, maxEdges
-  integer, intent(in)   :: boundaryCell(0:nCells-1), cellsOnCell(0:nCells-1, 0:maxEdges-1), &
-       nEdgesOnCell(0:nCells-1)
-  integer, intent(out)  :: cellInterior(0:nCellsInterior-1),  &
-       cellBoundary(0:nCellsBoundary-1), cellRankInterior(0:nCells-1), &
-       cellInner(0:nCells-1), cellOuter(0:nCells-1), cellRankInner(0:nCells-1), &
-       nInnerCells, nOuterCells
-
-  ! Local variables
-  integer               :: index, index2, iCell, inner_indx, outer_indx
-
-  index = 1
-  index2 = 1
-
-  inner_indx = 1
-  outer_indx = 1
-
-
-  do iCell = 0, nCells-1
-     if (boundaryCell(iCell) .EQ. 0) then
-        cellInterior(index-1) = iCell + 1
-        cellRankInterior(iCell) = index
-        index = index + 1
-
-        ! To check for inner cells (not connected to boundary cells)
-        if (sum(boundaryCell(cellsOnCell(iCell,0:nEdgesOnCell(iCell)-1)-1)) == 0) then
-           cellInner(inner_indx-1) = iCell + 1
-           cellRankInner(iCell) = inner_indx
-           inner_indx = inner_indx + 1
-        else
-           cellOuter(outer_indx-1) = iCell + 1
-           cellRankInner(iCell) = max_int
-           outer_indx = outer_indx + 1
-        end if
-        
-     else  
-        cellBoundary(index2-1) = iCell + 1
-        cellRankInterior(iCell) = max_int
-        index2 = index2 + 1
-
-        ! A boundary cell is automatically an outer cell
-        cellOuter(outer_indx-1) = iCell + 1 
-        cellRankInner(iCell) = max_int
-        outer_indx = outer_indx + 1
-        
-     end if
-
-     nInnerCells = inner_indx - 1
-     nOuterCells = outer_indx - 1
-     
-  end do
-
-end subroutine separate_boundary_interior_inner_cells
-
 
 !! Homogeneous Neumann BC's assumed.
 subroutine construct_matrix_discrete_laplace_triangle_neumann(nVertices, nEdges, &
@@ -519,38 +604,6 @@ subroutine construct_matrix_discrete_laplace_triangle_neumann(nVertices, nEdges,
 
 end subroutine construct_matrix_discrete_laplace_triangle_neumann
 
-
-subroutine separate_boundary_interior_edges(nEdges, &
-     nEdgesInterior, nEdgesBoundary, max_int, boundaryEdgeMark,  &
-     edgeInterior, edgeBoundary, edgeRankInterior, edgeRankBoundary)
-  
-  integer, intent(in)   :: nEdges, nEdgesInterior, nEdgesBoundary, max_int
-  integer, intent(in)   :: boundaryEdgeMark(0:nEdges-1)
-  integer, intent(out)  :: edgeInterior(0:nEdgesInterior-1), edgeBoundary(0:nEdgesBoundary-1), &
-       edgeRankInterior(0:nEdges-1), edgeRankBoundary(0:nEdges-1)
-
-  ! Local variables
-  integer               :: index, index2, iEdge
-
-
-  index = 1
-  index2 = 1
-
-
-  do iEdge = 0, nEdges-1
-     if (boundaryEdgeMark(iEdge) .EQ. 0) then
-        edgeInterior(index-1) = iEdge + 1
-        edgeRankInterior(iEdge) = index
-        edgeRankBoundary(iEdge) = max_int
-        index = index + 1
-     else
-        edgeBoundary(index2-1) = iEdge + 1
-        edgeRankInterior(iEdge) = max_int
-        index2 = index2 + 1
-     end if
-  end do
-
-end subroutine separate_boundary_interior_edges
 
 
 ! Construct the discrete gradient operator on the primal mesh

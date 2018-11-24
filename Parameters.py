@@ -1,8 +1,8 @@
 import numpy as np
 
 ### Parameters essential
-test_case = 2
-on_a_global_sphere = True
+test_case = 11
+on_a_global_sphere = False
 use_gpu = True
 
 do_restart = False
@@ -20,9 +20,9 @@ timestepping = 'RK4'
 conserve_enstrophy = True     # False for energy-conserving only; True for both energy and enstrophy conserving 
 
 # Duration, time stepping size, saving interval
-dt = 720.   #2880 for 480km
+dt = 360.   #2880 for 480km
 #dt = 360.   #360 for NA818
-nYears = 5./360
+nYears = 50./360
 save_inter_days = 1.
 
 # Model configuraitons, boundary conditions
