@@ -81,10 +81,10 @@ class state_data:
         lonwidth = lonmax - lonmin
 
         pi = np.pi; sin = np.sin; exp = np.exp
-        r = c.earth_radius
+        r = c.sphere_radius
 
         if c.test_case == 1:
-            a = c.earth_radius
+            a = c.sphere_radius
             R = a/3
             u0 = 2*np.pi*a / (12*86400)
             h0 = 1000.
@@ -102,7 +102,7 @@ class state_data:
             
 
         elif c.test_case == 2:
-            a = c.earth_radius
+            a = c.sphere_radius
             u0 = 2*np.pi*a / (12*86400)
             gh0 = 2.94e4
             gh = np.sin(g.latCell[:])**2
@@ -157,7 +157,7 @@ class state_data:
                 ## End of debugging ##
             
         elif c.test_case == 5:
-            a = c.earth_radius
+            a = c.sphere_radius
             u0 = 20.
 
             h0 = 5960.
@@ -198,7 +198,7 @@ class state_data:
             lonmid = 0.5*(lonmin+lonmax)
             lonwidth = lonmax - lonmin
 
-            r = c.earth_radius
+            r = c.sphere_radius
 
             self.vorticity[:] = 0.
             self.divergence[:] = 0.
@@ -266,7 +266,7 @@ class state_data:
         c.dt = float(rdata.dt)
         c.delVisc = float(rdata.delVisc)
         c.bottomDrag = float(rdata.bottomDrag)
-        c.earth_radius = float(rdata.radius)
+        c.sphere_radius = float(rdata.sphere_radius)
         
         rdata.close( )
 
@@ -307,7 +307,7 @@ class state_data:
         out.delVisc = "%e" % (c.delVisc)
         out.bottomDrag = "%e" % (c.bottomDrag)
         out.on_a_global_sphere = "%s" % (c.on_a_global_sphere)
-        out.sphere_radius = "%e" % (c.earth_radius)
+        out.sphere_radius = "%e" % (c.sphere_radius)
         out.no_flux_BC = "%s" % (c.no_flux_BC)
         out.no_slip_BC = "%s" % (c.no_slip_BC)
         out.free_slip_BC = "%s" % (c.free_slip_BC)
@@ -459,7 +459,7 @@ class state_data:
 
         if c.test_case == 1:
             #For shallow water test case #1, reset the vorticity and divergence to the initial states
-            a = c.earth_radius
+            a = c.sphere_radius
             u0 = 2*np.pi*a / (12*86400)
             self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
             self.divergence[:] = 0.

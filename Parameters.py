@@ -1,8 +1,8 @@
 import numpy as np
 
 ### Parameters essential
-test_case = 11
-on_a_global_sphere = False
+test_case = 2
+on_a_global_sphere = True
 use_gpu = True
 
 do_restart = False
@@ -17,12 +17,12 @@ component_for_hamiltonian = 'mix'     # 'normal' or 'tangential' or 'normal_tang
 timestepping = 'RK4'
 
 # Choose energy conserving or energy-enstrophy conserving schemes
-conserve_enstrophy = True     # False for energy-conserving only; True for both energy and enstrophy conserving 
+conserve_enstrophy = False     # False for energy-conserving only; True for both energy and enstrophy conserving 
 
 # Duration, time stepping size, saving interval
-dt = 360.   #2880 for 480km
+dt = 2880.   #2880 for 480km
 #dt = 360.   #360 for NA818
-nYears = 50./360
+nYears = 5./360
 save_inter_days = 1.
 
 # Model configuraitons, boundary conditions
@@ -39,7 +39,7 @@ max_iters = 1000
 print_stats = 0             # 1 for True, 0 for False
 
 # Size of the phyiscal domain
-earth_radius = 6371000.0
+sphere_radius = 6371000.0
 Omega0 = 7.292e-5
 
 gravity = 9.80616

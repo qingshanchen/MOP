@@ -67,21 +67,21 @@ class grid_data:
         radius = np.sqrt(xCell**2 + yCell**2 + zCell**2)
         if np.max(np.abs(radius - 1.)/1.) < 0.01:
             # To scale the coordinates
-            xCell *= c.earth_radius
-            yCell *= c.earth_radius
-            zCell *= c.earth_radius
-            xEdge *= c.earth_radius
-            yEdge *= c.earth_radius
-            zEdge *= c.earth_radius
-            xVertex *= c.earth_radius
-            yVertex *= c.earth_radius
-            zVertex *= c.earth_radius
-            self.dvEdge *= c.earth_radius
-            self.dcEdge *= c.earth_radius
-            self.areaCell *= c.earth_radius**2
-            self.areaTriangle *= c.earth_radius**2
-            self.kiteAreasOnVertex *= c.earth_radius**2
-        elif np.max(np.abs(radius-c.earth_radius)/c.earth_radius) < 0.01:
+            xCell *= c.sphere_radius
+            yCell *= c.sphere_radius
+            zCell *= c.sphere_radius
+            xEdge *= c.sphere_radius
+            yEdge *= c.sphere_radius
+            zEdge *= c.sphere_radius
+            xVertex *= c.sphere_radius
+            yVertex *= c.sphere_radius
+            zVertex *= c.sphere_radius
+            self.dvEdge *= c.sphere_radius
+            self.dcEdge *= c.sphere_radius
+            self.areaCell *= c.sphere_radius**2
+            self.areaTriangle *= c.sphere_radius**2
+            self.kiteAreasOnVertex *= c.sphere_radius**2
+        elif np.max(np.abs(radius-c.sphere_radius)/c.sphere_radius) < 0.01:
             pass
         else:
             raise ValueError("Unknown domain raius.")
