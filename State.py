@@ -218,14 +218,14 @@ class state_data:
             # One gyre with no forcing, for a bounded domain over NA
             d = np.sqrt(32*(g.latCell[:] - latmid)**2/latwidth**2 + 4*(g.lonCell[:]-(-1.1))**2/.3**2)
             f0 = np.mean(g.fCell)
-            self.psi_cell[:] = 2*np.exp(-d**2) * 0.5*(1-np.tanh(20*(d-1.5)))
-            self.psi_cell[:] -= np.sum(self.psi_cell * g.areaCell) / np.sum(g.areaCell)
-            self.psi_cell *= c.gravity / f0
-            self.vorticity = cmp.discrete_laplace_v( \
-                 g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell, \
-                 self.psi_cell)
-            self.divergence[:] = 0.
             self.thickness[:] = 4000.
+            self.psi_cell[:] = 2*np.exp(-d**2) * 0.5*(1-np.tanh(20*(d-1.5)))
+#            self.psi_cell[:] -= np.sum(self.psi_cell * g.areaCell) / np.sum(g.areaCell)
+            self.psi_cell *= c.gravity / f0 * self.thickness
+            self.phi_cell[:] = 0.
+            self.vorticity = vc.discrete_laplace_v(self.psi_cell)
+            self.vorticity /= self.thickness
+            self.divergence[:] = 0.
             
             # Initialize wind
             self.curlWind_cell[:] = 0.
@@ -420,7 +420,16 @@ class state_data:
         self.tend_divergence[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
 
 #        tend_divergence_2[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
-        
+
+        ## The boundary terms
+#        pv_bv_edge = 0.5*(self.pv_cell[vc.cellBoundary[:-1]-1] + self.pv_cell[vc.cellBoundary[1:]-1])
+#        phi_diff_edge = self.phi_cell[vc.cellBoundary[1:]-1] - self.phi_cell[vc.cellBoundary[:-1]-1]
+#        pv_phi_diff_edge = pv_bv_edge * phi_diff_edge
+#        self.tend_divergence[vc.cellBoundary[0]-1] -= 1./4/g.areaCell[vc.cellBoundary[0]-1] * \
+#                (pv_phi_diff_edge[-1] + pv_phi_diff_edge[0])
+#        self.tend_divergence[vc.cellBoundary[1:-1]-1] -= 1./4/g.areaCell[vc.cellBoundary[1:-1]-1] * \
+#                (pv_phi_diff_edge[:-1] + pv_phi_diff_edge[1:])
+
         if c.component_for_hamiltonian == 'normal_tangent':
             self.tend_divergence[:] -= 0.5 * vc.discrete_laplace_v(self.geoPot)
 
@@ -440,19 +449,6 @@ class state_data:
         else:
             raise ValueError("Invalid value of component_for_hamiltonian")
 
-        ## Debugging ##
-#        print("max of tend_thickness: %e" % np.max(np.abs(self.tend_thickness)))
-#        print("max of tend_vorticity: %e" % np.max(np.abs(self.tend_vorticity)))
-#        print("max of tend_divergence: %e" % np.max(np.abs(self.tend_divergence)))
-#        print("max of tend_divergence_1: %e" % np.max(np.abs(tend_divergence_1)))
-#        print("max of tend_divergence_2: %e" % np.max(np.abs(tend_divergence_2)))
-#        print("max of tend_divergence_3: %e" % np.max(np.abs(tend_divergence_3)))
-#        print("first component of tend_divergence: %e" % \
-#              ( np.max(np.abs(vc.discrete_div_v(self.pv_edge * vc.discrete_grad_n(self.psi_cell)) \
-#                              - vc.discrete_laplace_v(self.geoPot))),))
-#        print("second component of tend_divergence: %e" % (np.max(np.abs(vc.discrete_div_t( self.pv_edge * vc.discrete_grad_td(self.psi_vertex)) - vc.discrete_laplace_t(vc.cell2vertex(self.geoPot)))),))
-#        raise ValueError("Stop for debugging")
-        ## End of debugging ##
         
     def compute_diagnostics(self, g, vc, c):
         # Compute diagnostic variables from pv_cell
@@ -479,7 +475,8 @@ class state_data:
             #print("Total vorticity = %e" % (np.sum(self.vorticity * g.areaCell)))
             #print("Total divergence = %e" % (np.sum(self.divergence * g.areaCell)))
         else:
-            raise ValueError
+#            raise ValueError
+            pass
         
         # Compute the absolute vorticity
         self.eta_cell = self.vorticity + g.fCell

@@ -1,8 +1,8 @@
 import numpy as np
 
 ### Parameters essential
-test_case = 2
-on_a_global_sphere = True
+test_case = 12
+on_a_global_sphere = False
 use_gpu = True
 
 do_restart = False
@@ -11,7 +11,7 @@ save_restart_init = False
 
 ### Parameters secondary
 # Choose how the Hamiltonian is defined
-component_for_hamiltonian = 'mix'     # 'normal' or 'tangential' or 'normal_tangent" or 'mix'
+component_for_hamiltonian = 'normal'     # 'normal' or 'tangential' or 'normal_tangent" or 'mix'
 
 # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
 timestepping = 'RK4'
@@ -20,9 +20,9 @@ timestepping = 'RK4'
 conserve_enstrophy = False     # False for energy-conserving only; True for both energy and enstrophy conserving 
 
 # Duration, time stepping size, saving interval
-dt = 2880.   #2880 for 480km
-#dt = 360.   #360 for NA818
-nYears = 5./360
+#dt = 2880.   #2880 for 480km
+dt = 360.   #360 for NA818
+nYears = 1.*360/360
 save_inter_days = 1.
 
 # Model configuraitons, boundary conditions
@@ -35,7 +35,7 @@ free_slip_BC = False
 # Solver config
 linear_solver = 'amgx'      # lu, cg, cudaCG, cudaPCG, amg, amgx
 err_tol = 5e-8
-max_iters = 1000
+max_iters = 100
 print_stats = 0             # 1 for True, 0 for False
 
 # Size of the phyiscal domain
