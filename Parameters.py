@@ -4,6 +4,7 @@ import numpy as np
 test_case = 12
 on_a_global_sphere = False
 use_gpu = True
+performing_test = False
 
 do_restart = False
 restart_file = 'restart.nc'
@@ -11,7 +12,7 @@ save_restart_init = False
 
 ### Parameters secondary
 # Choose how the Hamiltonian is defined
-component_for_hamiltonian = 'normal'     # 'normal' or 'tangential' or 'normal_tangent" or 'mix'
+component_for_hamiltonian = 'mix'     # 'normal' or 'tangential' or 'normal_tangent" or 'mix'
 
 # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
 timestepping = 'RK4'
@@ -23,7 +24,7 @@ conserve_enstrophy = False     # False for energy-conserving only; True for both
 #dt = 2880.   #2880 for 480km
 dt = 360.   #360 for NA818
 nYears = 1.*360/360
-save_inter_days = 1.
+save_inter_days = 10.
 
 # Model configuraitons, boundary conditions
 delVisc = 0.  # 80 for NA818
@@ -33,7 +34,7 @@ no_slip_BC = False
 free_slip_BC = False
 
 # Solver config
-linear_solver = 'amgx'      # lu, cg, cudaCG, cudaPCG, amg, amgx
+linear_solver = 'lu'      # lu, cg, cudaCG, cudaPCG, amg, amgx
 err_tol = 5e-8
 max_iters = 100
 print_stats = 0             # 1 for True, 0 for False

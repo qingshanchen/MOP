@@ -17,56 +17,58 @@ class EllipticCPL:
             pyamgx.initialize( )
 
             hA = A.tocsr( )
-            AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_AGGREGATION_JACOBI.json'
+            #AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_AGGREGATION_JACOBI.json'
             #AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json'
             #AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_V_JACOBI.json'
-            #AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS_JACOBI.json'
+            AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS_JACOBI.json'
             #AMGX_CONFIG_FILE_NAME = 'amgx_config/FGMRES_AGGREGATION_JACOBI.json'
             #AMGX_CONFIG_FILE_NAME = 'amgx_config/FGMRES_CLASSICAL_AGGRESSIVE_PMIS.json'
             #AMGX_CONFIG_FILE_NAME = 'amgx_config/AMG_AGGREGATION_CG.json'
             #AMGX_CONFIG_FILE_NAME = 'amgx_config/PBICGSTAB_AGGREGATION_W_JACOBI.json'
             #AMGX_CONFIG_FILE_NAME = 'amgx_config/AGGREGATION_JACOBI.json'
- 
-            #cfg = pyamgx.Config( ).create_from_file(AMGX_CONFIG_FILE_NAME)
-            cfg = pyamgx.Config( ).create_from_dict({
-                "config_version": 2, 
-                "determinism_flag": 0, 
-                "solver": {
-                    "preconditioner": {
-                        "print_grid_stats": c.print_stats, 
-                        "algorithm": "AGGREGATION", 
-                        "print_vis_data": 0, 
-                        "solver": "AMG", 
-                        "smoother": {
-                            "relaxation_factor": 0.8, 
-                            "scope": "jacobi", 
-                            "solver": "BLOCK_JACOBI", 
+
+            if False:
+                cfg = pyamgx.Config( ).create_from_file(AMGX_CONFIG_FILE_NAME)
+            else:
+                cfg = pyamgx.Config( ).create_from_dict({
+                    "config_version": 2, 
+                    "determinism_flag": 0, 
+                    "solver": {
+                        "preconditioner": {
+                            "print_grid_stats": c.print_stats, 
+                            "algorithm": "AGGREGATION", 
+                            "print_vis_data": 0, 
+                            "solver": "AMG", 
+                            "smoother": {
+                                "relaxation_factor": 0.8, 
+                                "scope": "jacobi", 
+                                "solver": "BLOCK_JACOBI", 
+                                "monitor_residual": 0, 
+                                "print_solve_stats": 0
+                            }, 
+                            "print_solve_stats": 0, 
+                            "presweeps": 2, 
+                            "selector": "SIZE_2", 
+                            "coarse_solver": "NOSOLVER", 
+                            "max_iters": 2, 
                             "monitor_residual": 0, 
-                            "print_solve_stats": 0
+                            "store_res_history": 0, 
+                            "scope": "amg_solver", 
+                            "max_levels": 1000, 
+                            "postsweeps": 2, 
+                            "cycle": "V"
                         }, 
-                        "print_solve_stats": 0, 
-                        "presweeps": 2, 
-                        "selector": "SIZE_2", 
-                        "coarse_solver": "NOSOLVER", 
-                        "max_iters": 2, 
-                        "monitor_residual": 0, 
-                        "store_res_history": 0, 
-                        "scope": "amg_solver", 
-                        "max_levels": 1000, 
-                        "postsweeps": 2, 
-                        "cycle": "V"
-                    }, 
-                    "solver": "PCGF", 
-                    "print_solve_stats": c.print_stats, 
-                    "obtain_timings": c.print_stats, 
-                    "max_iters": c.max_iters, 
-                    "monitor_residual": 1, 
-                    "convergence": "RELATIVE_INI", 
-                    "scope": "main", 
-                    "tolerance": c.err_tol, 
-                    "norm": "L2"
-                }
-            })
+                        "solver": "PCGF", 
+                        "print_solve_stats": c.print_stats, 
+                        "obtain_timings": c.print_stats, 
+                        "max_iters": c.max_iters, 
+                        "monitor_residual": 1, 
+                        "convergence": "RELATIVE_INI", 
+                        "scope": "main", 
+                        "tolerance": c.err_tol, 
+                        "norm": "L2"
+                    }
+                })
                 
             rsc = pyamgx.Resources().create_simple(cfg)
             mode = 'dDDI'
@@ -144,16 +146,18 @@ class VectorCalculus:
             nCellsBoundary = np.sum(g.boundaryCellMark[:]>0)
             nCellsInterior = g.nCells - nCellsBoundary
             
-            #self.cellInterior, self.cellBoundary, self.cellRankInterior, \
-            #    cellInner_tmp, cellOuter_tmp, self.cellRankInner, \
-            #    nCellsInner, nCellsOuter = \
-            #    cmp.separate_boundary_interior_inner_cells(nCellsInterior,  \
-            #    nCellsBoundary, c.max_int, g.boundaryCellMark, g.cellsOnCell, g.nEdgesOnCell)
-            #self.cellInner = cellInner_tmp[:nCellsInner]
-            #self.cellOuter = cellOuter_tmp[:nCellsOuter]
+            self.cellInterior, self.cellBoundary, self.cellRankInterior, \
+                cellInner_tmp, cellOuter_tmp, self.cellRankInner, \
+                nCellsInner, nCellsOuter = \
+                cmp.separate_boundary_interior_inner_cells(nCellsInterior,  \
+                nCellsBoundary, c.max_int, g.boundaryCellMark, g.cellsOnCell, g.nEdgesOnCell)
+            self.cellInner = cellInner_tmp[:nCellsInner]
+            self.cellOuter = cellOuter_tmp[:nCellsOuter]
 
-            self.cellBoundary = cmp.boundary_cells_ordered(\
-                                nCellsBoundary, g.boundaryCellMark, g.cellsOnCell)
+            #self.cellBoundary = cmp.boundary_cells_ordered(\
+            #                    nCellsBoundary, g.boundaryCellMark, g.cellsOnCell)
+        else:
+            self.cellBoundary = np.array([], dtype='int')
 
         ## Construct the matrix representing the discrete div on the primal mesh (Voronoi cells)
         ## No-flux BCs assumed on the boundary
@@ -229,6 +233,12 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nEdges, g.nCells))
         self.mGrad_n = A.tocsr( )
 
+        A_n = A.tolil()   
+        A_n[:,0] = 0.
+        self.mGrad_n_n = A_n.tocsr( )
+        self.mGrad_n_n.eliminate_zeros()
+#        raise ValueError
+
         if c.use_gpu:
             self.d_mGrad_n = Device_CSR(self.mGrad_n, env)
 
@@ -265,6 +275,14 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mSkewgrad_t = Device_CSR(self.mSkewgrad_t, env)
 
+        A_d = A.tolil( )
+        if c.on_a_global_sphere:
+            A_d[:,0] = 0.
+        else:
+            A_d[:, self.cellBoundary[:]-1] = 0.          #Assume homogeneous Dirichlet 
+        self.mSkewgrad_td = A_d.tocsr( )                 
+        self.mSkewgrad_td.eliminate_zeros( )
+        
         ## Construct the matrix representing the discrete skew grad operator 
         ## along the normal direction. Homogeneous Dirichlet assumed.
         ## mSkewgrad_n = - mGrad_td
@@ -288,8 +306,14 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mCell2vertex = Device_CSR(self.mCell2vertex, env)
 
+        A_n = A.tolil( )
+        A_n[:,0] = 0.       # zero for entry 0; Neumann
+        self.mCell2vertex_n = A_n.tocsr()
+        self.mCell2vertex_n.eliminate_zeros( )
+
         ## Construct the matrix representing the mapping from the primary mesh onto the dual
         ## mesh; homogeneous Dirichlet BC's are assumed
+        ## On a global sphere, cell 0 is considered the single boundary pt.
         nEntries, rows, cols, valEntries = \
             cmp.construct_matrix_cell2vertex_psi(g.cellsOnVertex, g.kiteAreasOnVertex, g.areaTriangle, g.boundaryCellMark, c.on_a_global_sphere)
         A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
@@ -330,7 +354,11 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mEdge2cell = Device_CSR(self.mEdge2cell, env)
 
-        self.mThicknessInv = eye(g.nEdges)   # This is only a space holder
+        ## Construct an artificial thickness vector
+        thickness_edge = 100 * (10. + np.random.rand(g.nEdges))
+        self.mThicknessInv = eye(g.nEdges)  
+        self.mThicknessInv.data[0,:] = 1./thickness_edge
+        
 #        if c.use_gpu:                        # Need to update at every step
 #            d_mThicknessInv = Device_CSR(self.mThicknessInv.to_csr(), env)
 
@@ -342,11 +370,11 @@ class VectorCalculus:
             self.leftM_n, self.rightM_n, self.leftM_t, self.rightM_t, self.coefM = \
                                                 self.construct_EllipticCPL_coefM_nt(env, g, c)
         elif c.component_for_hamiltonian == 'mix':
-            self.AC, self.AMC, self.GN, self.coefM = \
+            self.AC, self.AMC, self.AMD, self.AD, self.GN, self.SN, self.coefM = \
                                                 self.construct_EllipticCPL_coefM_mix(env, g, c)
         else:
             raise ValueError("Invalid value for component_for_hamiltonian")
-        
+
         self.POcpl = EllipticCPL(self.coefM, c.linear_solver, env)
             
         self.scalar_cell = np.zeros(g.nCells)
@@ -385,9 +413,9 @@ class VectorCalculus:
         rightM.eliminate_zeros( )
 
         
-        thickness_edge = np.zeros(g.nEdges)
-        thickness_edge[:] = 1000.    # Any non-zero should suffice
-        self.mThicknessInv.data[0,:] = 1./thickness_edge
+#        thickness_edge = np.zeros(g.nEdges)
+#        thickness_edge[:] = 1000.    # Any non-zero should suffice
+#        self.mThicknessInv.data[0,:] = 1./thickness_edge
         
         coefM = leftM * self.mThicknessInv * rightM
 
@@ -439,9 +467,9 @@ class VectorCalculus:
         rightM.eliminate_zeros( )
 
         
-        thickness_edge = np.zeros(g.nEdges)
-        thickness_edge[:] = 1000.    # Any non-zero should suffice
-        self.mThicknessInv.data[0,:] = 1./thickness_edge
+#        thickness_edge = np.zeros(g.nEdges)
+#        thickness_edge[:] = 1000.    # Any non-zero should suffice
+#        self.mThicknessInv.data[0,:] = 1./thickness_edge
         
         coefM = leftM * self.mThicknessInv * rightM
 
@@ -494,9 +522,9 @@ class VectorCalculus:
         rightM_t.eliminate_zeros( )
 
         ## Construct an artificial thickness vector
-        thickness_edge = np.zeros(g.nEdges)
-        thickness_edge[:] = 1000.    # Any non-zero should suffice
-        self.mThicknessInv.data[0,:] = 1./thickness_edge
+#        thickness_edge = np.zeros(g.nEdges)
+#        thickness_edge[:] = 1000.    # Any non-zero should suffice
+#        self.mThicknessInv.data[0,:] = 1./thickness_edge
         
         coefM = 0.5 * leftM_n * self.mThicknessInv * rightM_n
         coefM += 0.5 * leftM_t * self.mThicknessInv * rightM_t
@@ -527,25 +555,35 @@ class VectorCalculus:
             
         ## Construct the coefficient matrix for the coupled elliptic
         ## system for psi and phi, using the normal vector
+        # Left, row 1
         AMC = mAreaCell_psi * self.mVertex2cell * self.mCurl_t
         AC = mAreaCell_psi * self.mCurl_v
-        GN = self.mGrad_tn * self.mCell2vertex
         AMC.eliminate_zeros( )
         AC.eliminate_zeros( )
+        # Left, row 2
+        AMD = mAreaCell_phi * self.mVertex2cell * self.mDiv_t
+        AD = mAreaCell_phi * self.mDiv_v
+        AMD.eliminate_zeros( )
+        AD.eliminate_zeros( )
+        # Right, col 2
+        GN = self.mGrad_tn * self.mCell2vertex_n
         GN.eliminate_zeros( )
-
-        ## Construct an artificial thickness vector
-        thickness_edge = np.zeros(g.nEdges)
-        thickness_edge[:] = 1000.    # Any non-zero should suffice
-        self.mThicknessInv.data[0,:] = 1./thickness_edge
+        # Right, col 1
+        SN = self.mSkewgrad_n * self.mCell2vertex_psi
+        SN.eliminate_zeros( )
+        
 
         ## Construct the blocks
-        A11 = AC * self.mThicknessInv * self.mSkewgrad_t
-        A12 = AMC * self.mThicknessInv * self.mGrad_n
+        A11 = AC * self.mThicknessInv * self.mSkewgrad_td
+        A12 = AMC * self.mThicknessInv * self.mGrad_n_n
         A12 += AC * self.mThicknessInv * GN
         A12 *= 0.5
+        A21 = AD * self.mThicknessInv * SN
+        A21 += AMD * self.mThicknessInv * self.mSkewgrad_td
+        A21 *= 0.5
+        A22 = AD * self.mThicknessInv * self.mGrad_n_n
 
-        coefM = bmat([[A11, A12], [-A12, A11]], format = 'csr')
+        coefM = bmat([[A11, A12], [A21, A22]], format = 'csr')
         
         if c.on_a_global_sphere:
             coefM[0,0] = 1.
@@ -554,7 +592,7 @@ class VectorCalculus:
             coefM[self.cellBoundary-1, self.cellBoundary-1] = 1.
             coefM[g.nCells, g.nCells] = 1.
 
-        return AC, AMC, GN, coefM
+        return AC, AMC, AMD, AD, GN, SN, coefM
     
     
     def update_matrix_for_coupled_elliptic(self, thickness_edge, c, g):
@@ -568,12 +606,28 @@ class VectorCalculus:
             self.coefM = 0.5 * self.leftM_n * self.mThicknessInv * self.rightM_n
             self.coefM += 0.5 * self.leftM_t * self.mThicknessInv * self.rightM_t
         elif c.component_for_hamiltonian == 'mix':
-            A11 = self.AC * self.mThicknessInv * self.mSkewgrad_t
-            A12 = self.AMC * self.mThicknessInv * self.mGrad_n
+
+            #raise ValueError("Need to be updated; enforcing correct BCs.")
+        
+            #A11 = self.AC * self.mThicknessInv * self.mSkewgrad_t
+            #A12 = self.AMC * self.mThicknessInv * self.mGrad_n
+            #A12 += self.AC * self.mThicknessInv * self.GN
+            #A12 *= 0.5
+            #A22 = self.AD * self.mThicknessInv * self.mGrad_n
+
+            #self.coefM = bmat([[A11, A12], [-A12, A22]], format = 'csr')
+            
+            ## Construct the blocks
+            A11 = self.AC * self.mThicknessInv * self.mSkewgrad_td
+            A12 = self.AMC * self.mThicknessInv * self.mGrad_n_n
             A12 += self.AC * self.mThicknessInv * self.GN
             A12 *= 0.5
+            A21 = self.AD * self.mThicknessInv * self.SN
+            A21 += self.AMD * self.mThicknessInv * self.mSkewgrad_td
+            A21 *= 0.5
+            A22 = self.AD * self.mThicknessInv * self.mGrad_n_n
 
-            self.coefM = bmat([[A11, A12], [-A12, A11]], format = 'csr')
+            self.coefM = bmat([[A11, A12], [A21, A22]], format = 'csr')
             
         else:
             raise ValueError("Invalid value for component_for_hamiltonian")

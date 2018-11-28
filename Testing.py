@@ -296,7 +296,7 @@ def run_tests(env, g, vc, c, s):
         # using the EllipticCPL object
         # vorticity and divergence taken from SWSTC #2
 
-        a = c.earth_radius
+        a = c.sphere_radius
         u0 = 2*np.pi*a / (12*86400)
         gh0 = 2.94e4
         gh = np.sin(g.latCell[:])**2
@@ -393,12 +393,12 @@ def run_tests(env, g, vc, c, s):
         print("L^2 error        = ", l2)        
 
 
-    if True:
+    if False:
         # Test the linear solver for the coupled elliptic equation on the whole domain
         # using the EllipticCPL object
         # vorticity and divergence come from SWSTC #2
 
-        a = c.earth_radius
+        a = c.sphere_radius
         u0 = 2*np.pi*a / (12*86400)
         gh0 = 2.94e4
         gh = np.sin(g.latCell[:])**2
@@ -433,6 +433,55 @@ def run_tests(env, g, vc, c, s):
         print("L infinity error = %e" % l8)
         print("L^2 error        = %e" % l2)        
 
+
+    if True:
+        # Test the linear solver for the coupled elliptic equation on a bounded domain
+        # using the EllipticCPL object
+        # vorticity and divergence come from TC #12
+
+        latmin = np.min(g.latCell[:]); latmax = np.max(g.latCell[:])
+        lonmin = np.min(g.lonCell[:]); lonmax = np.max(g.lonCell[:])
+
+        latmid = 0.5*(latmin+latmax)
+        latwidth = latmax - latmin
+
+        lonmid = 0.5*(lonmin+lonmax)
+        lonwidth = lonmax - lonmin
+
+        pi = np.pi; sin = np.sin; exp = np.exp
+        r = c.sphere_radius
+        
+        d = np.sqrt(32*(g.latCell[:] - latmid)**2/latwidth**2 + 4*(g.lonCell[:]-(-1.1))**2/.3**2)
+        f0 = np.mean(g.fCell)
+        s.thickness[:] = 4000.
+        psi_cell_true = 2*np.exp(-d**2) * 0.5*(1-np.tanh(20*(d-1.5)))
+        psi_cell_true *= c.gravity / f0 * s.thickness
+        phi_cell_true = np.zeros(g.nCells)
+        s.vorticity = vc.discrete_laplace_v(psi_cell_true)
+        s.vorticity /= s.thickness
+        s.divergence[:] = 0.
+
+        s.psi_cell[:] = 0.
+        s.phi_cell[:] = 0.
+        s.thickness_edge = vc.cell2edge(s.thickness)
+
+        cpu0 = time.clock( )
+        wall0 = time.time( )
+        s.compute_psi_phi(vc, g, c)
+        cpu1 = time.clock( )
+        wall1 = time.time( )
+        print(("CPU time for solving system: %f" % (cpu1-cpu0,)))
+        print(("Wall time for solving system: %f" % (wall1-wall0,)))
+        
+        # Compute the errors
+        l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
+        l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
+        l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
+        l2 = np.sqrt(l2)
+        print("Errors in psi")
+        print("L infinity error = %e" % l8)
+        print("L^2 error        = %e" % l2)        
+        
         
     if False:   # Test the linear solver for the Poisson equation on the triangles with homogeneous Dirichlet BC's
         psi_vertex_true = np.random.rand(g.nVertices)
