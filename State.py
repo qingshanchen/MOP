@@ -326,7 +326,7 @@ class state_data:
             self.tend_thickness[:] = -vc.discrete_laplace_v(self.phi_cell)
 
         # Tendency for vorticity
-        if c.conserve_enstrophy and c.on_a_global_sphere:
+        if c.conserve_enstrophy:
             if c.component_for_hamiltonian in ['normal', 'tangential', 'mix']:
                 pv_vertex = vc.cell2vertex(self.pv_cell)
                 psi_edge = vc.cell2edge(self.psi_cell)
@@ -416,19 +416,23 @@ class state_data:
 
 #        tend_divergence_2 = 0.5 * vc.vertex2cell(self.vVertex)
         
-        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_n(self.phi_vertex)
+#        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_n(self.phi_vertex)
+        self.vEdge[:] = cmp.discrete_skewgrad_nnat(self.phi_vertex, self.phi_cell, g.verticesOnEdge, g.cellsOnEdge, \
+                                                   g.dvEdge)
+        self.vEdge *= self.pv_edge
         self.tend_divergence[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
 
 #        tend_divergence_2[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
 
         ## The boundary terms
-#        pv_bv_edge = 0.5*(self.pv_cell[vc.cellBoundary[:-1]-1] + self.pv_cell[vc.cellBoundary[1:]-1])
-#        phi_diff_edge = self.phi_cell[vc.cellBoundary[1:]-1] - self.phi_cell[vc.cellBoundary[:-1]-1]
-#        pv_phi_diff_edge = pv_bv_edge * phi_diff_edge
-#        self.tend_divergence[vc.cellBoundary[0]-1] -= 1./4/g.areaCell[vc.cellBoundary[0]-1] * \
-#                (pv_phi_diff_edge[-1] + pv_phi_diff_edge[0])
-#        self.tend_divergence[vc.cellBoundary[1:-1]-1] -= 1./4/g.areaCell[vc.cellBoundary[1:-1]-1] * \
-#                (pv_phi_diff_edge[:-1] + pv_phi_diff_edge[1:])
+        if not c.on_a_global_sphere:
+            pv_bv_edge = 0.5*(self.pv_cell[vc.cellBoundary_ord[:-1]-1] + self.pv_cell[vc.cellBoundary_ord[1:]-1])
+            phi_diff_edge = self.phi_cell[vc.cellBoundary_ord[1:]-1] - self.phi_cell[vc.cellBoundary_ord[:-1]-1]
+            pv_phi_diff_edge = pv_bv_edge * phi_diff_edge
+            self.tend_divergence[vc.cellBoundary_ord[0]-1] -= 1./4/g.areaCell[vc.cellBoundary_ord[0]-1] * \
+                    (pv_phi_diff_edge[-1] + pv_phi_diff_edge[0])
+            self.tend_divergence[vc.cellBoundary_ord[1:-1]-1] -= 1./4/g.areaCell[vc.cellBoundary_ord[1:-1]-1] * \
+                    (pv_phi_diff_edge[:-1] + pv_phi_diff_edge[1:])
 
         if c.component_for_hamiltonian == 'normal_tangent':
             self.tend_divergence[:] -= 0.5 * vc.discrete_laplace_v(self.geoPot)

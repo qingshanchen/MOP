@@ -193,7 +193,9 @@ def main( ):
     plt.xlabel('Days')
     plt.ylabel('Total absolute vorticity')
     plt.savefig('aVort_total.png', format='PNG')
-    print("Initial and final total vorticity:%e, %e" % (total_vorticity[0], total_vorticity[-1]))
+    if np.abs(total_vorticity[0]) > 1e-10: 
+        print(("Change in total vorticity = %e " % (np.abs(total_vorticity[-1] - total_vorticity[0])/total_vorticity[0])))
+    print("Initial and final total vorticity:%.15e, %.15e" % (total_vorticity[0], total_vorticity[-1]))
     
     if c.test_case == 2:
         plt.figure(2); 

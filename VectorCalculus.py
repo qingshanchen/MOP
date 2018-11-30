@@ -154,8 +154,8 @@ class VectorCalculus:
             self.cellInner = cellInner_tmp[:nCellsInner]
             self.cellOuter = cellOuter_tmp[:nCellsOuter]
 
-            #self.cellBoundary = cmp.boundary_cells_ordered(\
-            #                    nCellsBoundary, g.boundaryCellMark, g.cellsOnCell)
+            self.cellBoundary_ord = cmp.boundary_cells_ordered(\
+                                nCellsBoundary, g.boundaryCellMark, g.cellsOnCell)
         else:
             self.cellBoundary = np.array([], dtype='int')
 
