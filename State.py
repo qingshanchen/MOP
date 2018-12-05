@@ -318,44 +318,27 @@ class state_data:
     def compute_tendencies(self, g, c, vc):
 
         # Tendency for thicknetss
-        if c.component_for_hamiltonian == 'normal_tangent':
-            self.vVertex[:] = vc.discrete_laplace_t(self.phi_vertex)
-            self.tend_thickness[:] = -0.5 * vc.vertex2cell(self.vVertex)
-            self.tend_thickness[:] += -0.5 * vc.discrete_laplace_v(self.phi_cell)
-        else:
-            self.tend_thickness[:] = -vc.discrete_laplace_v(self.phi_cell)
+        self.tend_thickness[:] = -vc.discrete_laplace_v(self.phi_cell)
 
         # Tendency for vorticity
         if c.conserve_enstrophy:
-            if c.component_for_hamiltonian in ['normal', 'tangential', 'mix']:
-                pv_vertex = vc.cell2vertex(self.pv_cell)
-                psi_edge = vc.cell2edge(self.psi_cell)
+            pv_vertex = vc.cell2vertex(self.pv_cell)
+            psi_edge = vc.cell2edge(self.psi_cell)
 
-                self.vEdge[:] = vc.discrete_grad_n(self.psi_cell)
-                self.vEdge *= self.pv_edge
-                self.vEdge -= psi_edge * vc.discrete_grad_n(self.pv_cell)
-                self.vVertex[:] = vc.discrete_curl_t(self.vEdge)
-                self.tend_vorticity[:] = 1./6 * vc.vertex2cell(self.vVertex)
+            self.vEdge[:] = vc.discrete_grad_n(self.psi_cell)
+            self.vEdge *= self.pv_edge
+            self.vEdge -= psi_edge * vc.discrete_grad_n(self.pv_cell)
+            self.vVertex[:] = vc.discrete_curl_t(self.vEdge)
+            self.tend_vorticity[:] = 1./6 * vc.vertex2cell(self.vVertex)
 
-                self.vEdge[:] = psi_edge * vc.discrete_skewgrad_n(pv_vertex)  # valid on a globe
-                self.vEdge[:] -= self.pv_edge * vc.discrete_skewgrad_n(self.psi_vertex)
-                self.tend_vorticity += 1./6 * vc.discrete_div_v(self.vEdge)
+            self.vEdge[:] = psi_edge * vc.discrete_skewgrad_n(pv_vertex)  # valid on a globe
+            self.vEdge[:] -= self.pv_edge * vc.discrete_skewgrad_n(self.psi_vertex)
+            self.tend_vorticity += 1./6 * vc.discrete_div_v(self.vEdge)
 
-                self.vEdge[:] = vc.discrete_skewgrad_n(pv_vertex) * vc.discrete_grad_n(self.psi_cell)
-                self.vEdge -= vc.discrete_skewgrad_n(self.psi_vertex) * vc.discrete_grad_n(self.pv_cell)
-                self.tend_vorticity += 1./3 * vc.edge2cell(self.vEdge)
+            self.vEdge[:] = vc.discrete_skewgrad_n(pv_vertex) * vc.discrete_grad_n(self.psi_cell)
+            self.vEdge -= vc.discrete_skewgrad_n(self.psi_vertex) * vc.discrete_grad_n(self.pv_cell)
+            self.tend_vorticity += 1./3 * vc.edge2cell(self.vEdge)
 
-                ### Debugging ###
-#                print("Contribution of { }_3zeta to enstrophy: %e" % np.sum(self.tend_vorticity * self.pv_cell * g.areaCell))
-#                print("Contribution of { }_3zeta to energy: %e" % (-1*np.sum(self.tend_vorticity * self.psi_cell * g.areaCell)))
-                ### End of Debugging ###
-
-                self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.phi_cell)
-                self.tend_vorticity[:] -= vc.discrete_div_v(self.vEdge)
-
-            else:
-                raise ValueError("Invalid choice for Hamiltonian component.")
-        
         else:
             self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.psi_cell)
             self.vVertex[:] = vc.discrete_curl_t(self.vEdge)
@@ -363,66 +346,27 @@ class state_data:
 
             self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_n(self.psi_vertex)
             self.tend_vorticity[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
-
-            ### Debugging ###
-#            print("Contribution of { }_2zeta to enstrophy: %e" % np.sum(self.tend_vorticity * self.pv_cell * g.areaCell))
-#            print("Contribution of { }_2zeta to energy: %e" % (-1*np.sum(self.tend_vorticity * self.psi_cell * g.areaCell)))
-            ### End of Debugging ###
                 
-            if c.component_for_hamiltonian == 'normal_tangent':
-                self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.phi_cell)
-                self.tend_vorticity[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
-
-                self.vEdge[:] = self.pv_edge * vc.discrete_grad_tn(self.phi_vertex)
-                self.vVertex[:] = vc.discrete_div_t(self.vEdge)
-                self.tend_vorticity[:] -= 0.5 * vc.vertex2cell(self.vVertex)
-
-            elif c.component_for_hamiltonian in ['normal', 'tangential', 'mix']:
-                self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.phi_cell)
-                self.tend_vorticity[:] -= vc.discrete_div_v(self.vEdge)
-
-            else:
-                raise ValueError("Invalid value of component_for_hamiltonian")
+        self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.phi_cell)
+        self.tend_vorticity[:] -= vc.discrete_div_v(self.vEdge)
         
         self.tend_vorticity[:] += self.curlWind_cell / self.thickness[:]
         self.tend_vorticity[:] -= c.bottomDrag * self.vorticity[:]
         self.tend_vorticity[:] += c.delVisc * vc.discrete_laplace_v(self.vorticity)
 
         # Tendency for divergence
-        if c.component_for_hamiltonian == 'normal_tangent':
-            self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.psi_cell)
-            self.tend_divergence[:] = 0.5 * vc.discrete_div_v(self.vEdge)
-            
-#            tend_divergence_1 = 0.5 * vc.discrete_div_v(self.vEdge)
-
-            self.vEdge[:] = self.pv_edge * vc.discrete_grad_td(self.psi_vertex)
-            self.vVertex[:] = vc.discrete_div_t(self.vEdge)
-            self.tend_divergence[:] += 0.5 * vc.vertex2cell(self.vVertex)
-            
-#            tend_divergence_1[:] += 0.5 * vc.vertex2cell(self.vVertex)
-            
-        elif c.component_for_hamiltonian in ['normal', 'tangential', 'mix']:
-            self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.psi_cell)
-            self.tend_divergence[:] = vc.discrete_div_v(self.vEdge)
-
-#            tend_divergence_1 = vc.discrete_div_v(self.vEdge)
-            
-        else:
-            raise ValueError("Invalid value of component_for_hamiltonian")
+        self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.psi_cell)
+        self.tend_divergence[:] = vc.discrete_div_v(self.vEdge)
 
         self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.phi_cell)
         self.vVertex[:] = vc.discrete_curl_t(self.vEdge)
         self.tend_divergence[:] += 0.5 * vc.vertex2cell(self.vVertex)
 
-#        tend_divergence_2 = 0.5 * vc.vertex2cell(self.vVertex)
-        
 #        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_n(self.phi_vertex)
         self.vEdge[:] = cmp.discrete_skewgrad_nnat(self.phi_vertex, self.phi_cell, g.verticesOnEdge, g.cellsOnEdge, \
                                                    g.dvEdge)
         self.vEdge *= self.pv_edge
         self.tend_divergence[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
-
-#        tend_divergence_2[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
 
         ## The boundary terms
         if not c.on_a_global_sphere:
@@ -434,28 +378,10 @@ class state_data:
             self.tend_divergence[vc.cellBoundary_ord[1:-1]-1] -= 1./4/g.areaCell[vc.cellBoundary_ord[1:-1]-1] * \
                     (pv_phi_diff_edge[:-1] + pv_phi_diff_edge[1:])
 
-        if c.component_for_hamiltonian == 'normal_tangent':
-            self.tend_divergence[:] -= 0.5 * vc.discrete_laplace_v(self.geoPot)
-
-#            tend_divergence_3 = -0.5 * vc.discrete_laplace_v(self.geoPot)
-            
-            self.vVertex[:] = vc.cell2vertex(self.geoPot)
-            self.vVertex[:] = vc.discrete_laplace_t(self.vVertex)
-            self.tend_divergence[:] -= 0.5 * vc.vertex2cell(self.vVertex)
-
-#            tend_divergence_3[:] -= 0.5 * vc.vertex2cell(self.vVertex)
-            
-        elif c.component_for_hamiltonian in ['normal', 'tangential', 'mix']:
-            self.tend_divergence[:] -= vc.discrete_laplace_v(self.geoPot)
-
-#            tend_divergence_3 = -vc.discrete_laplace_v(self.geoPot)
-            
-        else:
-            raise ValueError("Invalid value of component_for_hamiltonian")
+        self.tend_divergence[:] -= vc.discrete_laplace_v(self.geoPot)
 
         
     def compute_diagnostics(self, g, vc, c):
-        # Compute diagnostic variables from pv_cell
 
         if c.test_case == 1:
             #For shallow water test case #1, reset the vorticity and divergence to the initial states
@@ -492,16 +418,7 @@ class state_data:
         self.pv_edge[:] = vc.cell2edge(self.pv_cell)
 
         # Compute kinetic energy on the edge
-        if c.component_for_hamiltonian == 'normal':
-            self.compute_kenergy_edge_n(vc, g, c)
-        elif c.component_for_hamiltonian == 'tangential':
-            self.compute_kenergy_edge_t(vc, g, c)
-        elif c.component_for_hamiltonian == 'normal_tangent':
-            self.compute_kenergy_edge_nt(vc, g, c)
-        elif c.component_for_hamiltonian == 'mix':
-            self.compute_kenergy_edge_mix(vc, g, c)
-        else:
-            raise ValueError("Invalid value for component_for_hamiltonian")
+        self.compute_kenergy_edge(vc, g, c)
 
         self.geoPot[:] = c.gravity * (self.thickness[:] + g.bottomTopographyCell[:])
         self.geoPot[:] += vc.edge2cell(self.kenergy_edge[:])
@@ -575,39 +492,7 @@ class state_data:
         errorInf[iStep+1, 1] = np.max(np.abs(self.vorticity[:] - s_init.vorticity[:])) / np.max(np.abs(s_init.vorticity[:]))
         errorInf[iStep+1, 2] = np.max(np.abs(self.divergence[:] - s_init.divergence[:]))
 
-
-    def compute_kenergy_edge_t(self, vc, g, c):
-        # Compute the kinetic energy
-        self.tVelocity[:] = vc.discrete_skewgrad_t(self.psi_cell)
-        self.tVelocity += vc.discrete_grad_tn(self.phi_vertex)
-        self.tVelocity /= self.thickness_edge
-
-        self.kenergy_edge[:] = self.tVelocity * self.tVelocity
-
-
-    def compute_kenergy_edge_n(self, vc, g, c):
-        # Compute the kinetic energy
-        self.nVelocity[:] = vc.discrete_grad_n(self.phi_cell)
-        self.nVelocity -= vc.discrete_grad_td(self.psi_vertex)
-        self.nVelocity /= self.thickness_edge
-
-        self.kenergy_edge[:] = self.nVelocity * self.nVelocity
-
-
-    def compute_kenergy_edge_nt(self, vc, g, c):
-        # Compute the kinetic energy
-        self.nVelocity[:] = vc.discrete_grad_n(self.phi_cell)
-        self.nVelocity -= vc.discrete_grad_td(self.psi_vertex)
-        self.nVelocity /= self.thickness_edge
-
-        self.tVelocity[:] = vc.discrete_skewgrad_t(self.psi_cell)
-        self.tVelocity += vc.discrete_grad_tn(self.phi_vertex)
-        self.tVelocity /= self.thickness_edge
-        
-        self.kenergy_edge[:] = 0.5 * self.nVelocity * self.nVelocity
-        self.kenergy_edge[:] += 0.5 * self.tVelocity * self.tVelocity
-
-    def compute_kenergy_edge_mix(self, vc, g, c):
+    def compute_kenergy_edge(self, vc, g, c):
         # Compute the kinetic energy
         self.vEdge = vc.discrete_skewgrad_t(self.psi_cell)
         self.kenergy_edge[:] = self.vEdge**2

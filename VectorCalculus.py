@@ -362,18 +362,8 @@ class VectorCalculus:
 #        if c.use_gpu:                        # Need to update at every step
 #            d_mThicknessInv = Device_CSR(self.mThicknessInv.to_csr(), env)
 
-        if c.component_for_hamiltonian == 'normal':
-            self.leftM, self.rightM, self.coefM = self.construct_EllipticCPL_coefM_n(env, g, c)
-        elif c.component_for_hamiltonian == 'tangential':
-            self.leftM, self.rightM, self.coefM = self.construct_EllipticCPL_coefM_t(env, g, c)
-        elif c.component_for_hamiltonian == 'normal_tangent':
-            self.leftM_n, self.rightM_n, self.leftM_t, self.rightM_t, self.coefM = \
-                                                self.construct_EllipticCPL_coefM_nt(env, g, c)
-        elif c.component_for_hamiltonian == 'mix':
-            self.AC, self.AMC, self.AMD, self.AD, self.GN, self.SN, self.coefM = \
-                                                self.construct_EllipticCPL_coefM_mix(env, g, c)
-        else:
-            raise ValueError("Invalid value for component_for_hamiltonian")
+        self.AC, self.AMC, self.AMD, self.AD, self.GN, self.SN, self.coefM = \
+                                            self.construct_EllipticCPL_coefM(env, g, c)
 
         self.POcpl = EllipticCPL(self.coefM, c.linear_solver, env)
             
@@ -382,163 +372,8 @@ class VectorCalculus:
         if not c.on_a_global_sphere:
             self.scalar_cell_interior = np.zeros(nCellsInterior)
 
-    def construct_EllipticCPL_coefM_t(self, env, g, c):
-        # A diagonal matrix representing scaling by cell areas
-        mAreaCell = diags(g.areaCell, 0, format='csr')
-        mAreaCell_phi = mAreaCell.copy( )
-        mAreaCell_phi[0,0] = 0.
-        mAreaCell_phi.eliminate_zeros( )
-
-        if c.on_a_global_sphere:
-            mAreaCell_psi = mAreaCell_phi.copy( )
-        else:
-            areaCell_psi = g.areaCell.copy( )
-            areaCell_psi[self.cellBoundary - 1] = 0.
-            mAreaCell_psi = diags(areaCell_psi, 0, format='csr')
-            mAreaCell_psi.eliminate_zeros( )
             
-#        if c.use_gpu:
-#            self.d_mAreaCell = Device_CSR(mAreaCell, env)
-
-        ## Construct the coefficient matrix for the coupled elliptic
-        ## system for psi and phi
-        AC = mAreaCell_psi * self.mCurl_v
-        AMD = mAreaCell_phi * self.mVertex2cell * self.mDiv_t
-        GN = self.mGrad_tn * self.mCell2vertex
-        
-        leftM = bmat([[AC],[AMD]], format='csr')
-        rightM = bmat([[self.mSkewgrad_t, GN]], format='csr')
-
-        leftM.eliminate_zeros( )
-        rightM.eliminate_zeros( )
-
-        
-#        thickness_edge = np.zeros(g.nEdges)
-#        thickness_edge[:] = 1000.    # Any non-zero should suffice
-#        self.mThicknessInv.data[0,:] = 1./thickness_edge
-        
-        coefM = leftM * self.mThicknessInv * rightM
-
-        if c.on_a_global_sphere:
-            coefM[0,0] = 1.
-            coefM[g.nCells, g.nCells] = 1.
-        else:
-            coefM[self.cellBoundary-1, self.cellBoundary-1] = 1.
-            coefM[g.nCells, g.nCells] = 1.
-
-        return leftM, rightM, coefM
-
-
-    def construct_EllipticCPL_coefM_n(self, env, g, c):
-        # A diagonal matrix representing scaling by cell areas
-        mAreaCell = diags(g.areaCell, 0, format='csr')
-        mAreaCell_phi = mAreaCell.copy( )
-        mAreaCell_phi[0,0] = 0.
-        mAreaCell_phi.eliminate_zeros( )
-
-        if c.on_a_global_sphere:
-            mAreaCell_psi = mAreaCell_phi.copy( )
-        else:
-            areaCell_psi = g.areaCell.copy( )
-            areaCell_psi[self.cellBoundary - 1] = 0.
-            mAreaCell_psi = diags(areaCell_psi, 0, format='csr')
-            mAreaCell_psi.eliminate_zeros( )
-            
-#        if c.use_gpu:
-#            self.d_mAreaCell = Device_CSR(mAreaCell, env)
-
-        ## Construct the coefficient matrix for the coupled elliptic
-        ## system for psi and phi
-        AMC = mAreaCell_psi * self.mVertex2cell * self.mCurl_t
-        AD = mAreaCell_phi * self.mDiv_v
-        SN = self.mSkewgrad_n * self.mCell2vertex_psi
-        
-        leftM = bmat([[AMC],[AD]], format='csr')
-        rightM = bmat([[SN, self.mGrad_n]], format='csr')
-
-        #AC = mAreaCell_psi * self.mCurl_v
-        #AMD = mAreaCell_phi * self.mVertex2cell * self.mDiv_t
-        #GN = self.mGrad_tn * self.mCell2vertex
-        
-        #leftM = bmat([[AC],[AMD]], format='csr')
-        #rightM = bmat([[self.mSkewgrad_t, GN]], format='csr')
-
-        leftM.eliminate_zeros( )
-        rightM.eliminate_zeros( )
-
-        
-#        thickness_edge = np.zeros(g.nEdges)
-#        thickness_edge[:] = 1000.    # Any non-zero should suffice
-#        self.mThicknessInv.data[0,:] = 1./thickness_edge
-        
-        coefM = leftM * self.mThicknessInv * rightM
-
-        if c.on_a_global_sphere:
-            coefM[0,0] = 1.
-            coefM[g.nCells, g.nCells] = 1.
-        else:
-            coefM[self.cellBoundary-1, self.cellBoundary-1] = 1.
-            coefM[g.nCells, g.nCells] = 1.
-
-        return leftM, rightM, coefM
-    
-
-    def construct_EllipticCPL_coefM_nt(self, env, g, c):
-        # A diagonal matrix representing scaling by cell areas
-        mAreaCell = diags(g.areaCell, 0, format='csr')
-        mAreaCell_phi = mAreaCell.copy( )
-        mAreaCell_phi[0,0] = 0.
-        mAreaCell_phi.eliminate_zeros( )
-
-        if c.on_a_global_sphere:
-            mAreaCell_psi = mAreaCell_phi.copy( )
-        else:
-            areaCell_psi = g.areaCell.copy( )
-            areaCell_psi[self.cellBoundary - 1] = 0.
-            mAreaCell_psi = diags(areaCell_psi, 0, format='csr')
-            mAreaCell_psi.eliminate_zeros( )
-            
-        ## Construct the coefficient matrix for the coupled elliptic
-        ## system for psi and phi, using the normal vector
-        AMC = mAreaCell_psi * self.mVertex2cell * self.mCurl_t
-        AD = mAreaCell_phi * self.mDiv_v
-        SN = self.mSkewgrad_n * self.mCell2vertex_psi
-        
-        leftM_n = bmat([[AMC],[AD]], format='csr')
-        rightM_n = bmat([[SN, self.mGrad_n]], format='csr')
-        leftM_n.eliminate_zeros( )
-        rightM_n.eliminate_zeros( )
-
-        ## Construct the coefficient matrix for the coupled elliptic
-        ## system for psi and phi, using the tangential vecotrs
-        AC = mAreaCell_psi * self.mCurl_v
-        AMD = mAreaCell_phi * self.mVertex2cell * self.mDiv_t
-        GN = self.mGrad_tn * self.mCell2vertex
-        
-        leftM_t = bmat([[AC],[AMD]], format='csr')
-        rightM_t = bmat([[self.mSkewgrad_t, GN]], format='csr')
-
-        leftM_t.eliminate_zeros( )
-        rightM_t.eliminate_zeros( )
-
-        ## Construct an artificial thickness vector
-#        thickness_edge = np.zeros(g.nEdges)
-#        thickness_edge[:] = 1000.    # Any non-zero should suffice
-#        self.mThicknessInv.data[0,:] = 1./thickness_edge
-        
-        coefM = 0.5 * leftM_n * self.mThicknessInv * rightM_n
-        coefM += 0.5 * leftM_t * self.mThicknessInv * rightM_t
-
-        if c.on_a_global_sphere:
-            coefM[0,0] = 1.
-            coefM[g.nCells, g.nCells] = 1.
-        else:
-            coefM[self.cellBoundary-1, self.cellBoundary-1] = 1.
-            coefM[g.nCells, g.nCells] = 1.
-
-        return leftM_n, rightM_n, leftM_t, rightM_t, coefM
-
-    def construct_EllipticCPL_coefM_mix(self, env, g, c):
+    def construct_EllipticCPL_coefM(self, env, g, c):
         # A diagonal matrix representing scaling by cell areas
         mAreaCell = diags(g.areaCell, 0, format='csr')
         mAreaCell_phi = mAreaCell.copy( )
@@ -598,39 +433,28 @@ class VectorCalculus:
     def update_matrix_for_coupled_elliptic(self, thickness_edge, c, g):
         self.mThicknessInv.data[0,:] = 1./thickness_edge
 
-        if c.component_for_hamiltonian == 'normal':
-            self.coefM = self.leftM * self.mThicknessInv * self.rightM
-        elif c.component_for_hamiltonian == 'tangential':
-            self.coefM = self.leftM * self.mThicknessInv * self.rightM
-        elif c.component_for_hamiltonian == 'normal_tangent':
-            self.coefM = 0.5 * self.leftM_n * self.mThicknessInv * self.rightM_n
-            self.coefM += 0.5 * self.leftM_t * self.mThicknessInv * self.rightM_t
-        elif c.component_for_hamiltonian == 'mix':
+        #raise ValueError("Need to be updated; enforcing correct BCs.")
 
-            #raise ValueError("Need to be updated; enforcing correct BCs.")
-        
-            #A11 = self.AC * self.mThicknessInv * self.mSkewgrad_t
-            #A12 = self.AMC * self.mThicknessInv * self.mGrad_n
-            #A12 += self.AC * self.mThicknessInv * self.GN
-            #A12 *= 0.5
-            #A22 = self.AD * self.mThicknessInv * self.mGrad_n
+        #A11 = self.AC * self.mThicknessInv * self.mSkewgrad_t
+        #A12 = self.AMC * self.mThicknessInv * self.mGrad_n
+        #A12 += self.AC * self.mThicknessInv * self.GN
+        #A12 *= 0.5
+        #A22 = self.AD * self.mThicknessInv * self.mGrad_n
 
-            #self.coefM = bmat([[A11, A12], [-A12, A22]], format = 'csr')
+        #self.coefM = bmat([[A11, A12], [-A12, A22]], format = 'csr')
+
+        ## Construct the blocks
+        A11 = self.AC * self.mThicknessInv * self.mSkewgrad_td
+        A12 = self.AMC * self.mThicknessInv * self.mGrad_n_n
+        A12 += self.AC * self.mThicknessInv * self.GN
+        A12 *= 0.5
+        A21 = self.AD * self.mThicknessInv * self.SN
+        A21 += self.AMD * self.mThicknessInv * self.mSkewgrad_td
+        A21 *= 0.5
+        A22 = self.AD * self.mThicknessInv * self.mGrad_n_n
+
+        self.coefM = bmat([[A11, A12], [A21, A22]], format = 'csr')
             
-            ## Construct the blocks
-            A11 = self.AC * self.mThicknessInv * self.mSkewgrad_td
-            A12 = self.AMC * self.mThicknessInv * self.mGrad_n_n
-            A12 += self.AC * self.mThicknessInv * self.GN
-            A12 *= 0.5
-            A21 = self.AD * self.mThicknessInv * self.SN
-            A21 += self.AMD * self.mThicknessInv * self.mSkewgrad_td
-            A21 *= 0.5
-            A22 = self.AD * self.mThicknessInv * self.mGrad_n_n
-
-            self.coefM = bmat([[A11, A12], [A21, A22]], format = 'csr')
-            
-        else:
-            raise ValueError("Invalid value for component_for_hamiltonian")
 
         if c.on_a_global_sphere:
             self.coefM[0,0] = 1.

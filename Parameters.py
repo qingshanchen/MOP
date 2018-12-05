@@ -1,8 +1,8 @@
 import numpy as np
 
 ### Parameters essential
-test_case = 12
-on_a_global_sphere = False
+test_case = 2
+on_a_global_sphere = True
 use_gpu = True
 performing_test = False
 
@@ -11,9 +11,6 @@ restart_file = 'restart.nc'
 save_restart_init = False
 
 ### Parameters secondary
-# Choose how the Hamiltonian is defined
-component_for_hamiltonian = 'mix'     # 'normal' or 'tangential' or 'normal_tangent" or 'mix'
-
 # Choose the time stepping technique: 'E', 'BE', 'RK4', 'Steady'
 timestepping = 'RK4'
 
@@ -21,8 +18,8 @@ timestepping = 'RK4'
 conserve_enstrophy = True     # False for energy-conserving only; True for both energy and enstrophy conserving 
 
 # Duration, time stepping size, saving interval
-#dt = 2880.   #2880 for 480km
-dt = 360.   #360 for NA818
+dt = 2880.   #2880 for 480km
+#dt = 360.   #360 for NA818
 nYears = 5./360
 save_inter_days = 10.
 
