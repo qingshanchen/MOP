@@ -362,8 +362,10 @@ class VectorCalculus:
 #        if c.use_gpu:                        # Need to update at every step
 #            d_mThicknessInv = Device_CSR(self.mThicknessInv.to_csr(), env)
 
-        self.AC, self.AMC, self.AMD, self.AD, self.GN, self.SN, self.coefM = \
-                                            self.construct_EllipticCPL_coefM(env, g, c)
+        self.AC, self.AMC, self.AMD, self.AD, self.GN, self.SN = \
+            self.construct_EllipticCPL_blocks(env, g, c)
+        self.coefM = None
+        self.update_matrix_for_coupled_elliptic(thickness_edge, c, g)
 
         self.POcpl = EllipticCPL(self.coefM, c.linear_solver, env)
             
@@ -373,7 +375,7 @@ class VectorCalculus:
             self.scalar_cell_interior = np.zeros(nCellsInterior)
 
             
-    def construct_EllipticCPL_coefM(self, env, g, c):
+    def construct_EllipticCPL_blocks(self, env, g, c):
         # A diagonal matrix representing scaling by cell areas
         mAreaCell = diags(g.areaCell, 0, format='csr')
         mAreaCell_phi = mAreaCell.copy( )
@@ -407,41 +409,11 @@ class VectorCalculus:
         SN = self.mSkewgrad_nd * self.mCell2vertex_psi
         SN.eliminate_zeros( )
         
-
-        ## Construct the blocks
-        A11 = AC * self.mThicknessInv * self.mSkewgrad_td
-        A12 = AMC * self.mThicknessInv * self.mGrad_n_n
-        A12 += AC * self.mThicknessInv * GN
-        A12 *= 0.5
-        A21 = AD * self.mThicknessInv * SN
-        A21 += AMD * self.mThicknessInv * self.mSkewgrad_td
-        A21 *= 0.5
-        A22 = AD * self.mThicknessInv * self.mGrad_n_n
-
-        coefM = bmat([[A11, A12], [A21, A22]], format = 'csr')
-        
-        if c.on_a_global_sphere:
-            coefM[0,0] = 1.
-            coefM[g.nCells, g.nCells] = 1.
-        else:
-            coefM[self.cellBoundary-1, self.cellBoundary-1] = 1.
-            coefM[g.nCells, g.nCells] = 1.
-
-        return AC, AMC, AMD, AD, GN, SN, coefM
+        return AC, AMC, AMD, AD, GN, SN
     
     
     def update_matrix_for_coupled_elliptic(self, thickness_edge, c, g):
         self.mThicknessInv.data[0,:] = 1./thickness_edge
-
-        #raise ValueError("Need to be updated; enforcing correct BCs.")
-
-        #A11 = self.AC * self.mThicknessInv * self.mSkewgrad_t
-        #A12 = self.AMC * self.mThicknessInv * self.mGrad_n
-        #A12 += self.AC * self.mThicknessInv * self.GN
-        #A12 *= 0.5
-        #A22 = self.AD * self.mThicknessInv * self.mGrad_n
-
-        #self.coefM = bmat([[A11, A12], [-A12, A22]], format = 'csr')
 
         ## Construct the blocks
         A11 = self.AC * self.mThicknessInv * self.mSkewgrad_td
@@ -454,7 +426,6 @@ class VectorCalculus:
         A22 = self.AD * self.mThicknessInv * self.mGrad_n_n
 
         self.coefM = bmat([[A11, A12], [A21, A22]], format = 'csr')
-            
 
         if c.on_a_global_sphere:
             self.coefM[0,0] = 1.
