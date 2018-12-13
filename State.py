@@ -39,7 +39,6 @@ class state_data:
         self.thickness_edge = np.zeros(g.nEdges)
         self.eta_cell = np.zeros(g.nCells)
         self.eta_edge = np.zeros(g.nEdges)
-#        self.kenergy = np.zeros(g.nCells)
         self.kenergy_edge = np.zeros(g.nEdges)
         self.geoPot = np.zeros(g.nCells)
 
@@ -331,12 +330,12 @@ class state_data:
             self.vVertex[:] = vc.discrete_curl_t(self.vEdge)
             self.tend_vorticity[:] = 1./6 * vc.vertex2cell(self.vVertex)
 
-            self.vEdge[:] = psi_edge * vc.discrete_skewgrad_n(pv_vertex)  # valid on a globe
-            self.vEdge[:] -= self.pv_edge * vc.discrete_skewgrad_n(self.psi_vertex)
+            self.vEdge[:] = psi_edge * vc.discrete_skewgrad_nd(pv_vertex)  # valid on a globe
+            self.vEdge[:] -= self.pv_edge * vc.discrete_skewgrad_nd(self.psi_vertex)
             self.tend_vorticity += 1./6 * vc.discrete_div_v(self.vEdge)
 
-            self.vEdge[:] = vc.discrete_skewgrad_n(pv_vertex) * vc.discrete_grad_n(self.psi_cell)
-            self.vEdge -= vc.discrete_skewgrad_n(self.psi_vertex) * vc.discrete_grad_n(self.pv_cell)
+            self.vEdge[:] = vc.discrete_skewgrad_nd(pv_vertex) * vc.discrete_grad_n(self.psi_cell)
+            self.vEdge -= vc.discrete_skewgrad_nd(self.psi_vertex) * vc.discrete_grad_n(self.pv_cell)
             self.tend_vorticity += 1./3 * vc.edge2cell(self.vEdge)
 
         else:
@@ -344,7 +343,7 @@ class state_data:
             self.vVertex[:] = vc.discrete_curl_t(self.vEdge)
             self.tend_vorticity[:] = 0.5 * vc.vertex2cell(self.vVertex)
 
-            self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_n(self.psi_vertex)
+            self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_nd(self.psi_vertex)
             self.tend_vorticity[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
                 
         self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.phi_cell)
@@ -362,7 +361,7 @@ class state_data:
         self.vVertex[:] = vc.discrete_curl_t(self.vEdge)
         self.tend_divergence[:] += 0.5 * vc.vertex2cell(self.vVertex)
 
-#        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_n(self.phi_vertex)
+#        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_nd(self.phi_vertex)
         self.vEdge[:] = cmp.discrete_skewgrad_nnat(self.phi_vertex, self.phi_cell, g.verticesOnEdge, g.cellsOnEdge, \
                                                    g.dvEdge)
         self.vEdge *= self.pv_edge
@@ -500,7 +499,7 @@ class state_data:
         self.vEdge = vc.discrete_grad_n(self.phi_cell)
         self.kenergy_edge += self.vEdge**2
 
-        self.kenergy_edge += vc.discrete_skewgrad_n(self.psi_vertex) * vc.discrete_grad_n(self.phi_cell)
+        self.kenergy_edge += vc.discrete_skewgrad_nd(self.psi_vertex) * vc.discrete_grad_n(self.phi_cell)
         self.kenergy_edge += vc.discrete_skewgrad_t(self.psi_cell) * vc.discrete_grad_tn(self.phi_vertex)
 
         self.kenergy_edge /= self.thickness_edge**2

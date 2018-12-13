@@ -290,10 +290,10 @@ class VectorCalculus:
             cmp.construct_matrix_discrete_skewgrad_nd(g.verticesOnEdge, g.dvEdge)
         A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
                                cols[:nEntries])), shape=(g.nEdges, g.nVertices))
-        self.mSkewgrad_n = A.tocsr( )
+        self.mSkewgrad_nd = A.tocsr( )
 
         if c.use_gpu:
-            self.d_mSkewgrad_n = Device_CSR(self.mSkewgrad_n, env)
+            self.d_mSkewgrad_nd = Device_CSR(self.mSkewgrad_nd, env)
 
         ## Construct the matrix representing the mapping from the primary mesh onto the dual
         ## mesh
@@ -404,7 +404,7 @@ class VectorCalculus:
         GN = self.mGrad_tn * self.mCell2vertex_n
         GN.eliminate_zeros( )
         # Right, col 1
-        SN = self.mSkewgrad_n * self.mCell2vertex_psi
+        SN = self.mSkewgrad_nd * self.mCell2vertex_psi
         SN.eliminate_zeros( )
         
 
@@ -681,26 +681,26 @@ class VectorCalculus:
 
     # The discrete skew gradient operator along the normal direction, assuming
     # homogeneous Dirichlet BC's
-    def discrete_skewgrad_n(self, sVertex):
+    def discrete_skewgrad_nd(self, sVertex):
         '''With implied Neumann BC's'''
 
         if c.use_gpu:
-            assert len(sVertex) == self.d_mSkewgrad_n.shape[1], \
+            assert len(sVertex) == self.d_mSkewgrad_nd.shape[1], \
                 "Dimensions do not match."
             d_vectorIn = self.env.cuda.to_device(sVertex)
 
-            vOut = np.zeros(self.d_mSkewgrad_n.shape[0])
+            vOut = np.zeros(self.d_mSkewgrad_nd.shape[0])
             d_vectorOut = self.env.cuda.to_device(vOut)
-            self.env.cuSparse.csrmv(trans='N', m=self.d_mSkewgrad_n.shape[0], \
-                n=self.d_mSkewgrad_n.shape[1], nnz=self.d_mSkewgrad_n.nnz, alpha=1.0, \
-                descr=self.d_mSkewgrad_n.cuSparseDescr, csrVal=self.d_mSkewgrad_n.dData, \
-                csrRowPtr=self.d_mSkewgrad_n.dPtr, csrColInd=self.d_mSkewgrad_n.dInd, \
+            self.env.cuSparse.csrmv(trans='N', m=self.d_mSkewgrad_nd.shape[0], \
+                n=self.d_mSkewgrad_nd.shape[1], nnz=self.d_mSkewgrad_nd.nnz, alpha=1.0, \
+                descr=self.d_mSkewgrad_nd.cuSparseDescr, csrVal=self.d_mSkewgrad_nd.dData, \
+                csrRowPtr=self.d_mSkewgrad_nd.dPtr, csrColInd=self.d_mSkewgrad_nd.dInd, \
                            x=d_vectorIn, beta=0., y=d_vectorOut)
             d_vectorOut.copy_to_host(vOut)
             return vOut
 
         else:
-            return self.mSkewgrad_n.dot(sVertex)
+            return self.mSkewgrad_nd.dot(sVertex)
 
     # The discrete skew gradient operator along the tangential direction
     def discrete_skewgrad_t(self, sCell):
