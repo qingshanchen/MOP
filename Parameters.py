@@ -3,7 +3,7 @@ import numpy as np
 ### Parameters essential
 test_case = 2
 on_a_global_sphere = True
-use_gpu = True
+use_gpu = False
 performing_test = False
 
 do_restart = False
