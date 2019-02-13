@@ -138,8 +138,6 @@ class VectorCalculus:
         self.areaCell = g.areaCell.copy()
         self.areaTriangle = g.areaTriangle.copy()
 
-        self.on_a_global_sphere = c.on_a_global_sphere
-
         if not c.on_a_global_sphere:
             # Collect non-boundary (interior) cells and put into a vector,
             # and boundary cells into a separate vector
