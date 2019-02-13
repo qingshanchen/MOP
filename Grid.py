@@ -55,14 +55,22 @@ class grid_data:
         #self.fCell = grid.variables['fCell'][:]
 
 
-        if c.on_a_global_sphere:
-            self.boundaryEdgeMark = np.zeros(self.nEdges).astype('int32')
-            self.boundaryEdgeMark[:] = 0
-            self.boundaryCellMark = np.zeros(self.nCells).astype('int32')
-            self.boundaryCellMark[:] = 0
+#        if c.on_a_global_sphere:
+#            self.boundaryEdgeMark = np.zeros(self.nEdges).astype('int32')
+#            self.boundaryEdgeMark[:] = 0
+#            self.boundaryCellMark = np.zeros(self.nCells).astype('int32')
+#            self.boundaryCellMark[:] = 0
+#        else:
+#            self.boundaryEdgeMark = grid.variables['boundaryEdgeMark'][:]
+#            self.boundaryCellMark = grid.variables['boundaryCellMark'][:]
+
+        self.boundaryEdgeMark = grid.variables['boundaryEdgeMark'][:]
+        self.boundaryCellMark = grid.variables['boundaryCellMark'][:]
+        if np.sum(self.boundaryCellMark) == 0:
+            c.on_a_global_sphere = True
         else:
-            self.boundaryEdgeMark = grid.variables['boundaryEdgeMark'][:]
-            self.boundaryCellMark = grid.variables['boundaryCellMark'][:] 
+            c.on_a_global_sphere = False
+
 
         radius = np.sqrt(xCell**2 + yCell**2 + zCell**2)
         if np.max(np.abs(radius - 1.)/1.) < 0.01:
