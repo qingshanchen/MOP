@@ -52,7 +52,7 @@ subroutine boundary_cells_ordered(nCells, maxEdges, &
 
   ! Locate the first boundary cell
   do iCell = 0, nCells-1
-     if (boundaryCellMark(iCell) .EQ. 1) then
+     if (boundaryCellMark(iCell) > 0) then
         cell0 = iCell + 1
         cellBoundary(index) = cell0
         index = index + 1
@@ -66,6 +66,10 @@ subroutine boundary_cells_ordered(nCells, maxEdges, &
      cellBoundary(index) = cell2
      index = index + 1
 
+     ! Debugging
+!     write(*,*) "cell1, cell2 = ", cell1, cell2
+     ! End debugging
+     
      if (cell2 == cell0) then
         exit
      else
@@ -80,6 +84,8 @@ subroutine boundary_cells_ordered(nCells, maxEdges, &
 
   if (index .NE. nCellsBoundary+1) then
      write(*,*) "Number of boundary cells not correct."
+     write(*,*) "index = ", index-1
+     write(*,*) "nCellsBoundary = ", nCellsBoundary
      stop
   end if
 
