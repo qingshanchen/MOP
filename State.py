@@ -101,6 +101,7 @@ class state_data:
             
 
         elif c.test_case == 2:
+            # SWSTC #2, with a stationary analytic solution 
             a = c.sphere_radius
             u0 = 2*np.pi*a / (12*86400)
             gh0 = 2.94e4
@@ -184,7 +185,28 @@ class state_data:
             self.vpWind_cell[:] = 0.
             self.vpWind_vertex[:] = 0.
 
-        elif c.test_case == 11:
+
+        elif c.test_case == 12:
+            # SWSTC #2, with a stationary analytic solution, modified for the northern hemisphere
+            a = c.sphere_radius
+            u0 = 2*np.pi*a / (12*86400)
+            gh0 = 2.94e4
+            gh = np.sin(g.latCell[:])**2
+            gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
+            self.thickness[:] = gh / c.gravity
+            h0 = gh0 / c.gravity
+
+            self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
+            self.divergence[:] = 0.
+            
+            self.psi_cell[:] = -a * h0 * u0 * np.sin(g.latCell[:]) 
+            self.psi_cell[:] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (np.sin(g.latCell[:]))**3 / 3.
+            self.phi_cell[:] = 0.
+
+            self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
+
+
+        elif c.test_case == 21:
             # A wind-driven gyre at mid-latitude in the northern hemisphere
             tau0 = 1.e-4
             
@@ -213,7 +235,7 @@ class state_data:
             
             self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
 
-        elif c.test_case == 12:
+        elif c.test_case == 22:
             # One gyre with no forcing, for a bounded domain over NA
             d = np.sqrt(32*(g.latCell[:] - latmid)**2/latwidth**2 + 4*(g.lonCell[:]-(-1.1))**2/.3**2)
             f0 = np.mean(g.fCell)

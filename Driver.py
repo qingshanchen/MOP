@@ -72,7 +72,7 @@ def main( ):
     print(("Running test case \#%d" % c.test_case))
     print(("K-energy, p-energy, t-energy, p-enstrophy, mass: %.15e, %.15e, %.15e, %.15e, %.15e" % (kinetic_energy[0], pot_energy[0], total_energy[0], pot_enstrophy[0], mass[0])))
 
-    if c.test_case == 2:
+    if c.test_case == 2 or c.test_case == 12:
         error1 = np.zeros((c.nTimeSteps+1, 3)); error1[0,:] = 0.
         error2 = np.zeros((c.nTimeSteps+1, 3)); error2[0,:] = 0.
         errorInf = np.zeros((c.nTimeSteps+1, 3)); errorInf[0,:] = 0.
@@ -127,7 +127,7 @@ def main( ):
             nc_num += 1
             s.save(c, g, nc_num)
 
-        if c.test_case == 2:
+        if c.test_case == 2 or c.test_case == 12:
             s.compute_tc2_errors(iStep, s_init, error1, error2, errorInf, g)
 
         s_tmp = s_old1
@@ -197,7 +197,7 @@ def main( ):
         print(("Change in total vorticity = %e " % (np.abs(total_vorticity[-1] - total_vorticity[0])/total_vorticity[0])))
     print("Initial and final total vorticity:%.15e, %.15e" % (total_vorticity[0], total_vorticity[-1]))
     
-    if c.test_case == 2:
+    if c.test_case == 2 or c.test_case == 12:
         plt.figure(2); 
         plt.plot(days, error1[:,0], '--', label=r'$L^1$ norm')
         plt.plot(days, error2[:,0], '-', label=r'$L^2$ norm')
