@@ -163,7 +163,7 @@ def main( ):
     plt.figure(1)
     plt.plot(days, pot_enstrophy)
     plt.xlabel('Time (days)')
-    plt.ylabel('Enstrophy')
+    plt.ylabel('Potential enstrophy')
     #plt.ylim(0.74, 0.78)
     plt.savefig('enstrophy.png', format='PNG')
     print(("Change in potential enstrophy = %e " % (np.abs(pot_enstrophy[-1] - pot_enstrophy[0])/pot_enstrophy[0])))
