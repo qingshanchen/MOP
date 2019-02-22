@@ -185,6 +185,43 @@ class state_data:
             self.vpWind_cell[:] = 0.
             self.vpWind_vertex[:] = 0.
 
+        elif c.test_case == 6:
+            # Setup shallow water test case 6: Rossby-Haurwitz Wave
+            #
+            # Reference: Williamson, D.L., et al., "A Standard Test Set for Numerical 
+            #            Approximations to the Shallow Water Equations in Spherical 
+            #            Geometry" J. of Comp. Phys., 102, pp. 211--224
+
+            a = c.sphere_radius
+            h0 = 8000.
+            w = 7.848e-6
+            K = 7.848e-6
+            R = 4
+
+            cos_lat = np.cos(g.latCell)
+            A = 0.5*w*(2*c.Omega0 + w)*cos_lat**2 + \
+                0.25*K**2*cos_lat**(2*R) * ( \
+                (R+1)*cos_lat**2 + \
+                (2*R**2 - R -2) - \
+                2*R**2 / (cos_lat**2) )
+            B = 2*(c.Omega0 + w)*K/(R+1)/(R+2)*cos_lat**R * \
+                (R**2 + 2*R + 2 - (R+1)**2*cos_lat**2)
+            C = 0.25*K**2*cos_lat**(2*R) * \
+                ((R+1)*cos_lat**2 - (R+2))
+
+            # The thickness field
+            self.thickness[:] = c.gravity * h0 + a**2*A + \
+                                a**2*B*np.cos(R*g.lonCell) + \
+                                a**2*C*np.cos(2*R*g.lonCell)
+            self.thickness[:] /= c.gravity
+
+            # Vorticity and divergence fields
+            self.vorticity[:] = 2*w*np.sin(g.latCell) - \
+                                K*np.sin(g.latCell)*cos_lat**R* \
+                                (R**2 + 3*R + 2)*np.cos(R*g.lonCell)
+            self.divergence[:] = 0.
+                                                     
+            self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
 
         elif c.test_case == 12:
             # SWSTC #2, with a stationary analytic solution, modified for the northern hemisphere
