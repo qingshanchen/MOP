@@ -58,6 +58,7 @@ def main( ):
     total_vorticity = np.zeros(c.nTimeSteps+1)
     pv_max = np.zeros(c.nTimeSteps+1)
     pv_min = np.zeros(c.nTimeSteps+1)
+    avg_divergence = np.zeros(c.nTimeSteps+1)
 
     print("========== Computing some initial statistics =====================")
     kinetic_energy[0] = s.kinetic_energy
@@ -142,36 +143,36 @@ def main( ):
     plt.close('all')
 
     plt.figure(0)
-    plt.plot(days, kinetic_energy, '--', label="Kinetic energy")
+    plt.plot(days, (total_energy-total_energy[0])/total_energy[0], '--')
     plt.xlabel('Time (days)')
-    plt.ylabel('Energy')
+    plt.ylabel('Normalized changes in total energy')
     #plt.ylim(2.5e17, 2.6e17)
     plt.legend(loc=1)
-    plt.savefig('energy.png', format='PNG')
+    plt.savefig('total_energy_change.png', format='PNG')
+    print(("Change in total energy = %e " % (np.abs(total_energy[-1] - total_energy[0])/total_energy[0])))
 
     plt.figure(6)
     plt.plot(days, kinetic_energy, '--', label="Kinetic energy")
     plt.plot(days, pot_energy, '-.', label="Potential energy")
-    plt.plot(days, total_energy, '-', label="Total energy")
+#    plt.plot(days, total_energy, '-', label="Total energy")
     plt.xlabel('Time (days)')
     plt.ylabel('Energy')
     #plt.ylim(8.0e20,8.15e20)
     plt.legend(loc=1)
-    plt.savefig('total-energy.png', format='PNG')
-    print(("Change in total energy = %e " % (np.abs(total_energy[-1] - total_energy[0])/total_energy[0])))
-    
+    plt.savefig('energys.png', format='PNG')
+     
     plt.figure(1)
-    plt.plot(days, pot_enstrophy)
+    plt.plot(days, (pot_enstrophy - pot_enstrophy[0])/pot_enstrophy[0])
     plt.xlabel('Time (days)')
-    plt.ylabel('Potential enstrophy')
+    plt.ylabel('Normalized changes in potential enstrophy')
     #plt.ylim(0.74, 0.78)
     plt.savefig('enstrophy.png', format='PNG')
     print(("Change in potential enstrophy = %e " % (np.abs(pot_enstrophy[-1] - pot_enstrophy[0])/pot_enstrophy[0])))
 
     plt.figure(5)
-    plt.plot(days, mass)
+    plt.plot(days, (mass-mass[0])/mass[0])
     plt.xlabel('Time (days)')
-    plt.ylabel('Mass')
+    plt.ylabel('Normalized changes in mass')
     #plt.ylim(1.175e18, 1.225e18)
     plt.savefig('mass.png', format='PNG')
     print(("Change in mass = %e " % (np.abs(mass[-1] - mass[0])/mass[0])))
@@ -196,7 +197,7 @@ def main( ):
     if np.abs(total_vorticity[0]) > 1e-10: 
         print(("Change in total vorticity = %e " % (np.abs(total_vorticity[-1] - total_vorticity[0])/total_vorticity[0])))
     print("Initial and final total vorticity:%.15e, %.15e" % (total_vorticity[0], total_vorticity[-1]))
-    
+
     if c.test_case == 2 or c.test_case == 12:
         plt.figure(2); 
         plt.plot(days, error1[:,0], '--', label=r'$L^1$ norm')
