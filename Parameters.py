@@ -17,7 +17,7 @@ timestepping = 'RK4'
 conserve_enstrophy = True     # False for energy-conserving only; True for both energy and enstrophy conserving 
 
 # Duration, time stepping size, saving interval
-dt = 2880.   #2880 for 480km
+dt = 180.   #2880 for 480km
 #dt = 360.   #360 for NA818
 nYears = 5./360
 save_inter_days = 1.

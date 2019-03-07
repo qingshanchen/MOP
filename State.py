@@ -544,7 +544,8 @@ class state_data:
         error2[iStep+1,0] /= np.sqrt(np.sum((s_init.thickness[:])**2*g.areaCell[:]))
         error2[iStep+1, 1] = np.sqrt(np.sum((self.vorticity[:] - s_init.vorticity[:])**2*g.areaCell[:]))
         error2[iStep+1,1] /= np.sqrt(np.sum((s_init.vorticity[:])**2*g.areaCell[:]))
-        error2[iStep+1, 2] = np.max(np.abs(self.divergence[:] - s_init.divergence[:])) 
+        error2[iStep+1, 2] = np.sqrt(np.sum((self.divergence[:] - s_init.divergence[:])**2*g.areaCell[:]))
+        error2[iStep+1, 2] /= np.sqrt(np.sum(g.areaCell[:]))
 
         errorInf[iStep+1, 0] = np.max(np.abs(self.thickness[:] - s_init.thickness[:])) / np.max(np.abs(s_init.thickness[:]))
         errorInf[iStep+1, 1] = np.max(np.abs(self.vorticity[:] - s_init.vorticity[:])) / np.max(np.abs(s_init.vorticity[:]))
