@@ -154,6 +154,7 @@ class VectorCalculus:
 
             self.cellBoundary_ord = cmp.boundary_cells_ordered(\
                                 nCellsBoundary, g.boundaryCellMark, g.cellsOnCell)
+
         else:
             self.cellBoundary = np.array([], dtype='int')
 
@@ -273,13 +274,26 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mSkewgrad_t = Device_CSR(self.mSkewgrad_t, env)
 
-        A_d = A.tolil( )
-        if c.on_a_global_sphere:
-            A_d[:,0] = 0.
-        else:
-            A_d[:, self.cellBoundary[:]-1] = 0.          #Assume homogeneous Dirichlet 
-        self.mSkewgrad_td = A_d.tocsr( )                 
+        ## Construct the matrix representing the discrete skew grad operator 
+        ## along the tangential direction. Homogeneous Dirichlet assumed
+        nEntries, rows, cols, valEntries = \
+            cmp.construct_matrix_discrete_skewgrad_td(g.cellsOnEdge, g.dcEdge, g.boundaryCellMark)
+        A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
+                               cols[:nEntries])), shape=(g.nEdges, g.nCells))
+        self.mSkewgrad_td = A.tocsr( )
         self.mSkewgrad_td.eliminate_zeros( )
+        
+        if c.use_gpu:
+            self.d_mSkewgrad_td = Device_CSR(self.mSkewgrad_td, env)
+
+#        A_d = A.tolil( )
+#        if c.on_a_global_sphere:
+#            A_d[:,0] = 0.
+#        else:
+#            A_d[:, self.cellBoundary[:]-1] = 0.          #Assume homogeneous Dirichlet
+
+#        self.mSkewgrad_td = A_d.tocsr( )                 
+#        self.mSkewgrad_td.eliminate_zeros( )
         
         ## Construct the matrix representing the discrete skew grad operator 
         ## along the normal direction. Homogeneous Dirichlet assumed.

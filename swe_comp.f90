@@ -808,6 +808,69 @@ subroutine construct_matrix_discrete_skewgrad_t(nEdges, &
 end subroutine construct_matrix_discrete_skewgrad_t
 
 
+! Construct the discrete skew gradient operator on the primal mesh;
+! the resulting vector is along the tangential direction.
+! Homogeneous Dirichlet is assumed on the scalar variable
+subroutine construct_matrix_discrete_skewgrad_td(nEdges, nCells, &
+     cellsOnEdge, dcEdge, boundaryCellMark, &
+     nEntries, rows, cols, valEntries)
+  integer, intent(in) :: nEdges, nCells
+  integer, intent(in) :: cellsOnEdge(0:nEdges-1, 0:1), boundaryCellMark(0:nCells-1)
+  double precision, intent(in)  :: dcEdge(0:nEdges-1)
+  double precision, intent(out) :: valEntries(0:2*nEdges-1)
+  integer, intent(out) :: nEntries, rows(0:2*nEdges-1), cols(0:2*nEdges-1)
+
+   integer :: iEdge, cell0, cell1, iEntry
+
+   iEntry = 0
+
+   if (sum(boundaryCellMark) .EQ. 0) then ! Case of a global spehre
+      do iEdge = 0, nEdges-1
+         cell0 = cellsOnEdge(iEdge,0) - 1
+         cell1 = cellsOnEdge(iEdge,1) - 1
+
+         if (cell0 > 0) then
+            rows(iEntry) = iEdge
+            cols(iEntry) = cell0
+            valEntries(iEntry) = -1./dcEdge(iEdge)
+            iEntry = iEntry + 1
+         end if
+
+         if (cell1 > 0) then
+            rows(iEntry) = iEdge
+            cols(iEntry) = cell1
+            valEntries(iEntry) = 1./dcEdge(iEdge)
+            iEntry = iEntry + 1
+         end if
+     end do
+   
+   else 
+      
+      do iEdge = 0, nEdges-1
+         cell0 = cellsOnEdge(iEdge,0) - 1
+         cell1 = cellsOnEdge(iEdge,1) - 1
+
+         if (boundaryCellMark(cell0) .EQ. 0) then
+            rows(iEntry) = iEdge
+            cols(iEntry) = cell0
+            valEntries(iEntry) = -1./dcEdge(iEdge)
+            iEntry = iEntry + 1
+         end if
+
+         if (boundaryCellMark(cell1) .EQ. 0) then
+            rows(iEntry) = iEdge
+            cols(iEntry) = cell1
+            valEntries(iEntry) = 1./dcEdge(iEdge)
+            iEntry = iEntry + 1
+         end if
+      end do
+   end if
+
+   nEntries = iEntry
+
+end subroutine construct_matrix_discrete_skewgrad_td
+
+
 subroutine discrete_skewgrad_nnat(nEdges, nVertices, nCells, &
      scalar_vertex, scalar_cell, verticesOnEdge, cellsOnEdge, dvEdge, &
      skewgrad_n)
