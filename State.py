@@ -54,10 +54,6 @@ class state_data:
         # Forcing
         self.curlWind_cell = np.zeros(g.nCells)
         self.divWind_cell = np.zeros(g.nCells)
-        self.sfWind_cell = np.zeros(g.nCells)
-        self.sfWind_vertex = np.zeros(g.nVertices)
-        self.vpWind_cell = np.zeros(g.nCells)
-        self.vpWind_vertex = np.zeros(g.nVertices)
 
         # Some generic temporary vectors
         self.vEdge = np.zeros(g.nEdges)
@@ -109,13 +105,6 @@ class state_data:
             gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
             self.thickness[:] = gh / c.gravity
             h0 = gh0 / c.gravity
-
-            ###
-            #print("gh[10258] = %e" % gh[10258])
-            #print("h[10258] = %e" % self.thickness[10258])
-            #print("g*h[10258] = %e" % (c.gravity*self.thickness[10258]))
-            #print("g = %f" % c.gravity)
-            ###
 
             self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
             self.divergence[:] = 0.
@@ -180,11 +169,8 @@ class state_data:
 
             self.curlWind_cell[:] = 0.
             self.divWind_cell[:] = 0.
-            self.sfWind_cell[:] = 0.
-            self.sfWind_vertex[:] = 0.
-            self.vpWind_cell[:] = 0.
-            self.vpWind_vertex[:] = 0.
 
+            
         elif c.test_case == 6:
             # Setup shallow water test case 6: Rossby-Haurwitz Wave
             #
@@ -243,6 +229,32 @@ class state_data:
             self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
 
 
+        elif c.test_case == 15:
+            a = c.sphere_radius
+            u0 = 20.
+
+            h0 = 5960.
+            gh = c.gravity*h0 - np.sin(g.latCell[:])**2 * (a*c.Omega0*u0 + 0.5*u0*u0) 
+            h = gh / c.gravity
+
+            # Define the mountain topography
+            h_s0 = 2000.
+            R = np.pi / 9
+            lat_c = np.pi / 6.
+            lon_c = .5*np.pi
+            r = np.sqrt((g.latCell[:]-lat_c)**2 + (g.lonCell[:]-lon_c)**2)
+            r = np.where(r < R, r, R)
+            g.bottomTopographyCell[:] = h_s0 * ( 1 - r/R)
+            self.thickness[:] = h[:] - g.bottomTopographyCell[:]
+            self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
+            self.divergence[:] = 0.
+            
+            self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
+
+            self.curlWind_cell[:] = 0.
+            self.divWind_cell[:] = 0.
+
+            
         elif c.test_case == 21:
             # A wind-driven gyre at mid-latitude in the northern hemisphere
             tau0 = 1.e-4
