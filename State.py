@@ -157,7 +157,7 @@ class state_data:
             h_s0 = 2000.
             R = np.pi / 9
             lat_c = np.pi / 6.
-            lon_c = .5*np.pi
+            lon_c = -.5*np.pi
             r = np.sqrt((g.latCell[:]-lat_c)**2 + (g.lonCell[:]-lon_c)**2)
             r = np.where(r < R, r, R)
             g.bottomTopographyCell[:] = h_s0 * ( 1 - r/R)
