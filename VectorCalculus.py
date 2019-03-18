@@ -3,6 +3,7 @@ import Parameters as c
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix, eye, diags, bmat
 from scipy.sparse.linalg import spsolve, splu, factorized
 from swe_comp import swe_comp as cmp
+from LinearAlgebra import cg
 
 class EllipticCPL:
     def __init__(self, A, linear_solver, env):
@@ -95,6 +96,10 @@ class EllipticCPL:
             #cfg.destroy()
 
             #pyamgx.finalize()
+
+        elif linear_solver is 'cg':
+            pass
+        
         else:
             raise ValueError("Invalid solver choice.")
 
@@ -111,6 +116,12 @@ class EllipticCPL:
             self.amgx.setup(self.d_A)
             self.amgx.solve(self.d_b, self.d_x)
             self.d_x.download(x)
+
+        elif linear_solver is 'cg':
+            err, counter = cg(env, A, b, x, max_iter = c.max_iters, relres = c.err_tol)
+            if c.print_stats:
+                print("CG iterations: %d" % counter)
+            
         else:
             raise ValueError("Invalid solver choice.")
 
@@ -236,7 +247,6 @@ class VectorCalculus:
         A_n[:,0] = 0.
         self.mGrad_n_n = A_n.tocsr( )
         self.mGrad_n_n.eliminate_zeros()
-#        raise ValueError
 
         if c.use_gpu:
             self.d_mGrad_n = Device_CSR(self.mGrad_n, env)
@@ -440,11 +450,11 @@ class VectorCalculus:
         self.coefM = bmat([[A11, A12], [A21, A22]], format = 'csr')
 
         if c.on_a_global_sphere:
-            self.coefM[0,0] = 1.
-            self.coefM[g.nCells, g.nCells] = 1.
+            self.coefM[0,0] = -2*np.sqrt(3.)/thickness_edge[0]
+            self.coefM[g.nCells, g.nCells] = -2*np.sqrt(3.)/thickness_edge[0]
         else:
-            self.coefM[self.cellBoundary-1, self.cellBoundary-1] = 1.
-            self.coefM[g.nCells, g.nCells] = 1.
+            self.coefM[self.cellBoundary-1, self.cellBoundary-1] = -2*np.sqrt(3.)/thickness_edge[0]
+            self.coefM[g.nCells, g.nCells] = -2*np.sqrt(3.)/thickness_edge[0]
 
             
     def discrete_div_v(self, vEdge):
