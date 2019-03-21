@@ -40,6 +40,7 @@ class state_data:
         self.eta_cell = np.zeros(g.nCells)
         self.eta_edge = np.zeros(g.nEdges)
         self.kenergy_edge = np.zeros(g.nEdges)
+        self.kenergy = np.zeros(g.nCells)
         self.geoPot = np.zeros(g.nCells)
 
         self.SS0 = 0.     # Sea Surface at rest
@@ -360,7 +361,7 @@ class state_data:
         out.createVariable('phi_cell', 'f8', ('Time', 'nCells', 'nVertLevels'))
         out.createVariable('nVelocity', 'f8', ('Time', 'nEdges', 'nVertLevels'))
         out.createVariable('tVelocity', 'f8', ('Time', 'nEdges', 'nVertLevels'))
-#        out.createVariable('kenergy', 'f8', ('Time', 'nCells', 'nVertLevels'))
+        out.createVariable('kenergy', 'f8', ('Time', 'nCells', 'nVertLevels'))
         out.createVariable('curlWind_cell', 'f8', ('nCells',))
         out.createVariable('bottomTopographyCell', 'f8', ('nCells',))
 
@@ -489,9 +490,10 @@ class state_data:
 
         # Compute kinetic energy on the edge
         self.compute_kenergy_edge(vc, g, c)
+        self.kenergy[:] = vc.edge2cell(self.kenergy_edge)
 
         self.geoPot[:] = c.gravity * (self.thickness[:] + g.bottomTopographyCell[:])
-        self.geoPot[:] += vc.edge2cell(self.kenergy_edge[:])
+        self.geoPot[:] += self.kenergy
 
         # Compute kinetic energy, total energy, and potential enstrophy
         self.kinetic_energy = np.sum(self.kenergy_edge * self.thickness_edge * g.areaEdge)
@@ -539,6 +541,7 @@ class state_data:
         out.variables['phi_cell'][k,:,0] = self.phi_cell[:]
         out.variables['nVelocity'][k,:,0] = self.nVelocity[:]
         out.variables['tVelocity'][k,:,0] = self.tVelocity[:]
+        out.variables['kenergy'][k,:,0] = self.kenergy[:]
 
         if k==0:
             out.variables['curlWind_cell'][:] = self.curlWind_cell[:]
