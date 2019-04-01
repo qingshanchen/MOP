@@ -4,6 +4,7 @@ from scipy.sparse import coo_matrix, csc_matrix, csr_matrix, eye, diags, bmat
 from scipy.sparse.linalg import spsolve, splu, factorized
 from swe_comp import swe_comp as cmp
 from LinearAlgebra import cg
+import time
 
 class EllipticCPL:
     def __init__(self, A, linear_solver, env):
@@ -118,9 +119,13 @@ class EllipticCPL:
             self.d_x.download(x)
 
         elif linear_solver is 'cg':
+            t0 = time.clock()
+            t0a = time.time( )
             err, counter = cg(env, A, b, x, max_iter = c.max_iters, relres = c.err_tol)
+            t1 = time.clock()
+            t1a = time.time( )
             if c.print_stats:
-                print("CG iterations: %d" % counter)
+                print("CG # iters, cpu time, wall time: %d %f %f" % (counter, t1-t0, t1a-t0a))
             
         else:
             raise ValueError("Invalid solver choice.")

@@ -2,7 +2,7 @@ import numpy as np
 
 ### Parameters essential
 test_case = 5
-use_gpu = False
+use_gpu = True
 performing_test = False
 
 do_restart = False
@@ -30,7 +30,7 @@ no_slip_BC = False
 free_slip_BC = False
 
 # Solver config
-linear_solver = 'cg'      # lu, cg, cudaCG, cudaPCG, amg, amgx
+linear_solver = 'amgx'      # lu, cg, cudaCG, cudaPCG, amg, amgx
 err_tol = 5e-8
 max_iters = 1000
 print_stats = 1             # 1 for True, 0 for False
