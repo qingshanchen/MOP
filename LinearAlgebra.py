@@ -39,9 +39,9 @@ def cg(env, A, b, x, max_iter=1000, relres=1e-5):
         dx_norm = np.sqrt(np.dot(dx,dx))
 
         # Check if the target tol has been reached
-#        res = np.sqrt(r2_new)
-#        if res/res0 < relres:
-        if dx_norm / x_norm < relres:
+        res = np.sqrt(r2_new)
+        if res/res0 < relres:
+#        if dx_norm / x_norm < relres:
             return 0, counter
         
         if counter > max_iter:
