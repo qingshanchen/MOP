@@ -210,6 +210,19 @@ class state_data:
                                                      
             self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
 
+
+        elif c.test_case == 7:
+            # Setup shallow water test case 7: Height and wind at 500 mb 
+            #
+            # Reference: Williamson, D.L., et al., "A Standard Test Set for Numerical 
+            #            Approximations to the Shallow Water Equations in Spherical 
+            #            Geometry" J. of Comp. Phys., 102, pp. 211--224
+            ini_dat = np.loadtxt('tc7-init-on-%d.dat' % g.nCells)
+            self.thickness[:] = ini_dat[:,2]
+            self.vorticity[:] = ini_dat[:,3]
+            self.divergence[:] = ini_dat[:,4]
+
+            
         elif c.test_case == 12:
             # SWSTC #2, with a stationary analytic solution, modified for the northern hemisphere
             a = c.sphere_radius
@@ -390,6 +403,8 @@ class state_data:
 
         # Tendency for thicknetss
         self.tend_thickness[:] = -vc.discrete_laplace_v(self.phi_cell)
+        
+        self.tend_thickness[:] += c.delVisc * vc.discrete_laplace_v(self.thickness)
 
         # Tendency for vorticity
         if c.conserve_enstrophy:
@@ -451,6 +466,7 @@ class state_data:
 
         self.tend_divergence[:] -= vc.discrete_laplace_v(self.geoPot)
 
+        self.tend_divergence[:] += c.delVisc * vc.discrete_laplace_v(self.divergence)
         
     def compute_diagnostics(self, g, vc, c):
 
