@@ -1,7 +1,7 @@
 import numpy as np
 
 ### Parameters essential
-test_case = 7
+test_case = 8
 use_gpu = False
 performing_test = False
 
@@ -17,9 +17,9 @@ timestepping = 'RK4'
 conserve_enstrophy = True     # False for energy-conserving only; True for both energy and enstrophy conserving 
 
 # Duration, time stepping size, saving interval
-dt = 180.   #2880 for 480km
+dt = 1440.   #2880 for 480km
 #dt = 360.   #360 for NA818
-nYears = 5./360
+nYears = 6./360
 save_inter_days = 1.
 
 # Model configuraitons, boundary conditions
@@ -36,6 +36,7 @@ max_iters = 1000
 print_stats = 1             # 1 for True, 0 for False
 
 # Size of the phyiscal domain
+on_a_sphere = None
 on_a_global_sphere = None
 sphere_radius = 6371000.0
 Omega0 = 7.292e-5

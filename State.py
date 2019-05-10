@@ -222,6 +222,35 @@ class state_data:
             self.vorticity[:] = ini_dat[:,3]
             self.divergence[:] = ini_dat[:,4]
 
+            self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
+
+        elif c.test_case == 8:
+            # Setup shallow water test case 8: barotropic instability test case
+            #
+            # Reference:
+            self.divergence[:] = 0.
+
+            # Compute the vorticity field
+            self.vorticity[:] = cmp.compute_swtc8_vort(g.latCell)
+
+            # Compute the thickness field, and shift it towards 10km average depth
+            gh = cmp.compute_swtc8_gh(g.latCell)
+            gh += 10000.*c.gravity - np.sum(gh*g.areaCell)/np.sum(g.areaCell)
+            self.thickness[:] = gh / c.gravity
+
+            # Add a small perturbation to the thickness field
+            pert = 120*np.cos(g.latCell)
+            if np.max(g.lonCell) > 1.1*np.pi:
+                print("Found the range of lonCell to be [0, 2pi]")
+                print("Shifting it to [-pi, pi]")
+                g.lonCell[:] = np.where(g.lonCell > np.pi, g.lonCell-2*np.pi, g.lonCell)
+                g.lonVertex[:] = np.where(g.lonVertex > np.pi, g.lonVertex-2*np.pi, g.lonVertex)
+                g.lonEdge[:] = np.where(g.lonEdge > np.pi, g.lonEdge-2*np.pi, g.lonEdge)
+            pert *= np.exp(-(g.lonCell*3)**2)
+            pert *= np.exp(-((g.latCell-np.pi/4)*15)**2)
+#            self.thickness[:] += pert
+
+            self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
             
         elif c.test_case == 12:
             # SWSTC #2, with a stationary analytic solution, modified for the northern hemisphere
@@ -390,6 +419,10 @@ class state_data:
         out.dt = "%f" % (c.dt)
         out.delVisc = "%e" % (c.delVisc)
         out.bottomDrag = "%e" % (c.bottomDrag)
+        if c.on_a_sphere:
+            out.on_a_sphere = "YES"
+        else:
+            out.on_a_sphere = "NO"
         out.on_a_global_sphere = "%s" % (c.on_a_global_sphere)
         out.sphere_radius = "%e" % (c.sphere_radius)
         out.no_flux_BC = "%s" % (c.no_flux_BC)

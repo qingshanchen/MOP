@@ -910,4 +910,139 @@ subroutine discrete_skewgrad_nnat(nEdges, nVertices, nCells, &
 
 end subroutine discrete_skewgrad_nnat
 
+
+!
+! Functions and subroutines for the Shallow Water Test Case #8 (barotropic instability)
+!
+
+function swtc8_u(theta)
+  double precision :: theta
+  double precision, parameter :: umax = 80.
+  double precision, parameter :: pi = 3.141592653589793
+  double precision, parameter :: lat0 = pi/7
+  double precision, parameter :: lat1 = pi/2 - lat0
+  double precision, parameter :: en = exp(-4./(lat1-lat0)**2)
+  
+  double precision :: swtc8_u, u
+
+  if (theta <= lat0) then
+     u = 0.
+  else if (theta >= lat1) then
+     u = 0.
+  else
+     u = exp(1./(theta - lat0)/(theta - lat1))
+     u = u * umax / en
+  end if
+
+  swtc8_u = u
+  
+end function swtc8_u
+
+
+function swtc8_vort(theta)
+  double precision :: theta
+  double precision, parameter :: umax = 80.
+  double precision, parameter :: pi = 3.141592653589793
+  double precision, parameter :: lat0 = pi/7
+  double precision, parameter :: lat1 = pi/2 - lat0
+  double precision, parameter :: en = exp(-4./(lat1-lat0)**2)
+  double precision, parameter :: a = 6371000.0
+
+  double precision :: swtc8_vort, factor
+
+  if (theta <= lat0) then
+     swtc8_vort = 0.
+  else if (theta >= lat1) then
+     swtc8_vort = 0.
+  else
+     factor = (2*theta - lat0 -lat1)/(theta - lat0)**2/(theta-lat1)**2
+     factor = factor + tan(theta)
+     factor = factor * umax / en / a
+     
+     swtc8_vort = exp(1./(theta - lat0)/(theta - lat1))
+     swtc8_vort = swtc8_vort * factor
+  end if
+
+end function swtc8_vort
+
+subroutine compute_swtc8_vort(nCells,   &
+     latCell,   &
+     vorticity)
+  integer, intent(in)  :: nCells
+  double precision, intent(in) :: latCell(0:nCells-1)
+  double precision, intent(out) :: vorticity(0:nCells-1)
+
+  integer :: iCell
+
+  do iCell = 0, nCells-1
+     vorticity(iCell) = swtc8_vort(latCell(iCell))
+  end do
+
+end subroutine compute_swtc8_vort
+
+subroutine compute_swtc8_gh(nCells,  &
+     latCell,  &
+     gh)
+  integer, intent(in) :: nCells
+  double precision, intent(in) :: latCell(0:nCells-1)
+  double precision, intent(out) :: gh(0:nCells-1)
+  double precision, parameter :: pi = 3.141592653589793
+  double precision, parameter :: lat0 = pi/7
+  double precision, parameter :: lat1 = pi/2 - lat0
+  double precision, parameter :: a = 6371000.0
+  double precision, parameter, dimension(13) :: gwts = &
+       (/ 0.2325515532308739, &
+       0.2262831802628972, &
+       0.2262831802628972, &
+       0.2078160475368885, &
+       0.2078160475368885, &
+       0.1781459807619457, &
+       0.1781459807619457, &
+       0.1388735102197872, &
+       0.1388735102197872, &
+       0.0921214998377285, &
+       0.0921214998377285, &
+       0.0404840047653159, &
+       0.0404840047653159/)
+  double precision, parameter, dimension(13) :: ref_gpts = &
+       (/0.0000000000000000, &
+       -0.2304583159551348, &
+       0.2304583159551348, &
+       -0.4484927510364469, &
+       0.4484927510364469, &
+       -0.6423493394403402, &
+       0.6423493394403402, &
+       -0.8015780907333099, &
+       0.8015780907333099, &
+       -0.9175983992229779, &
+       0.9175983992229779, &
+       -0.9841830547185881, &
+       0.9841830547185881/)
+  double precision, parameter :: Omega = 7.292e-5, gravity = 9.80616
+  double precision, dimension(13) :: gpts
+  double precision :: J, theta_end
+
+  integer :: iCell, i
+
+
+  do iCell = 0, nCells-1
+     if (latCell(iCell) <= lat0) then
+        gh(iCell) = -.0
+     else
+        theta_end = min(lat1, latCell(iCell))
+        gpts = ref_gpts * (theta_end - lat0)/2 + (lat0 + theta_end)/2
+        J = (theta_end - lat0)/2
+
+        gh(iCell) = 0.
+        do i = 1, 13
+           gh(iCell) = gh(iCell) + gwts(i) * a * swtc8_u(gpts(i)) * (2*Omega*sin(gpts(i)) + &
+                tan(gpts(i)) * swtc8_u(gpts(i)) / a)
+        end do
+        gh(iCell) = -J*gh(iCell)
+     end if
+  end do
+  
+  
+end subroutine compute_swtc8_gh
+
 end module

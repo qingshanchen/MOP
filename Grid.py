@@ -54,18 +54,16 @@ class grid_data:
         self.fCell = 2 * 7.292e-5 * np.sin(self.latCell[:])
         #self.fCell = grid.variables['fCell'][:]
 
-
-#        if c.on_a_global_sphere:
-#            self.boundaryEdgeMark = np.zeros(self.nEdges).astype('int32')
-#            self.boundaryEdgeMark[:] = 0
-#            self.boundaryCellMark = np.zeros(self.nCells).astype('int32')
-#            self.boundaryCellMark[:] = 0
-#        else:
-#            self.boundaryEdgeMark = grid.variables['boundaryEdgeMark'][:]
-#            self.boundaryCellMark = grid.variables['boundaryCellMark'][:]
-
         self.boundaryEdgeMark = grid.variables['boundaryEdgeMark'][:]
         self.boundaryCellMark = grid.variables['boundaryCellMark'][:]
+
+        # To decide whether the domain is on a sphere
+        rad2 = xCell**2 + yCell**2 + zCell**2
+        rad_mean = np.sqrt(np.mean(rad2))
+        mean_dev = np.sqrt(np.mean((np.sqrt(rad2) - rad_mean)**2))
+        if mean_dev / rad_mean < 0.1:
+            c.on_a_sphere = True
+        
         if np.sum(self.boundaryCellMark) == 0:
             c.on_a_global_sphere = True
         else:
