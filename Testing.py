@@ -238,99 +238,7 @@ def run_tests(env, g, vc, c, s):
         print("L^2 error        = ", l2)        
         
 
-    if False:
-        # Test the linear solver for the coupled elliptic equation on the whole domain
-        # The Hamiltonian is defined using the tangential component
-        # using the EllipticCPL object
-        # vorticity and divergence derived from psi and phi
 
-        s.thickness[:] = 4000. + np.random.rand(g.nCells) * 100
-        s.thickness_edge = vc.cell2edge(s.thickness)
-
-        psi_cell_true = np.random.rand(g.nCells) * 2.4e+9
-        if c.on_a_global_sphere:
-            psi_cell_true[0] = 0.
-        else:
-            psi_cell_true[vc.cellBoundary[:]-1] = 0.
-            
-        phi_cell_true = np.random.rand(g.nCells) * 2.4e+9
-        phi_cell_true[0] = 0.
-
-        phi_vertex = vc.cell2vertex(phi_cell_true)
-
-        hv = vc.discrete_grad_n(psi_cell_true)
-        hv += vc.discrete_grad_tn(phi_vertex)
-        v = hv / s.thickness_edge
-        s.vorticity = vc.discrete_curl_v(v)
-        s.divergence = vc.vertex2cell(vc.discrete_div_t(v))
-
-        cpu0 = time.clock( )
-        wall0 = time.time( )
-        s.compute_psi_phi(vc, g, c)
-        cpu1 = time.clock( )
-        wall1 = time.time( )
-        print(("CPU time for solving system: %f" % (cpu1-cpu0,)))
-        print(("Wall time for solving system: %f" % (wall1-wall0,)))
-        
-        # Compute the errors
-        l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
-        l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
-        l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
-        l2 = np.sqrt(l2)
-        print("Errors in psi")
-        print("L infinity error = ", l8)
-        print("L^2 error        = ", l2)        
-
-        l8 = np.max(np.abs(phi_cell_true[:] - s.phi_cell[:])) / np.max(np.abs(phi_cell_true[:]))
-        l2 = np.sum(np.abs(phi_cell_true[:] - s.phi_cell[:])**2 * g.areaCell[:])
-        l2 /=  np.sum(np.abs(phi_cell_true[:])**2 * g.areaCell[:])
-        l2 = np.sqrt(l2)
-        print("Errors in phi")
-        print("L infinity error = ", l8)
-        print("L^2 error        = ", l2)        
-
-
-    if False:
-        # Test the linear solver for the coupled elliptic equation on the whole domain
-        # The Hamiltonian is defined using the tangential component
-        # using the EllipticCPL object
-        # vorticity and divergence taken from SWSTC #2
-
-        a = c.sphere_radius
-        u0 = 2*np.pi*a / (12*86400)
-        gh0 = 2.94e4
-        gh = np.sin(g.latCell[:])**2
-        gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
-        s.thickness[:] = gh / c.gravity
-        h0 = gh0 / c.gravity
-
-        s.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
-        s.divergence[:] = 0.
-
-        psi_cell_true = -a * h0 * u0 * np.sin(g.latCell[:]) 
-        psi_cell_true[:] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (np.sin(g.latCell[:]))**3 / 3.
-        psi_cell_true -= psi_cell_true[0]
-        phi_cell_true = np.zeros(g.nCells)
-        
-        s.thickness_edge = vc.cell2edge(s.thickness)
-        
-        cpu0 = time.clock( )
-        wall0 = time.time( )
-        s.compute_psi_phi(vc, g, c)
-        cpu1 = time.clock( )
-        wall1 = time.time( )
-        print(("CPU time for solving system: %f" % (cpu1-cpu0,)))
-        print(("Wall time for solving system: %f" % (wall1-wall0,)))
-        
-        # Compute the errors
-        l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
-        l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
-        l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
-        l2 = np.sqrt(l2)
-        print("Errors in psi")
-        print("L infinity error = %e" % l8)
-        print("L^2 error        = %e" % l2)        
-        
 
     if False:
         # Test the linear solver for the coupled elliptic equation on the whole domain
@@ -434,7 +342,7 @@ def run_tests(env, g, vc, c, s):
         print("L^2 error        = %e" % l2)        
 
 
-    if True:
+    if False:
         # Test the linear solver for the coupled elliptic equation on a bounded domain
         # using the EllipticCPL object
         # vorticity and divergence come from TC #12
@@ -1353,4 +1261,258 @@ def run_tests(env, g, vc, c, s):
         print(("CPU time for matrix edge2cell: %f" % (t1a-t0a,)))
         print(("Wall time for matrix edge2cell: %f" % (t1b-t0b,)))
         print(("rel error = %e" % (np.sqrt(np.sum((y1-y0)**2))/np.sqrt(np.sum(y0*y0)))))
+
+    if False: #Test the accuracy of the Laplace operator
+        psi = np.cos(g.latCell)**3 * np.sin(3*g.lonCell)
+        psi *= c.sphere_radius
+        q = 1.e-8*np.sin(g.latCell)*np.cos(g.lonCell)
+        a = c.sphere_radius
+
+        laplace_psi_true = -9/c.sphere_radius * np.cos(g.latCell) * np.sin(3*g.lonCell)
+        laplace_psi_true += 9/a*np.cos(g.latCell)*np.sin(g.latCell)**2*np.sin(3*g.lonCell)
+        laplace_psi_true -= 3/a*np.cos(g.latCell)**3 * np.sin(3*g.lonCell)
+        laplace_psi = vc.discrete_laplace_v(psi)
+
+        # Compute the errors
+        l8 = np.max(np.abs(laplace_psi_true[:] - laplace_psi[:])) / np.max(np.abs(laplace_psi_true[:]))
+        l2 = np.sum(np.abs(laplace_psi_true[:] - laplace_psi[:])**2 * g.areaCell[:])
+        l2 /=  np.sum(np.abs(laplace_psi_true[:])**2 * g.areaCell[:])
+        l2 = np.sqrt(l2)
+        print("Errors in the discrete Laplace operator:")
+        print("L infinity error = ", l8)
+        print("L^2 error        = ", l2)        
+
+    if False: #Test the accuracy of div ( grad psi_h)
+              # versus Delta(psi)
+        psi = np.cos(g.latCell)**3 * np.sin(3*g.lonCell)
+        psi *= c.sphere_radius
+        q = 1.e-8*np.sin(g.latCell)*np.cos(g.lonCell)
+        a = c.sphere_radius
+
+        result_true = -9/c.sphere_radius * np.cos(g.latCell) * np.sin(3*g.lonCell)
+        result_true += 9/a*np.cos(g.latCell)*np.sin(g.latCell)**2*np.sin(3*g.lonCell)
+        result_true -= 3/a*np.cos(g.latCell)**3 * np.sin(3*g.lonCell)
+
+        result_approx = vc.discrete_div_v(vc.discrete_grad_n(psi))
+
+        # Compute the errors
+        l8 = np.max(np.abs(result_true[:] - result_approx[:])) / np.max(np.abs(result_true[:]))
+        l2 = np.sum(np.abs(result_true[:] - result_approx[:])**2 * g.areaCell[:])
+        l2 /=  np.sum(np.abs(result_true[:])**2 * g.areaCell[:])
+        l2 = np.sqrt(l2)
+        print("Errors in the div( q grad(psi)):")
+        print("L^2 error        = ", l2)        
+        print("L infinity error = ", l8)
+
+    if False: #Test the accuracy of divergence ( q times grad psi)
+        psi = np.cos(g.latCell)**3 * np.sin(3*g.lonCell)
+        psi *= c.sphere_radius
+        q = 1.e-8*np.sin(g.latCell)*np.cos(g.lonCell)
+        a = c.sphere_radius
+
+        result_true = -3*np.sin(g.latCell)*np.cos(g.latCell)*np.sin(g.lonCell)*np.cos(3*g.lonCell)
+        result_true -= 9*np.sin(g.latCell)*np.cos(g.latCell)*np.sin(3*g.lonCell)*np.cos(g.lonCell)
+        result_true += 9*np.cos(g.latCell)*np.sin(g.latCell)**3*np.sin(3*g.lonCell)*np.cos(g.lonCell)
+        result_true -= 6*np.cos(g.latCell)**3*np.sin(g.latCell)*np.sin(3*g.lonCell)*np.cos(g.lonCell)
+        result_true *= 1e-8/a
+
+        q_e = vc.cell2edge(q)
+        result_approx = vc.discrete_div_v(q_e * vc.discrete_grad_n(psi))
+
+        # Compute the errors
+        l8 = np.max(np.abs(result_true[:] - result_approx[:])) / np.max(np.abs(result_true[:]))
+        l2 = np.sum(np.abs(result_true[:] - result_approx[:])**2 * g.areaCell[:])
+        l2 /=  np.sum(np.abs(result_true[:])**2 * g.areaCell[:])
+        l2 = np.sqrt(l2)
+        print("Errors in the div( q grad(psi)):")
+        print("L^2 error        = ", l2)        
+        print("L infinity error = ", l8)
+
+
+    if False: #Test the accuracy of nabla times (q hat times grad psi tilde)
+             # versus nabla x (q nabla psi)
+        psi = np.cos(g.latCell)**3 * np.sin(3*g.lonCell)
+        psi *= c.sphere_radius
+        q = 1.e-8*np.sin(g.latCell)*np.cos(g.lonCell)
+        a = c.sphere_radius
+
+        result_true = np.sin(g.latCell)**2*np.sin(3*g.lonCell)*np.sin(g.lonCell)
+        result_true -= np.cos(g.latCell)**2*np.cos(g.lonCell)*np.cos(3*g.lonCell)
+        result_true *= 3.e-8*np.cos(g.latCell)/a
+
+        q_e = vc.cell2edge(q)
+        psi_vertex = vc.cell2vertex(psi)
+        result_approx = vc.discrete_curl_v(q_e * vc.discrete_grad_tn(psi_vertex))
+
+        # Compute the errors
+        l8 = np.max(np.abs(result_true[:] - result_approx[:])) / np.max(np.abs(result_true[:]))
+        l2 = np.sum(np.abs(result_true[:] - result_approx[:])**2 * g.areaCell[:])
+        l2 /=  np.sum(np.abs(result_true[:])**2 * g.areaCell[:])
+        l2 = np.sqrt(l2)
+        print("Errors:")
+        print("max of result_true = %e" % np.max(np.abs(result_true)))
+        print("max of result_approx = %e" % np.max(np.abs(result_approx)))
+        print("L^2 error        = ", l2)        
+        print("L infinity error = ", l8)
+
+    if False: # Test the accuracy of tilde(nabla times (q hat times grad psi))
+             # versus nabla x (q nabla psi)
+        psi = np.cos(g.latCell)**3 * np.sin(3*g.lonCell)
+        psi *= c.sphere_radius
+        q = 1.e-8*np.sin(g.latCell)*np.cos(g.lonCell)
+        a = c.sphere_radius
+
+        result_true = np.sin(g.latCell)**2*np.sin(3*g.lonCell)*np.sin(g.lonCell)
+        result_true -= np.cos(g.latCell)**2*np.cos(g.lonCell)*np.cos(3*g.lonCell)
+        result_true *= 3.e-8*np.cos(g.latCell)/a
+
+        q_e = vc.cell2edge(q)
+        result_approx = vc.vertex2cell(vc.discrete_curl_t(q_e * vc.discrete_grad_n(psi)))
+
+        # Compute the errors
+        l8 = np.max(np.abs(result_true[:] - result_approx[:])) / np.max(np.abs(result_true[:]))
+        l2 = np.sum(np.abs(result_true[:] - result_approx[:])**2 * g.areaCell[:])
+        l2 /=  np.sum(np.abs(result_true[:])**2 * g.areaCell[:])
+        l2 = np.sqrt(l2)
+        print("Errors in the curl ( q grad(psi tilde)):")
+        print("max of result_true = %e" % np.max(np.abs(result_true)))
+        print("max of result_approx = %e" % np.max(np.abs(result_approx)))
+        print("L^2 error        = ", l2)        
+        print("L infinity error = ", l8)
+
+
+    if False: # Test the accuracy of tilde(nabla dot (psi hat times grad perp q))
+             # versus nabla x (q nabla psi)
+        psi = np.cos(g.latCell)**3 * np.sin(3*g.lonCell)
+        psi *= c.sphere_radius
+        q = 1.e-8*np.sin(g.latCell)*np.cos(g.lonCell)
+        a = c.sphere_radius
+
+        result_true = np.sin(g.latCell)**2*np.sin(3*g.lonCell)*np.sin(g.lonCell)
+        result_true -= np.cos(g.latCell)**2*np.cos(g.lonCell)*np.cos(3*g.lonCell)
+        result_true *= 3.e-8*np.cos(g.latCell)/a
+
+        psi_edge = vc.cell2edge(psi)
+        result_approx = vc.vertex2cell(vc.discrete_div_t(psi_edge * vc.discrete_skewgrad_t(q)))
+
+        # Compute the errors
+        l8 = np.max(np.abs(result_true[:] - result_approx[:])) / np.max(np.abs(result_true[:]))
+        l2 = np.sum(np.abs(result_true[:] - result_approx[:])**2 * g.areaCell[:])
+        l2 /=  np.sum(np.abs(result_true[:])**2 * g.areaCell[:])
+        l2 = np.sqrt(l2)
+        print("Errors in the curl ( q grad(psi tilde)):")
+        print("max of result_true = %e" % np.max(np.abs(result_true)))
+        print("max of result_approx = %e" % np.max(np.abs(result_approx)))
+        print("L^2 error        = ", l2)        
+        print("L infinity error = ", l8)
+
+
+    if False: # Test the accuracy of nabla dot (psi hat times grad perp q tilde)
+             # versus nabla x (q nabla psi)
+        psi = np.cos(g.latCell)**3 * np.sin(3*g.lonCell)
+        psi *= c.sphere_radius
+        q = 1.e-8*np.sin(g.latCell)*np.cos(g.lonCell)
+        a = c.sphere_radius
+
+        result_true = np.sin(g.latCell)**2*np.sin(3*g.lonCell)*np.sin(g.lonCell)
+        result_true -= np.cos(g.latCell)**2*np.cos(g.lonCell)*np.cos(3*g.lonCell)
+        result_true *= 3.e-8*np.cos(g.latCell)/a
+
+        psi_edge = vc.cell2edge(psi)
+        q_vertex = vc.cell2vertex(q)
+        result_approx = vc.discrete_div_v(psi_edge * vc.discrete_skewgrad_nd(q_vertex))
+
+        # Compute the errors
+        l8 = np.max(np.abs(result_true[:] - result_approx[:])) / np.max(np.abs(result_true[:]))
+        l2 = np.sum(np.abs(result_true[:] - result_approx[:])**2 * g.areaCell[:])
+        l2 /=  np.sum(np.abs(result_true[:])**2 * g.areaCell[:])
+        l2 = np.sqrt(l2)
+        print("Errors:")
+        print("max of result_true = %e" % np.max(np.abs(result_true)))
+        print("max of result_approx = %e" % np.max(np.abs(result_approx)))
+        print("L^2 error        = ", l2)        
+        print("L infinity error = ", l8)
+
+
+    if False: # Test the accuracy of 2*tilde(nabla perp beta tilde dot nabla alpha) and the accuracy of
+             # -2*tilde(nabla perp alpha tilde dot nabla beta) 
+             # versus nabla x (q nabla psi)
+        psi = np.cos(g.latCell)**3 * np.sin(3*g.lonCell)
+        psi *= c.sphere_radius
+        q = 1.e-8*np.sin(g.latCell)*np.cos(g.lonCell)
+        a = c.sphere_radius
+
+        result_true = np.sin(g.latCell)**2*np.sin(3*g.lonCell)*np.sin(g.lonCell)
+        result_true -= np.cos(g.latCell)**2*np.cos(g.lonCell)*np.cos(3*g.lonCell)
+        result_true *= 3.e-8*np.cos(g.latCell)/a
+
+        psi_vertex = vc.cell2vertex(psi)
+        q_vertex = vc.cell2vertex(q)
+        result_approx1 = -2*vc.edge2cell(vc.discrete_skewgrad_nd(psi_vertex)* vc.discrete_grad_n(q))
+        result_approx2 = 2*vc.edge2cell(vc.discrete_skewgrad_nd(q_vertex)* vc.discrete_grad_n(psi))
+
+        # Compute the errors
+        print("Error in result_approx1:")
+        l8 = np.max(np.abs(result_true[:] - result_approx1[:])) / np.max(np.abs(result_true[:]))
+        l2 = np.sum(np.abs(result_true[:] - result_approx1[:])**2 * g.areaCell[:])
+        l2 /=  np.sum(np.abs(result_true[:])**2 * g.areaCell[:])
+        l2 = np.sqrt(l2)
+        print("max of result_true = %e" % np.max(np.abs(result_true)))
+        print("max of result_approx = %e" % np.max(np.abs(result_approx1)))
+        print("L^2 error        = ", l2)        
+        print("L infinity error = ", l8)
+
+        print(" ")
+        print("Error in result_approx2:")
+        l8 = np.max(np.abs(result_true[:] - result_approx2[:])) / np.max(np.abs(result_true[:]))
+        l2 = np.sum(np.abs(result_true[:] - result_approx2[:])**2 * g.areaCell[:])
+        l2 /=  np.sum(np.abs(result_true[:])**2 * g.areaCell[:])
+        l2 = np.sqrt(l2)
+        print("max of result_true = %e" % np.max(np.abs(result_true)))
+        print("max of result_approx = %e" % np.max(np.abs(result_approx2)))
+        print("L^2 error        = ", l2)        
+        print("L infinity error = ", l8)
+        raise ValueError
+
+
+    if True: # Study the accuracy of the vertex2cell, cell2vertex, and edge2cell mappings 
+             # 
+             # 
+        psi_cell_true = np.cos(g.latCell)**3 * np.sin(4*g.lonCell)
+        psi_cell_true *= c.sphere_radius
+        psi_vertex_true = np.cos(g.latVertex)**3 * np.sin(4*g.lonVertex)
+        psi_vertex_true *= c.sphere_radius
+        psi_edge_true = np.cos(g.latEdge)**3 * np.sin(4*g.lonEdge)
+        psi_edge_true *= c.sphere_radius
+
+        psi_cell1 = vc.vertex2cell(psi_vertex_true)
+        psi_vertex = vc.cell2vertex(psi_cell_true)
+        psi_cell2 = vc.edge2cell(psi_edge_true)
         
+        # Compute the errors
+        print("Error in cell2vertex:")
+        l8 = np.max(np.abs(psi_vertex_true[:] - psi_vertex[:])) / np.max(np.abs(psi_vertex_true[:]))
+        l2 = np.sum(np.abs(psi_vertex_true[:] - psi_vertex[:])**2 * g.areaTriangle[:])
+        l2 /=  np.sum(np.abs(psi_vertex_true[:])**2 * g.areaTriangle[:])
+        l2 = np.sqrt(l2)
+        print("L^2 error        = %e" % l2)        
+        print("L infinity error = %e" % l8)
+
+        print("Error in vertex2cell:")
+        l8 = np.max(np.abs(psi_cell_true[:] - psi_cell1[:])) / np.max(np.abs(psi_cell_true[:]))
+        l2 = np.sum(np.abs(psi_cell_true[:] - psi_cell1[:])**2 * g.areaCell[:])
+        l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
+        l2 = np.sqrt(l2)
+        print("L^2 error        = %e" % l2)        
+        print("L infinity error = %e" % l8)
+
+        print("Error in edge2cell:")
+        l8 = np.max(np.abs(psi_cell_true[:] - psi_cell2[:])) / np.max(np.abs(psi_cell_true[:]))
+        l2 = np.sum(np.abs(psi_cell_true[:] - psi_cell2[:])**2 * g.areaCell[:])
+        l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
+        l2 = np.sqrt(l2)
+        print("L^2 error        = %e" % l2)        
+        print("L infinity error = %e" % l8)
+
+        
+    
