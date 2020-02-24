@@ -154,6 +154,9 @@ class VectorCalculus:
         self.areaCell = g.areaCell.copy()
         self.areaTriangle = g.areaTriangle.copy()
 
+        #
+        # Mesh element indices
+        #
         if not c.on_a_global_sphere:
             # Collect non-boundary (interior) cells and put into a vector,
             # and boundary cells into a separate vector
@@ -174,8 +177,11 @@ class VectorCalculus:
         else:
             self.cellBoundary = np.array([], dtype='int')
 
-        ## Construct the matrix representing the discrete div on the primal mesh (Voronoi cells)
-        ## No-flux BCs assumed on the boundary
+        #
+        # Divergence on primal
+        #
+        # Construct the matrix representing the discrete div on the primal mesh (Voronoi cells)
+        # No-flux BCs assumed on the boundary
         nEntries, rows, cols, valEntries = \
             cmp.construct_matrix_discrete_div(g.cellsOnEdge, g.dvEdge, g.areaCell)
         A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
@@ -185,6 +191,9 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mDiv_v = Device_CSR(self.mDiv_v, env)
 
+        #
+        # Divergence on dual (triangle)
+        #
         ## Construct the matrix representing the discrete div on the dual mesh (triangles)
         nEntries, rows, cols, valEntries = \
             cmp.construct_matrix_discrete_div_trig(g.verticesOnEdge, g.dcEdge, g.areaTriangle)
@@ -194,7 +203,10 @@ class VectorCalculus:
 
         if c.use_gpu:
             self.d_mDiv_t = Device_CSR(self.mDiv_t, env)
-            
+
+        #
+        # Curl on primal
+        #
         ## Construct the matrix representing the discrete curl on the primal mesh (Voronoi cells)
         ## No-slip BCs assumed on the boundary.
         nEntries, rows, cols, valEntries = \
@@ -206,6 +218,9 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mCurl_v = Device_CSR(self.mCurl_v, env)
 
+        #
+        # Curl on dual
+        #
         ## Construct the matrix representing the discrete curl on the dual mesh (triangles)
         nEntries, rows, cols, valEntries = \
             cmp.construct_matrix_discrete_curl_trig(g.verticesOnEdge, g.dcEdge, g.areaTriangle)
@@ -215,7 +230,10 @@ class VectorCalculus:
 
         if c.use_gpu:
             self.d_mCurl_t = Device_CSR(self.mCurl_t, env)
-            
+
+        #
+        # Laplace on primal (voronoi)
+        #
         ## Construct the matrix representing the discrete Laplace operator the primal
         ## mesh (Voronoi mesh). Homogeneous Neuman BC's are assumed.
         nEntries, rows, cols, valEntries = \
@@ -228,6 +246,9 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mLaplace_v = Device_CSR(self.mLaplace_v, env)
 
+        #
+        # Laplace on dual (triangle)
+        #
         ## Construct the matrix representing the discrete Laplace operator the dual
         ## mesh (triangular mesh). Homogeneous Neuman BC's are assumed.
         nEntries, rows, cols, valEntries = \
@@ -240,7 +261,10 @@ class VectorCalculus:
 
         if c.use_gpu:
             self.d_mLaplace_t = Device_CSR(self.mLaplace_t, env)
-            
+
+        #
+        # Gradient normal
+        #
         ## Construct the matrix representing the discrete grad operator along the normal direction.
         nEntries, rows, cols, valEntries = \
             cmp.construct_matrix_discrete_grad_n(g.cellsOnEdge, g.dcEdge)
@@ -256,6 +280,9 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mGrad_n = Device_CSR(self.mGrad_n, env)
 
+        #
+        # Gradient tangential(?) with Dirichlet
+        #
         ## Construct the matrix representing the discrete grad operator for the dual
         ## mesh, with implied homogeneous Dirichlet BC's 
         nEntries, rows, cols, valEntries = \
@@ -267,6 +294,9 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mGrad_td = Device_CSR(self.mGrad_td, env)
 
+        #
+        # Gradient tangential(?) with Neumann
+        #
         ## Construct the matrix representing the discrete grad operator for the dual
         ## mesh, with implied homogeneous Neumann BC's
         nEntries, rows, cols, valEntries = \
@@ -278,6 +308,9 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mGrad_tn = Device_CSR(self.mGrad_tn, env)
 
+        #
+        # Skew gradient tangential
+        #
         ## Construct the matrix representing the discrete skew grad operator 
         ## along the tangential direction.  mSkewgrad_t = mGrad_n
         nEntries, rows, cols, valEntries = \
@@ -289,6 +322,9 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mSkewgrad_t = Device_CSR(self.mSkewgrad_t, env)
 
+        #
+        # Skew gradient tangential w. Dirichlet
+        #
         ## Construct the matrix representing the discrete skew grad operator 
         ## along the tangential direction. Homogeneous Dirichlet assumed
         nEntries, rows, cols, valEntries = \
@@ -301,15 +337,9 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mSkewgrad_td = Device_CSR(self.mSkewgrad_td, env)
 
-#        A_d = A.tolil( )
-#        if c.on_a_global_sphere:
-#            A_d[:,0] = 0.
-#        else:
-#            A_d[:, self.cellBoundary[:]-1] = 0.          #Assume homogeneous Dirichlet
-
-#        self.mSkewgrad_td = A_d.tocsr( )                 
-#        self.mSkewgrad_td.eliminate_zeros( )
-        
+        #
+        # Skew gradient normal w. Dirichlet
+        #
         ## Construct the matrix representing the discrete skew grad operator 
         ## along the normal direction. Homogeneous Dirichlet assumed.
         ## mSkewgrad_n = - mGrad_td
@@ -322,6 +352,9 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mSkewgrad_nd = Device_CSR(self.mSkewgrad_nd, env)
 
+        #
+        # Map from cell to vertex
+        #
         ## Construct the matrix representing the mapping from the primary mesh onto the dual
         ## mesh
         nEntries, rows, cols, valEntries = \
@@ -338,6 +371,9 @@ class VectorCalculus:
         self.mCell2vertex_n = A_n.tocsr()
         self.mCell2vertex_n.eliminate_zeros( )
 
+        #
+        # Map cell to vertex w. Dirichlet
+        #
         ## Construct the matrix representing the mapping from the primary mesh onto the dual
         ## mesh; homogeneous Dirichlet BC's are assumed
         ## On a global sphere, cell 0 is considered the single boundary pt.
@@ -349,7 +385,10 @@ class VectorCalculus:
 
         if c.use_gpu:
             self.d_mCell2vertex_psi = Device_CSR(self.mCell2vertex_psi, env)
-            
+
+        #
+        # Map vertex to cell
+        #
         ## Construct the matrix representing the mapping from the dual mesh onto the primal
         ## mesh
         nEntries, rows, cols, valEntries = \
@@ -361,6 +400,9 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mVertex2cell = Device_CSR(self.mVertex2cell, env)
 
+        #
+        # Map cell to edge
+        #
         ## Construct the matrix representing the mapping from cells to edges
         nEntries, rows, cols, valEntries = \
             cmp.construct_matrix_cell2edge(g.cellsOnEdge)
@@ -371,6 +413,9 @@ class VectorCalculus:
         if c.use_gpu:
             self.d_mCell2edge = Device_CSR(self.mCell2edge, env)
 
+        #
+        # Map edge to cell
+        # 
         ## Construct the matrix representing the mapping from edges to cells
         nEntries, rows, cols, valEntries = \
             cmp.construct_matrix_edge2cell(g.cellsOnEdge, g.dcEdge, g.dvEdge, g.areaCell)
