@@ -434,7 +434,7 @@ def run_tests(env, g, vc, c, s):
         print("L^2 error        = %e" % l2)        
 
 
-    if True:
+    if False:
         # Test the linear solver for the coupled elliptic equation on a bounded domain
         # using the EllipticCPL object
         # vorticity and divergence come from TC #12
@@ -1313,6 +1313,49 @@ def run_tests(env, g, vc, c, s):
         print(("Wall time for vc.discrete_laplace: %f" % (t4b-t3b,)))
         print(("rel error = %e" % (np.sqrt(np.sum((y2-y0)**2))/np.sqrt(np.sum(y0*y0)))))
         
+
+    elif True:
+        print("Compare scipy sparse dot and cupy sparse dot, using the mLaplace sparse matrix")
+        
+        x = np.random.rand(g.nCells)
+
+        t0a = time.clock( )
+        t0b = time.time( )
+        y0 = vc.mLaplace_v.dot(x)
+        t1a = time.clock( )
+        t1b = time.time( )
+        print(("CPU time for mLaplace: %f" % (t1a-t0a,)))
+        print(("Wall time for mLaplace: %f" % (t1b-t0b,)))
+
+        # Create arrays on host, and transfer them to device
+        y1 = np.zeros(g.nCells)
+
+        import cupy as cp
+        import cupyx
+        d_mLaplace = cupyx.scipy.sparse.csr_matrix(vc.mLaplace_v)
+        
+        t0a = time.clock( )
+        t0b = time.time( )
+        d_x = cp.array(x)
+        d_y1 = cp.array(y1)
+        t1a = time.clock( )
+        t1b = time.time( )
+        
+        d_y1 = d_mLaplace.dot(d_x)
+        t2a = time.clock( )
+        t2b = time.time( )
+        
+        y1 = d_y1.get( )
+        t3a = time.clock( )
+        t3b = time.time( )
+        
+        print(("Wall time for copy to device: %f" % (t1b-t0b,)))
+        print(("Wall time for cuda-mv: %f" % (t2b-t1b,)))
+        print(("Wall time for copy to host: %f" % (t3b-t2b,)))
+        print(("Wall time for GPU computation: %f" % (t3b-t0b,)))
+        print(("rel error = %e" % (np.sqrt(np.sum((y1-y0)**2))/np.sqrt(np.sum(y0*y0)))))
+
+
     elif False:
         # Compare cell2edge and edge2cell with their Fortran versions
         
