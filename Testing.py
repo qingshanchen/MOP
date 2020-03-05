@@ -116,7 +116,7 @@ def run_tests(env, g, vc, c, s):
         print("L^2 error        = ", l2)        
 
 
-    if False:
+    if True:
         # Test the linear solver for the coupled elliptic equation on the whole domain
         # using solvers directly.
         # The solution is set to zero at cell 0.
@@ -148,8 +148,8 @@ def run_tests(env, g, vc, c, s):
         hu = vc.discrete_grad_n(phi_cell_true)
         hu -= vc.discrete_grad_td(psi_vertex)
         u = hu / s.thickness_edge
-        s.vorticity = vc.vertex2cell(vc.discrete_curl_trig(u))
-        s.divergence = vc.discrete_div(u)
+        s.vorticity = vc.vertex2cell(vc.discrete_curl_t(u))
+        s.divergence = vc.discrete_div_v(u)
 
         # To prepare the rhs
         s.vortdiv[:g.nCells] = s.vorticity * g.areaCell
@@ -164,12 +164,34 @@ def run_tests(env, g, vc, c, s):
         s.vortdiv[g.nCells] = 0.   # Set first element to zeor to make phi_cell[0] zero
         
         ## Solve the linear system by the direct method
-        #cpu0 = time.clock( )
-        #wall0 = time.time( )
-        #x = spsolve(vc.coefM, s.vortdiv)
-        #cpu1 = time.clock( )
-        #wall1 = time.time( )
+        cpu0 = time.clock( )
+        wall0 = time.time( )
+        x = spsolve(vc.coefM, s.vortdiv)
+        cpu1 = time.clock( )
+        wall1 = time.time( )
 
+        print(("CPU time for solving system: %f" % (cpu1-cpu0,)))
+        print(("Wall time for solving system: %f" % (wall1-wall0,)))
+        
+        # Compute the errors
+        s.psi_cell[:] = x[:g.nCells]
+        s.phi_cell[:] = x[g.nCells:]
+        l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
+        l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
+        l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
+        l2 = np.sqrt(l2)
+        print("Errors in psi")
+        print("L infinity error = ", l8)
+        print("L^2 error        = ", l2)        
+
+        l8 = np.max(np.abs(phi_cell_true[:] - s.phi_cell[:])) / np.max(np.abs(phi_cell_true[:]))
+        l2 = np.sum(np.abs(phi_cell_true[:] - s.phi_cell[:])**2 * g.areaCell[:])
+        l2 /=  np.sum(np.abs(phi_cell_true[:])**2 * g.areaCell[:])
+        l2 = np.sqrt(l2)
+        print("Errors in phi")
+        print("L infinity error = ", l8)
+        print("L^2 error        = ", l2)        
+        
         ## Solve the linear system by AMGX
         import pyamgx
         pyamgx.initialize( )
@@ -1314,7 +1336,7 @@ def run_tests(env, g, vc, c, s):
         print(("rel error = %e" % (np.sqrt(np.sum((y2-y0)**2))/np.sqrt(np.sum(y0*y0)))))
         
 
-    elif True:
+    elif False:
         print("Compare scipy sparse dot and cupy sparse dot, using the mLaplace sparse matrix")
         
         x = np.random.rand(g.nCells)
