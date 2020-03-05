@@ -1,16 +1,8 @@
 import numpy as np
 import Parameters as c
-from Grid import grid_data
-from ComputeEnvironment import ComputeEnvironment
-from VectorCalculus import VectorCalculus
 import netCDF4 as nc
 from swe_comp import swe_comp as cmp
-import os
 from copy import deepcopy as deepcopy
-
-max_int = np.iinfo('int32').max
-max_double = np.finfo('float64').max
-
 
 class state_data:
     def __init__(self, vc, g, c):
@@ -147,6 +139,8 @@ class state_data:
                 ## End of debugging ##
             
         elif c.test_case == 5:
+            #SWSTC #5: zonal flow over a mountain topography
+            
             a = c.sphere_radius
             u0 = 20.
 
@@ -273,6 +267,9 @@ class state_data:
 
 
         elif c.test_case == 15:
+            # Zonal flow over a mountain topography, on the northern hemisphere,
+            # modeled after SWSTC #5
+            
             a = c.sphere_radius
             u0 = 20.
 
