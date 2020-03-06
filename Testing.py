@@ -116,7 +116,7 @@ def run_tests(env, g, vc, c, s):
         print("L^2 error        = ", l2)        
 
 
-    if True:
+    if False:
         # Test the linear solver for the coupled elliptic equation on the whole domain
         # using solvers directly.
         # The solution is set to zero at cell 0.
@@ -323,7 +323,7 @@ def run_tests(env, g, vc, c, s):
         print("L^2 error        = ", l2)        
 
 
-    if False:
+    if True:
         # Test the linear solver for the coupled elliptic equation on the whole domain
         # using the EllipticCPL object
         # vorticity and divergence come from SWSTC #2
@@ -1540,7 +1540,7 @@ def run_tests(env, g, vc, c, s):
         raise ValueError
 
 
-    if True: # Study the accuracy of the vertex2cell, cell2vertex, and edge2cell mappings 
+    if False: # Study the accuracy of the vertex2cell, cell2vertex, and edge2cell mappings 
              # 
              # 
         psi_cell_true = np.cos(g.latCell)**3 * np.sin(4*g.lonCell)
