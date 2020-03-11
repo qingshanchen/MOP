@@ -58,7 +58,7 @@ def run_tests(env, g, vc, c, s):
         print("L^2 error        = ", l2)        
 
 
-    if True:
+    if False:
         # Test the linear solver for the coupled elliptic equation on the whole domain
         # using solvers directly. Testing uploading matrix data that are already on the device into AMGX matrix obj.
         # Data from SWSTC #2.
@@ -889,16 +889,16 @@ def run_tests(env, g, vc, c, s):
         pyamgx.finalize()
 
         
-    elif False:
+    elif True:
         # To compare the performances of AMGX and pyAMG
         
-        import pyamgx
+        import pyamgx, pyamg
         import os
 
         pyamgx.initialize()
 
         # Initialize config, resources and mode:
-        cfg = pyamgx.Config().create_from_file('PCGF_CLASSICAL_AGGRESSIVE_PMIS_JACOBI.json')   # Best for 2621442 prim
+        cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS_JACOBI.json')   # Best for 2621442 prim
         rsc = pyamgx.Resources().create_simple(cfg)
         mode = 'dDDI'
 
@@ -910,10 +910,13 @@ def run_tests(env, g, vc, c, s):
         # Create solver:
         slv = pyamgx.Solver().create(rsc, cfg, mode)
 
-        hA = vc.POpn.A
+        hA = -1*vc.coefM  # pyamg only like positive definite matrices
         # Read system from file
-        A.upload(hA.shape[0], hA.nnz, hA.indptr, hA.indices, hA.data)
+        A.upload_CSR(hA)
         slv.setup(A)
+
+        m1 = pyamg.ruge_stuben_solver(hA)
+        print(m1)
 
         for k in range(5):
             sol = np.random.rand(hA.shape[0])
@@ -922,10 +925,10 @@ def run_tests(env, g, vc, c, s):
             h_x = np.zeros(np.size(h_b))
 
             res = []
-            b1 = -h_b.copy( )
+            b1 = h_b.copy( )
             x0 = np.zeros(hA.shape[0])
             t0 = time.time()
-            sol1 = vc.POpn.A_amg.solve(b1, x0=x0, tol=1e-6, residuals=res, accel="cg", maxiter=300, cycle="V")
+            sol1 = m1.solve(b1, tol=1e-6, residuals=res, accel="cg", maxiter=300, cycle="V")
             t1 = time.time()
             print(("rel error for pyamg = %e" % (np.sqrt(np.sum((sol1-sol)**2))/np.sqrt(np.sum(sol*sol)))))
             print("nIter = %d" % len(res))
@@ -933,8 +936,8 @@ def run_tests(env, g, vc, c, s):
 
 
             t0 = time.time( )
-            b.upload(hA.shape[0], h_b)
-            x.upload(hA.shape[0], h_x)
+            b.upload(h_b)
+            x.upload(h_x)
 
             # Setup and solve system:
             slv.solve(b, x)
