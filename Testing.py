@@ -890,6 +890,26 @@ def run_tests(env, g, vc, c, s):
 
         
     elif True:
+        # To solve the coupled system using pyAMG
+        
+        import pyamg
+        from solver_diagnostics import solver_diagnostics
+
+
+        hA = -1*vc.coefM  # pyamg only like positive definite matrices
+#        solver_diagnostics(hA, fname='coupled_system_diagnostics',
+#                           cycle_list=['V']
+#        #                   symmetry='symmetric',
+#        #                   definiteness='positive',
+#        #                   solver=pyamg.rootnode_solver
+#        )
+
+        from coupled_system_diagnostics_163842 import coupled_system_diagnostics
+        coupled_system_diagnostics(hA)
+        
+
+
+    elif False:
         # To compare the performances of AMGX and pyAMG
         
         import pyamgx, pyamg
