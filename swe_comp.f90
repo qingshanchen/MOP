@@ -562,6 +562,63 @@ subroutine construct_matrix_discrete_laplace(nEdges, nCells,  &
   
 end subroutine construct_matrix_discrete_laplace
 
+! Similar to the above, but for Poisson BVP on the primary
+! mesh.
+subroutine construct_discrete_laplace_neumann(nCells, nEdges, &
+     cellsOnEdge, dvEdge, dcEdge, areaCell, nEntries, &
+     rows, cols, valEntries)
+
+  integer, intent(in)              :: nCells, nEdges
+  integer, intent(in)              :: cellsOnEdge(0:nEdges-1,0:1)
+  double precision, intent(in)     :: dvEdge(0:nEdges-1), dcEdge(0:nEdges-1), &
+       areaCell(0:nCells-1)
+  integer, intent(out)             :: rows(0:4*nEdges+nCells-1), cols(0:4*nEdges+nCells-1), &
+       nEntries
+  double precision, intent(out)    :: valEntries(0:4*nEdges+nCells-1)
+
+  integer   :: iEdge, iCell1, iCell2, iEntry
+
+  iEntry = 0
+
+  do iEdge = 0, nEdges-1
+      iCell1 = cellsOnEdge(iEdge,0) - 1
+      iCell2 = cellsOnEdge(iEdge,1) - 1
+
+      rows(iEntry) = iCell1
+      cols(iEntry) = iCell1
+      valEntries(iEntry) = -dvEdge(iEdge)/dcEdge(iEdge)/areaCell(iCell1)
+      iEntry = iEntry + 1
+
+      rows(iEntry) = iCell1
+      cols(iEntry) = iCell2
+      valEntries(iEntry) = dvEdge(iEdge)/dcEdge(iEdge)/areaCell(iCell1)
+      iEntry = iEntry + 1
+        
+      rows(iEntry) = iCell2
+      cols(iEntry) = iCell1
+      valEntries(iEntry) = dvEdge(iEdge)/dcEdge(iEdge)/areaCell(iCell2)
+      iEntry = iEntry + 1
+
+      rows(iEntry) = iCell2
+      cols(iEntry) = iCell2
+      valEntries(iEntry) = -dvEdge(iEdge)/dcEdge(iEdge)/areaCell(iCell2)
+      iEntry = iEntry + 1
+  end do
+
+  nEntries = iEntry
+
+  ! Set all entries on the first row to zero except the diagonal term
+  do iEntry = 0, nEntries-1
+     if (rows(iEntry) .EQ. 0 .AND. cols(iEntry) .NE. 0) then
+     !if (rows(iEntry)*cols(iEntry) .EQ. 0 .AND. rows(iEntry)+cols(iEntry) .NE. 0) then
+        valEntries(iEntry) = 0.
+     else if (rows(iEntry) .NE. 0 .AND. cols(iEntry) .EQ. 0) then
+        valEntries(iEntry) = 0.
+     end if
+  end do
+
+end subroutine construct_discrete_laplace_neumann
+
 
 
 !! Homogeneous Neumann BC's assumed.

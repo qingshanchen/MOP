@@ -493,7 +493,7 @@ def run_tests(env, g, vc, c, s):
                        definiteness='positive',
                        solver=rootnode_solver)
         
-    if False:
+    if True:
         # Timing tests for AMG solvers
         print("Timing tests for AMG solvers ")
 
@@ -781,7 +781,7 @@ def run_tests(env, g, vc, c, s):
         
         raise ValueError("Stop for checking.")
 
-    elif False:
+    if True:
         # To test the AMGX solver for the Poisson equation on primal mesh
         
         import pyamgx
@@ -821,7 +821,7 @@ def run_tests(env, g, vc, c, s):
             slv.solve(b, x)
 
             x.download(h_x)
-            print(("rel error for pyamg solver = %e" % (np.sqrt(np.sum((h_x-sol)**2))/np.sqrt(np.sum(sol*sol)))))
+            print(("rel error for pyamgx solver = %e" % (np.sqrt(np.sum((h_x-sol)**2))/np.sqrt(np.sum(sol*sol)))))
 
         # Clean up:
         A.destroy()
@@ -834,7 +834,7 @@ def run_tests(env, g, vc, c, s):
         pyamgx.finalize()
 
 
-    elif False:
+    if False:
         # To test the AMGX solver for the coupled Poisson equation
         
         import pyamgx
@@ -889,14 +889,14 @@ def run_tests(env, g, vc, c, s):
         pyamgx.finalize()
 
         
-    elif True:
+    if True:
         # To solve the coupled system using pyAMG
         
         import pyamg
         from solver_diagnostics import solver_diagnostics
 
 
-        hA = -1*vc.coefM  # pyamg only like positive definite matrices
+        hA = -1*vc.POpn.A  # pyamg only like positive definite matrices
 #        solver_diagnostics(hA, fname='coupled_system_diagnostics',
 #                           cycle_list=['V']
 #        #                   symmetry='symmetric',
@@ -909,7 +909,7 @@ def run_tests(env, g, vc, c, s):
         
 
 
-    elif False:
+    if False:
         # To compare the performances of AMGX and pyAMG
         
         import pyamgx, pyamg
@@ -977,7 +977,7 @@ def run_tests(env, g, vc, c, s):
         pyamgx.finalize()
 
         
-    elif False:
+    if False:
         # Compare scipy dot with cuda mv.
         
         from scipy.sparse import tril
@@ -1030,7 +1030,7 @@ def run_tests(env, g, vc, c, s):
 
         
 
-    elif False:
+    if False:
         # Compare discrete_div and mDiv (as matrix-vector product), and GPU mv with d_mDiv
         cuSparse = cuda.sparse.Sparse()
         
@@ -1084,7 +1084,7 @@ def run_tests(env, g, vc, c, s):
         print(("rel error = %e" % (np.sqrt(np.sum((y1-y0)**2))/np.sqrt(np.sum(y0*y0)))))
 
 
-    elif False:
+    if False:
         # Compare discrete_curl and  mCurl (as matrix-vector product), and GPU mv with d_mCurl
         cuSparse = cuda.sparse.Sparse()
         
@@ -1138,7 +1138,7 @@ def run_tests(env, g, vc, c, s):
         print(("rel error = %e" % (np.sqrt(np.sum((y1-y0)**2))/np.sqrt(np.sum(y0*y0)))))
 
 
-    elif False:
+    if False:
         # Compare discrete_laplace and  mLaplace (as matrix-vector product), and GPU mv with d_mLaplace
         cuSparse = cuda.sparse.Sparse()
         
@@ -1193,7 +1193,7 @@ def run_tests(env, g, vc, c, s):
         print(("rel error = %e" % (np.sqrt(np.sum((y2-y0)**2))/np.sqrt(np.sum(y0*y0)))))
         
 
-    elif False:
+    if False:
         print("Compare scipy sparse dot and cupy sparse dot, using the mLaplace sparse matrix")
         
         x = np.random.rand(g.nCells)
@@ -1235,7 +1235,7 @@ def run_tests(env, g, vc, c, s):
         print(("rel error = %e" % (np.sqrt(np.sum((y1-y0)**2))/np.sqrt(np.sum(y0*y0)))))
 
 
-    elif False:
+    if False:
         # Compare cell2edge and edge2cell with their Fortran versions
         
         x = np.random.rand(g.nCells)
