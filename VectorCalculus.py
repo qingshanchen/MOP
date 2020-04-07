@@ -646,7 +646,8 @@ class VectorCalculus:
         self.update_matrix_for_coupled_elliptic(thickness_edge, c, g)
 
         self.POcpl = EllipticCPL(self.coefM, c.linear_solver, env)
-            
+
+        ## Some temporary variables as place holders
         self.scalar_cell = np.zeros(g.nCells)
         self.scalar_vertex = np.zeros(g.nVertices)
         if not c.on_a_global_sphere:
@@ -685,14 +686,17 @@ class VectorCalculus:
         AC = mAreaCell_psi * self.mCurl_v
         AMC.eliminate_zeros( )
         AC.eliminate_zeros( )
+        
         # Left, row 2
         AMD = mAreaCell_phi * self.mVertex2cell * self.mDiv_t
         AD = mAreaCell_phi * self.mDiv_v
         AMD.eliminate_zeros( )
         AD.eliminate_zeros( )
+        
         # Right, col 2
         GN = self.mGrad_tn * self.mCell2vertex_n
         GN.eliminate_zeros( )
+        
         # Right, col 1
         SN = self.mSkewgrad_nd * self.mCell2vertex_psi
         SN.eliminate_zeros( )
