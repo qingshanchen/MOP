@@ -58,7 +58,7 @@ def run_tests(env, g, vc, c, s):
         print("L^2 error        = ", l2)        
 
 
-    if False:
+    if True:
         # Test the linear solver for the coupled elliptic equation on the whole domain
         # using solvers directly. Testing uploading matrix data that are already on the device into AMGX matrix obj.
         # Data from SWSTC #2.
@@ -338,48 +338,7 @@ def run_tests(env, g, vc, c, s):
         print("L infinity error = %e" % l8)
         print("L^2 error        = %e" % l2)        
         
-        
-    if False:   # Test the linear solver for the Poisson equation on the triangles with homogeneous Dirichlet BC's
-        psi_vertex_true = np.random.rand(g.nVertices)
 
-        vorticity_vertex = cmp.discrete_laplace_vertex(g.verticesOnEdge,  \
-                         g.dcEdge, g.dvEdge, g.areaTriangle, psi_vertex_true, 0)
-
-        #compte psi_vertex using linear solver
-        psi_vertex = vc.lu_E1.solve(vorticity_vertex)
-
-        # Compute the errors
-        l8 = np.max(np.abs(psi_vertex_true[:] - psi_vertex[:])) / np.max(np.abs(psi_vertex_true[:]))
-        l2 = np.sum(np.abs(psi_vertex_true[:] - psi_vertex[:])**2 * g.areaTriangle[:])
-        l2 /=  np.sum(np.abs(psi_vertex_true[:])**2 * g.areaTriangle[:])
-        l2 = np.sqrt(l2)
-        print("Errors for the solver for the Poisson with Neumann BC's")
-        print("L infinity error = ", l8)
-        print("L^2 error        = ", l2)        
-
-    if False:
-        # Test the linear solver for the Poisson equation on the triangles with homogeneous Neumann BC's
-        # It also test the solver for the Poisson equation on the entire globe, with a zero value on triangle #0.
-        psi_vertex_true = np.random.rand(g.nVertices)
-        psi_vertex_true[0] = 0.
-
-        vorticity_vertex = cmp.discrete_laplace_vertex(g.verticesOnEdge,  \
-                            g.dcEdge, g.dvEdge, g.areaTriangle, psi_vertex_true, 1)
-
-        b = vorticity_vertex[:]
-        b[0] = 0.
-
-        #compte psi_vertex using linear solver
-        psi_vertex = vc.lu_E2.solve(vorticity_vertex)
-
-        # Compute the errors
-        l8 = np.max(np.abs(psi_vertex_true[:] - psi_vertex[:])) / np.max(np.abs(psi_vertex_true[:]))
-        l2 = np.sum(np.abs(psi_vertex_true[:] - psi_vertex[:])**2 * g.areaTriangle[:])
-        l2 /=  np.sum(np.abs(psi_vertex_true[:])**2 * g.areaTriangle[:])
-        l2 = np.sqrt(l2)
-        print("Errors for the solver for the Poisson with Neumann BC's")
-        print("L infinity error = ", l8)
-        print("L^2 error        = ", l2)        
 
     if False:
         # To test and compare direct and iterative linear solvers for systems on the primary mesh
@@ -493,8 +452,8 @@ def run_tests(env, g, vc, c, s):
                        definiteness='positive',
                        solver=rootnode_solver)
         
-    if True:
-        # Timing tests for AMG solvers
+    if False:
+        # Timing tests for AMG solvers, using the POpn object
         print("Timing tests for AMG solvers ")
 
         sol = np.random.rand(g.nCells)
@@ -781,7 +740,7 @@ def run_tests(env, g, vc, c, s):
         
         raise ValueError("Stop for checking.")
 
-    if True:
+    if False:
         # To test the AMGX solver for the Poisson equation on primal mesh
         
         import pyamgx
@@ -889,7 +848,7 @@ def run_tests(env, g, vc, c, s):
         pyamgx.finalize()
 
         
-    if True:
+    if False:
         # To solve the coupled system using pyAMG
         
         import pyamg

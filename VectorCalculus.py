@@ -640,12 +640,17 @@ class VectorCalculus:
 #        if c.use_gpu:                        # Need to update at every step
 #            d_mThicknessInv = Device_CSR(self.mThicknessInv.to_csr(), env)
 
+        # Construct the coefficient matrix for the coupled elliptic problem
         self.AC, self.AMC, self.AMD, self.AD, self.GN, self.SN = \
             self.construct_EllipticCPL_blocks(env, g, c)
         self.coefM = None
         self.update_matrix_for_coupled_elliptic(thickness_edge, c, g)
 
         self.POcpl = EllipticCPL(self.coefM, c.linear_solver, env)
+
+        # Construct the coefficient matrices for the coupled elliptic problem
+        self.A11, self.A12, self.A21, self.A22 = \
+            self.update_matrices_for_coupled_elliptic(thickness_edge, c, g)
 
         ## Some temporary variables as place holders
         self.scalar_cell = np.zeros(g.nCells)
@@ -704,7 +709,6 @@ class VectorCalculus:
         return AC, AMC, AMD, AD, GN, SN
 
     
-    
     def update_matrix_for_coupled_elliptic(self, thickness_edge, c, g):
         self.mThicknessInv.data[0,:] = 1./thickness_edge
 
@@ -727,6 +731,29 @@ class VectorCalculus:
             self.coefM[self.cellBoundary-1, self.cellBoundary-1] = -2*np.sqrt(3.)/thickness_edge[0]
             self.coefM[g.nCells, g.nCells] = -2*np.sqrt(3.)/thickness_edge[0]
 
+
+    def update_matrices_for_coupled_elliptic(self, thickness_edge, c, g):
+        self.mThicknessInv.data[0,:] = 1./thickness_edge
+
+        ## Construct the blocks
+        A11 = self.AC * self.mThicknessInv * self.mSkewgrad_td
+        A12 = self.AMC * self.mThicknessInv * self.mGrad_n_n
+        A12 += self.AC * self.mThicknessInv * self.GN
+        A12 *= 0.5
+        A21 = self.AD * self.mThicknessInv * self.SN
+        A21 += self.AMD * self.mThicknessInv * self.mSkewgrad_td
+        A21 *= 0.5
+        A22 = self.AD * self.mThicknessInv * self.mGrad_n_n
+
+        if c.on_a_global_sphere:
+            A11[0,0] = -2*np.sqrt(3.)/thickness_edge[0]
+            A22[0,0] = -2*np.sqrt(3.)/thickness_edge[0]
+        else:
+            A11[self.cellBoundary-1, self.cellBoundary-1] = -2*np.sqrt(3.)/thickness_edge[0]
+            A22[0,0] = -2*np.sqrt(3.)/thickness_edge[0]
+
+        return A11, A12, A21, A22
+    
             
     def discrete_div_v(self, vEdge):
         '''
