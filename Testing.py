@@ -58,9 +58,9 @@ def run_tests(env, g, vc, c, s):
         print("L^2 error        = ", l2)        
 
 
-    if True:
-        # Test the linear solver for the coupled elliptic equation on the whole domain
-        # using solvers directly. Testing uploading matrix data that are already on the device into AMGX matrix obj.
+    if False:
+        # To compare various solvers (direct, amgx, amg) for the coupled elliptic equation
+        # Testing uploading matrix data that are already on the device into AMGX matrix obj.
         # Data from SWSTC #2.
         from scipy.sparse.linalg import spsolve
         import pyamgx
@@ -110,8 +110,9 @@ def run_tests(env, g, vc, c, s):
         cpu1 = time.clock( )
         wall1 = time.time( )
 
-        print(("CPU time for solving system: %f" % (cpu1-cpu0,)))
-        print(("Wall time for solving system: %f" % (wall1-wall0,)))
+        print("")
+        print(("CPU time for direct method: %f" % (cpu1-cpu0,)))
+        print(("Wall time for direct method: %f" % (wall1-wall0,)))
         
         # Compute the errors
         s.psi_cell[:] = x[:g.nCells]
@@ -173,8 +174,9 @@ def run_tests(env, g, vc, c, s):
         cfg.destroy()
         pyamgx.finalize()
         
-        print(("CPU time for solving system: %f" % (cpu1-cpu0,)))
-        print(("Wall time for solving system: %f" % (wall1-wall0,)))
+        print("")
+        print(("CPU time for AMGX: %f" % (cpu1-cpu0,)))
+        print(("Wall time for AMGX: %f" % (wall1-wall0,)))
         
         # Compute the errors
         s.psi_cell[:] = x[:g.nCells]
@@ -187,7 +189,165 @@ def run_tests(env, g, vc, c, s):
         print("L infinity error = ", l8)
         print("L^2 error        = ", l2)        
 
+        ### Solve the linear system by pyamg
+        from pyamg import rootnode_solver
+        A_spd = -vc.coefM
+        B = np.ones((A_spd.shape[0],1), dtype=A_spd.dtype); BH = B.copy()
+        
+        cpu0 = time.clock( )
+        wall0 = time.time( )
+        amg_solver = rootnode_solver(A_spd, B=B, BH=BH,
+            strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
+            smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
+            improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
+                                None, None, None, None, None, None, None, None, None, None, \
+                                None, None, None, None],
+            aggregate="standard",
+            presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+            postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+            max_levels=15,
+            max_coarse=300,
+            coarse_solver="pinv")
+        
+        res = []
+        x0 = np.zeros(g.nCells*2)
+        x = amg_solver.solve(s.vortdiv, x0=x0, tol=c.err_tol, residuals=res)
+        x *= -1
+        cpu1 = time.clock( )
+        wall1 = time.time( )
 
+        print("")
+        print(amg_solver)
+        print("AMG, nIter = %d" % (len(res),))
+        print(("CPU time pyAMG: %f" % (cpu1-cpu0,)))
+        print(("Wall time pyAMG: %f" % (wall1-wall0,)))
+        
+        # Compute the errors
+        s.psi_cell[:] = x[:g.nCells]
+        s.phi_cell[:] = x[g.nCells:]
+        l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
+        l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
+        l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
+        l2 = np.sqrt(l2)
+        print("Errors in psi")
+        print("L infinity error = ", l8)
+        print("L^2 error        = ", l2)        
+        
+
+    if True:
+        # To study an iterative scheme to solve coupled elliptic equation
+        # Data from SWSTC #2.
+        import pyamgx
+
+        a = c.sphere_radius
+        u0 = 2*np.pi*a / (12*86400)
+        gh0 = 2.94e4
+        gh = np.sin(g.latCell[:])**2
+        gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
+        s.thickness[:] = gh / c.gravity
+        h0 = gh0 / c.gravity
+
+        s.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
+        s.divergence[:] = 0.
+
+        psi_cell_true = -a * h0 * u0 * np.sin(g.latCell[:]) 
+        psi_cell_true[:] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (np.sin(g.latCell[:]))**3 / 3.
+        psi_cell_true -= psi_cell_true[0]
+        phi_cell_true = np.zeros(g.nCells)
+        
+        s.thickness_edge = vc.cell2edge(s.thickness)
+        
+        cpu0 = time.clock( )
+        wall0 = time.time( )
+        vc.update_matrix_for_coupled_elliptic(s.thickness_edge, c, g)
+        cpu1 = time.clock( )
+        wall1 = time.time( )
+        print(("CPU time for updating matrix: %f" % (cpu1-cpu0,)))
+        print(("Wall time for updating matrix: %f" % (wall1-wall0,)))
+
+        # To prepare the rhs
+        s.vortdiv[:g.nCells] = s.vorticity * g.areaCell
+        s.vortdiv[g.nCells:] = s.divergence * g.areaCell
+        if c.on_a_global_sphere:
+            # A global domain with no boundary
+            s.vortdiv[0] = 0.   # Set first element to zeor to make psi_cell[0] zero
+        else:
+            # A bounded domain with homogeneous Dirichlet for the psi and
+            # homogeneous Neumann for phi
+            s.vortdiv[vc.cellBoundary-1] = 0.   # Set boundary elements to zeor to make psi_cell zero there
+            
+        s.vortdiv[g.nCells] = 0.   # Set first element to zeor to make phi_cell[0] zero
+
+        from pyamg import rootnode_solver
+        A11 = -vc.A11
+        A12 = -vc.A12
+        A21 = -vc.A21
+        A22 = -vc.A22
+        
+        B11 = np.ones((A11.shape[0],1), dtype=A11.dtype); BH11 = B11.copy()
+        A11_solver = rootnode_solver(A11, B=B11, BH=BH11,
+            strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
+            smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
+            improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
+                                None, None, None, None, None, None, None, None, None, None, \
+                                None, None, None, None],
+            aggregate="standard",
+            presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+            postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+            max_levels=15,
+            max_coarse=300,
+            coarse_solver="pinv")
+
+        B22 = np.ones((A22.shape[0],1), dtype=A22.dtype); BH22 = B22.copy()
+        A22_solver = rootnode_solver(A22, B=B22, BH=BH22,
+            strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
+            smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
+            improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
+                                None, None, None, None, None, None, None, None, None, None, \
+                                None, None, None, None],
+            aggregate="standard",
+            presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+            postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+            max_levels=15,
+            max_coarse=300,
+            coarse_solver="pinv")
+
+        print("")
+        print(A11_solver)
+        print(A22_solver)
+        cpu0 = time.clock( )
+        wall0 = time.time( )
+        x_res = []
+        y_res = []
+        x0 = np.zeros(g.nCells); x = x0.copy( )
+        y0 = np.zeros(g.nCells); y = y0.copy( )
+        for k in np.arange(10):
+            xtemp = x0; ytemp = y0
+            x0 = x; y0 = y
+            x = xtemp; y = ytemp
+            b1 = s.vortdiv[:g.nCells] - A12.dot(y0)
+            b2 = s.vortdiv[g.nCells:] - A21.dot(x0)
+            x = A11_solver.solve(b1, x0=x0, tol=c.err_tol, residuals=x_res)
+            y = A22_solver.solve(b2, x0=y0, tol=c.err_tol, residuals=y_res)
+
+            print("k = %d,  AMG nIters = %d, %d" % (k, len(x_res), len(y_res)))
+        cpu1 = time.clock( )
+        wall1 = time.time( )
+
+        print(("CPU time by iterative pyAMG: %f" % (cpu1-cpu0,)))
+        print(("Wall time by iterative pyAMG: %f" % (wall1-wall0,)))
+        
+        # Compute the errors
+        s.psi_cell[:] = -x[:]
+        s.phi_cell[:] = -y[:]
+        l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
+        l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
+        l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
+        l2 = np.sqrt(l2)
+        print("Errors in psi")
+        print("L infinity error = ", l8)
+        print("L^2 error        = ", l2)        
+        
     if False:
         # Test the linear solver for the coupled elliptic equation on the whole domain
         # Both normal and tangential components are used to define the Hamiltonian
