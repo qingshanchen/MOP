@@ -58,9 +58,8 @@ def run_tests(env, g, vc, c, s):
         print("L^2 error        = ", l2)        
 
 
-    if False:
+    if True:
         # To compare various solvers (direct, amgx, amg) for the coupled elliptic equation
-        # Testing uploading matrix data that are already on the device into AMGX matrix obj.
         # Data from SWSTC #2.
         from scipy.sparse.linalg import spsolve
         import pyamgx
@@ -82,14 +81,6 @@ def run_tests(env, g, vc, c, s):
         phi_cell_true = np.zeros(g.nCells)
         
         s.thickness_edge = vc.cell2edge(s.thickness)
-        
-        cpu0 = time.clock( )
-        wall0 = time.time( )
-        vc.update_matrix_for_coupled_elliptic(s.thickness_edge, c, g)
-        cpu1 = time.clock( )
-        wall1 = time.time( )
-        print(("CPU time for updating matrix: %f" % (cpu1-cpu0,)))
-        print(("Wall time for updating matrix: %f" % (wall1-wall0,)))
 
         # To prepare the rhs
         s.vortdiv[:g.nCells] = s.vorticity * g.areaCell
@@ -103,49 +94,60 @@ def run_tests(env, g, vc, c, s):
             s.vortdiv[vc.cellBoundary-1] = 0.   # Set boundary elements to zeor to make psi_cell zero there
         s.vortdiv[g.nCells] = 0.   # Set first element to zeor to make phi_cell[0] zero
         
-        ## Solve the linear system by the direct method
         cpu0 = time.clock( )
         wall0 = time.time( )
-        x = spsolve(vc.coefM, s.vortdiv)
+        vc.update_matrix_for_coupled_elliptic(s.thickness_edge, c, g)
         cpu1 = time.clock( )
         wall1 = time.time( )
+        print(("CPU time for updating matrix: %f" % (cpu1-cpu0,)))
+        print(("Wall time for updating matrix: %f" % (wall1-wall0,)))
 
+        if False:
+            ## Solve the linear system by the direct method
+            cpu0 = time.clock( )
+            wall0 = time.time( )
+            x = spsolve(vc.coefM, s.vortdiv)
+            cpu1 = time.clock( )
+            wall1 = time.time( )
+
+            print("")
+            print(("CPU time for direct method: %f" % (cpu1-cpu0,)))
+            print(("Wall time for direct method: %f" % (wall1-wall0,)))
+
+            # Compute the errors
+            s.psi_cell[:] = x[:g.nCells]
+            s.phi_cell[:] = x[g.nCells:]
+            l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
+            l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
+            l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
+            l2 = np.sqrt(l2)
+            print("Errors in psi")
+            print("L infinity error = ", l8)
+            print("L^2 error        = ", l2)
+
+        ##
         print("")
-        print(("CPU time for direct method: %f" % (cpu1-cpu0,)))
-        print(("Wall time for direct method: %f" % (wall1-wall0,)))
-        
-        # Compute the errors
-        s.psi_cell[:] = x[:g.nCells]
-        s.phi_cell[:] = x[g.nCells:]
-        l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
-        l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
-        l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
-        l2 = np.sqrt(l2)
-        print("Errors in psi")
-        print("L infinity error = ", l8)
-        print("L^2 error        = ", l2)        
-
-        ## Solve the linear system by AMGX
+        print("Solve the coupled linear system by AMGX")
         import pyamgx
         import cupy as cp
         import cupyx
         
         pyamgx.initialize( )
+        
         # Initialize config, resources and mode:
-        #cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS_JACOBI.json')
+        #cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json')
         cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_AGGREGATION_JACOBI.json') 
         rsc = pyamgx.Resources().create_simple(cfg)
         mode = 'dDDI'
+
+        # Create solver:
+        slv = pyamgx.Solver().create(rsc, cfg, mode)
 
         # Create matrices and vectors:
         d_A = pyamgx.Matrix().create(rsc, mode)
         d_x = pyamgx.Vector().create(rsc, mode)
         d_b = pyamgx.Vector().create(rsc, mode)
 
-        # Create solver:
-        slv = pyamgx.Solver().create(rsc, cfg, mode)
-
-        
         #vc.update_matrix_for_coupled_elliptic(
         #d_A.upload_CSR(vc.coefM)
         d_A.upload(vc.coefM.indptr, vc.coefM.indices, vc.coefM.data)
@@ -189,7 +191,9 @@ def run_tests(env, g, vc, c, s):
         print("L infinity error = ", l8)
         print("L^2 error        = ", l2)        
 
-        ### Solve the linear system by pyamg
+        ###
+        print("")
+        print("Solve the linear system by pyamg")
         from pyamg import rootnode_solver
         A_spd = -vc.coefM
         B = np.ones((A_spd.shape[0],1), dtype=A_spd.dtype); BH = B.copy()
@@ -212,10 +216,11 @@ def run_tests(env, g, vc, c, s):
         res = []
         x0 = np.zeros(g.nCells*2)
         x = amg_solver.solve(s.vortdiv, x0=x0, tol=c.err_tol, residuals=res)
-        x *= -1
         cpu1 = time.clock( )
         wall1 = time.time( )
 
+        x *= -1
+        
         print("")
         print(amg_solver)
         print("AMG, nIter = %d" % (len(res),))
@@ -232,51 +237,17 @@ def run_tests(env, g, vc, c, s):
         print("Errors in psi")
         print("L infinity error = ", l8)
         print("L^2 error        = ", l2)        
-        
 
-    if True:
-        # To study an iterative scheme to solve coupled elliptic equation
-        # Data from SWSTC #2.
-        import pyamgx
-
-        a = c.sphere_radius
-        u0 = 2*np.pi*a / (12*86400)
-        gh0 = 2.94e4
-        gh = np.sin(g.latCell[:])**2
-        gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
-        s.thickness[:] = gh / c.gravity
-        h0 = gh0 / c.gravity
-
-        s.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
-        s.divergence[:] = 0.
-
-        psi_cell_true = -a * h0 * u0 * np.sin(g.latCell[:]) 
-        psi_cell_true[:] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (np.sin(g.latCell[:]))**3 / 3.
-        psi_cell_true -= psi_cell_true[0]
-        phi_cell_true = np.zeros(g.nCells)
-        
-        s.thickness_edge = vc.cell2edge(s.thickness)
-        
+        ###
+        print("")
+        print("Solve the coupled linear system with an iterative scheme and pyamg")
         cpu0 = time.clock( )
         wall0 = time.time( )
-        vc.update_matrix_for_coupled_elliptic(s.thickness_edge, c, g)
+        vc.update_matrices_for_coupled_elliptic(s.thickness_edge, c, g)
         cpu1 = time.clock( )
         wall1 = time.time( )
         print(("CPU time for updating matrix: %f" % (cpu1-cpu0,)))
         print(("Wall time for updating matrix: %f" % (wall1-wall0,)))
-
-        # To prepare the rhs
-        s.vortdiv[:g.nCells] = s.vorticity * g.areaCell
-        s.vortdiv[g.nCells:] = s.divergence * g.areaCell
-        if c.on_a_global_sphere:
-            # A global domain with no boundary
-            s.vortdiv[0] = 0.   # Set first element to zeor to make psi_cell[0] zero
-        else:
-            # A bounded domain with homogeneous Dirichlet for the psi and
-            # homogeneous Neumann for phi
-            s.vortdiv[vc.cellBoundary-1] = 0.   # Set boundary elements to zeor to make psi_cell zero there
-            
-        s.vortdiv[g.nCells] = 0.   # Set first element to zeor to make phi_cell[0] zero
 
         from pyamg import rootnode_solver
         A11 = -vc.A11
@@ -329,17 +300,103 @@ def run_tests(env, g, vc, c, s):
             b2 = s.vortdiv[g.nCells:] - A21.dot(x0)
             x = A11_solver.solve(b1, x0=x0, tol=c.err_tol, residuals=x_res)
             y = A22_solver.solve(b2, x0=y0, tol=c.err_tol, residuals=y_res)
-
             print("k = %d,  AMG nIters = %d, %d" % (k, len(x_res), len(y_res)))
+            print(x_res)
+            
         cpu1 = time.clock( )
         wall1 = time.time( )
 
         print(("CPU time by iterative pyAMG: %f" % (cpu1-cpu0,)))
         print(("Wall time by iterative pyAMG: %f" % (wall1-wall0,)))
-        
+
         # Compute the errors
         s.psi_cell[:] = -x[:]
         s.phi_cell[:] = -y[:]
+        l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
+        l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
+        l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
+        l2 = np.sqrt(l2)
+        print("Errors in psi")
+        print("L infinity error = ", l8)
+        print("L^2 error        = ", l2)
+
+        ###
+        print("")
+        print("Solve the coupled linear system with an iterative scheme and amgx")
+        pyamgx.initialize()
+
+        # Initialize config, resources and mode:
+        #cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json')
+        cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_AGGREGATION_JACOBI.json') 
+        rsc = pyamgx.Resources().create_simple(cfg)
+        mode = 'dDDI'
+
+        # Create solver:
+        slv11 = pyamgx.Solver().create(rsc, cfg, mode)
+        slv22 = pyamgx.Solver().create(rsc, cfg, mode)
+
+        # Create matrices and vectors:
+        d_A11 = pyamgx.Matrix().create(rsc, mode)
+        d_x = pyamgx.Vector().create(rsc, mode)
+        d_b1 = pyamgx.Vector().create(rsc, mode)
+        d_A22 = pyamgx.Matrix().create(rsc, mode)
+        d_y = pyamgx.Vector().create(rsc, mode)
+        d_b2 = pyamgx.Vector().create(rsc, mode)
+
+        #vc.update_matrix_for_coupled_elliptic(
+        d_A11.upload_CSR(vc.A11)
+        d_A22.upload_CSR(vc.A22)
+        
+        #d_vortdiv = cp.array(s.vortdiv)
+        b1 = s.vortdiv[:g.nCells]
+        d_b1.upload(b1)
+        x = np.zeros(g.nCells)
+        d_x.upload(x)
+        b2 = s.vortdiv[g.nCells:]
+        d_b2.upload(b2)
+        y = np.zeros(g.nCells)
+        d_y.upload(y)
+
+        # Setup and solve system:
+        slv11.setup(d_A11)
+        slv22.setup(d_A22)
+
+        err_tol = np.sum(b1*b1) * 1e-8
+        
+        cpu0 = time.clock( )
+        wall0 = time.time( )
+        for k in np.arange(10):
+            b1 = s.vortdiv[:g.nCells] - vc.A12.dot(y)
+            b2 = s.vortdiv[g.nCells:] - vc.A21.dot(x)
+            d_b1.upload(b1)
+            d_b2.upload(b2)
+            slv11.solve(d_b1, d_x)
+            slv22.solve(d_b2, d_y)
+            d_x.download(x)
+            d_y.download(y)
+        cpu1 = time.clock( )
+        wall1 = time.time( )
+
+        # Clean up:
+        d_A11.destroy()
+        d_A22.destroy()
+        d_x.destroy()
+        d_y.destroy()
+        d_b1.destroy()
+        d_b2.destroy()
+        slv11.destroy()
+        slv22.destroy()
+        rsc.destroy()
+        cfg.destroy()
+        pyamgx.finalize()
+        
+        print("")
+        print(("CPU time for AMGX: %f" % (cpu1-cpu0,)))
+        print(("Wall time for AMGX: %f" % (wall1-wall0,)))
+        
+        # Compute the errors
+        s.psi_cell[:] = x[:]
+        s.phi_cell[:] = y[:]
         l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
         l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
         l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
