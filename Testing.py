@@ -84,7 +84,7 @@ def run_tests(env, g, vc, c, s):
             psi_cell_true -= psi_cell_true[0]
             phi_cell_true = np.zeros(g.nCells)
 
-        elif True:
+        elif False:
             # SWSTC #2, with a stationary analytic solution, modified for the northern hemisphere
             if c.on_a_global_sphere:
                 print("This is a test case on the northern hemisphere.")
@@ -107,7 +107,7 @@ def run_tests(env, g, vc, c, s):
 
             s.SS0 = np.sum((s.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
             
-        elif False:
+        elif True:
             ## Data from Test Case #22 (a free gyre in the northern atlantic)
             if c.on_a_global_sphere:
                 print("This is a test case in the northern Atlantic")
@@ -157,7 +157,7 @@ def run_tests(env, g, vc, c, s):
         print(("CPU time for updating matrix: %f" % (cpu1-cpu0,)))
         print(("Wall time for updating matrix: %f" % (wall1-wall0,)))
 
-        if False:
+        if True:
             print("")
             print("Solve the linear system by the direct method")
             cpu0 = time.clock( )
