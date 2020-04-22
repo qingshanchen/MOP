@@ -2,7 +2,6 @@ import numpy as np
 import time
 from scipy.sparse import isspmatrix_bsr, isspmatrix_csr
 from scipy.sparse.linalg import factorized, splu
-#from accelerate import cuda
 from copy import deepcopy as deepcopy
 import numba
 from swe_comp import swe_comp as cmp
@@ -60,27 +59,82 @@ def run_tests(env, g, vc, c, s):
 
     if True:
         # To compare various solvers (direct, amgx, amg) for the coupled elliptic equation
-        # Data from SWSTC #2.
         from scipy.sparse.linalg import spsolve
         import pyamgx
 
-        a = c.sphere_radius
-        u0 = 2*np.pi*a / (12*86400)
-        gh0 = 2.94e4
-        gh = np.sin(g.latCell[:])**2
-        gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
-        s.thickness[:] = gh / c.gravity
-        h0 = gh0 / c.gravity
+        ##########################################################
+        if False:
+            ## Data from SWSTC #2 (stationary zonal flow over the global sphere)
+            if not c.on_a_global_sphere:
+                raise ValueError("Must use a global spheric domain")
 
-        s.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
-        s.divergence[:] = 0.
+            a = c.sphere_radius
+            u0 = 2*np.pi*a / (12*86400)
+            gh0 = 2.94e4
+            gh = np.sin(g.latCell[:])**2
+            gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
+            s.thickness[:] = gh / c.gravity
+            h0 = gh0 / c.gravity
 
-        psi_cell_true = -a * h0 * u0 * np.sin(g.latCell[:]) 
-        psi_cell_true[:] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (np.sin(g.latCell[:]))**3 / 3.
-        psi_cell_true -= psi_cell_true[0]
-        phi_cell_true = np.zeros(g.nCells)
+            s.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
+            s.divergence[:] = 0.
+
+            psi_cell_true = -a * h0 * u0 * np.sin(g.latCell[:]) 
+            psi_cell_true[:] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (np.sin(g.latCell[:]))**3 / 3.
+            psi_cell_true -= psi_cell_true[0]
+            phi_cell_true = np.zeros(g.nCells)
+
+        elif True:
+            # SWSTC #2, with a stationary analytic solution, modified for the northern hemisphere
+            if c.on_a_global_sphere:
+                print("This is a test case on the northern hemisphere.")
+                raise ValueError("Must use a bounded domain")
+            
+            a = c.sphere_radius
+            u0 = 2*np.pi*a / (12*86400)
+            gh0 = 2.94e4
+            gh = np.sin(g.latCell[:])**2
+            gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
+            s.thickness[:] = gh / c.gravity
+            h0 = gh0 / c.gravity
+
+            s.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
+            s.divergence[:] = 0.
+            
+            psi_cell_true = -a * h0 * u0 * np.sin(g.latCell[:]) 
+            psi_cell_true[:] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (np.sin(g.latCell[:]))**3 / 3.
+            phi_cell_true = np.zeros(g.nCells)
+
+            s.SS0 = np.sum((s.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
+            
+        elif False:
+            ## Data from Test Case #22 (a free gyre in the northern atlantic)
+            if c.on_a_global_sphere:
+                print("This is a test case in the northern Atlantic")
+                print("A global spheric domain cannot be used.")
+                raise ValueError("Must use a bounded domain")
+                
+            latmin = np.min(g.latCell[:]); latmax = np.max(g.latCell[:])
+            lonmin = np.min(g.lonCell[:]); lonmax = np.max(g.lonCell[:])
+
+            latmid = 0.5*(latmin+latmax)
+            latwidth = latmax - latmin
+
+            lonmid = 0.5*(lonmin+lonmax)
+            lonwidth = lonmax - lonmin
+
+            pi = np.pi; sin = np.sin; exp = np.exp
+            r = c.sphere_radius
         
-        s.thickness_edge = vc.cell2edge(s.thickness)
+            d = np.sqrt(32*(g.latCell[:] - latmid)**2/latwidth**2 + 4*(g.lonCell[:]-(-1.1))**2/.3**2)
+            f0 = np.mean(g.fCell)
+            s.thickness[:] = 4000.
+            psi_cell_true = 2*np.exp(-d**2) * 0.5*(1-np.tanh(20*(d-1.5)))
+            psi_cell_true *= c.gravity / f0 * s.thickness
+            phi_cell_true = np.zeros(g.nCells)
+            s.vorticity = vc.discrete_laplace_v(psi_cell_true)
+            s.vorticity /= s.thickness
+            s.divergence[:] = 0.
 
         # To prepare the rhs
         s.vortdiv[:g.nCells] = s.vorticity * g.areaCell
@@ -96,6 +150,7 @@ def run_tests(env, g, vc, c, s):
         
         cpu0 = time.clock( )
         wall0 = time.time( )
+        s.thickness_edge = vc.cell2edge(s.thickness)
         vc.update_matrix_for_coupled_elliptic(s.thickness_edge, c, g)
         cpu1 = time.clock( )
         wall1 = time.time( )
@@ -103,7 +158,8 @@ def run_tests(env, g, vc, c, s):
         print(("Wall time for updating matrix: %f" % (wall1-wall0,)))
 
         if False:
-            ## Solve the linear system by the direct method
+            print("")
+            print("Solve the linear system by the direct method")
             cpu0 = time.clock( )
             wall0 = time.time( )
             x = spsolve(vc.coefM, s.vortdiv)
@@ -126,6 +182,7 @@ def run_tests(env, g, vc, c, s):
             print("L^2 error        = ", l2)
 
         ##
+        ###########################################################################
         print("")
         print("Solve the coupled linear system by AMGX")
         import pyamgx
@@ -192,6 +249,7 @@ def run_tests(env, g, vc, c, s):
         print("L^2 error        = ", l2)        
 
         ###
+        ###########################################################################
         print("")
         print("Solve the linear system by pyamg")
         from pyamg import rootnode_solver
@@ -223,6 +281,7 @@ def run_tests(env, g, vc, c, s):
         
         print("")
         print(amg_solver)
+        print(res)
         print("AMG, nIter = %d" % (len(res),))
         print(("CPU time pyAMG: %f" % (cpu1-cpu0,)))
         print(("Wall time pyAMG: %f" % (wall1-wall0,)))
@@ -238,7 +297,7 @@ def run_tests(env, g, vc, c, s):
         print("L infinity error = ", l8)
         print("L^2 error        = ", l2)        
 
-        ###
+        ###########################################################################
         print("")
         print("Solve the coupled linear system with an iterative scheme and pyamg")
         cpu0 = time.clock( )
@@ -320,28 +379,111 @@ def run_tests(env, g, vc, c, s):
         print("L infinity error = ", l8)
         print("L^2 error        = ", l2)
 
-        ###
+        ###########################################################################
         print("")
         print("Solve the coupled linear system with an iterative scheme and amgx")
         pyamgx.initialize()
 
         # Initialize config, resources and mode:
         #cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json')
-        cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_AGGREGATION_JACOBI.json') 
-        rsc = pyamgx.Resources().create_simple(cfg)
+        #cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_AGGREGATION_JACOBI.json')
+        err_tol = 1e-8*1e-5*np.mean(g.areaCell)*np.sqrt(g.nCells)  # For vorticity
+        cfg1 = pyamgx.Config( ).create_from_dict({    
+            "config_version": 2, 
+            "determinism_flag": 0, 
+            "solver": {
+                "preconditioner": {
+                    "print_grid_stats": 1, 
+                    "algorithm": "AGGREGATION", 
+                    "print_vis_data": 0, 
+                    "solver": "AMG", 
+                    "smoother": {
+                        "relaxation_factor": 0.8, 
+                        "scope": "jacobi", 
+                        "solver": "BLOCK_JACOBI", 
+                        "monitor_residual": 0, 
+                        "print_solve_stats": 0
+                    }, 
+                    "print_solve_stats": 0, 
+                    "presweeps": 2, 
+                    "selector": "SIZE_2", 
+                    "coarse_solver": "NOSOLVER", 
+                    "max_iters": 2, 
+                    "monitor_residual": 0, 
+                    "store_res_history": 0, 
+                    "scope": "amg_solver", 
+                    "max_levels": 100, 
+                    "postsweeps": 2, 
+                    "cycle": "V"
+                }, 
+                "solver": "PCGF", 
+                "print_solve_stats": 1, 
+                "obtain_timings": 1, 
+                "max_iters": c.max_iters, 
+                "monitor_residual": 1, 
+                "convergence": "ABSOLUTE", 
+                "scope": "main", 
+                "tolerance": err_tol,
+                "norm": "L2"
+            }
+        })
+
+        err_tol = 1e-8*1e-6*np.mean(g.areaCell)*np.sqrt(g.nCells) # For divergence
+        cfg2 = pyamgx.Config( ).create_from_dict({    
+            "config_version": 2, 
+            "determinism_flag": 0, 
+            "solver": {
+                "preconditioner": {
+                    "print_grid_stats": 1, 
+                    "algorithm": "AGGREGATION", 
+                    "print_vis_data": 0, 
+                    "solver": "AMG", 
+                    "smoother": {
+                        "relaxation_factor": 0.8, 
+                        "scope": "jacobi", 
+                        "solver": "BLOCK_JACOBI", 
+                        "monitor_residual": 0, 
+                        "print_solve_stats": 0
+                    }, 
+                    "print_solve_stats": 0, 
+                    "presweeps": 2, 
+                    "selector": "SIZE_2", 
+                    "coarse_solver": "NOSOLVER", 
+                    "max_iters": 2, 
+                    "monitor_residual": 0, 
+                    "store_res_history": 0, 
+                    "scope": "amg_solver", 
+                    "max_levels": 100, 
+                    "postsweeps": 2, 
+                    "cycle": "V"
+                }, 
+                "solver": "PCGF", 
+                "print_solve_stats": 1, 
+                "obtain_timings": 1, 
+                "max_iters": c.max_iters, 
+                "monitor_residual": 1, 
+                "convergence": "ABSOLUTE", 
+                "scope": "main", 
+                "tolerance": err_tol,
+                "norm": "L2"
+            }
+        })
+        
+        rsc1 = pyamgx.Resources().create_simple(cfg1)
+        rsc2 = pyamgx.Resources().create_simple(cfg2)
         mode = 'dDDI'
 
         # Create solver:
-        slv11 = pyamgx.Solver().create(rsc, cfg, mode)
-        slv22 = pyamgx.Solver().create(rsc, cfg, mode)
+        slv11 = pyamgx.Solver().create(rsc1, cfg1, mode)
+        slv22 = pyamgx.Solver().create(rsc2, cfg2, mode)
 
         # Create matrices and vectors:
-        d_A11 = pyamgx.Matrix().create(rsc, mode)
-        d_x = pyamgx.Vector().create(rsc, mode)
-        d_b1 = pyamgx.Vector().create(rsc, mode)
-        d_A22 = pyamgx.Matrix().create(rsc, mode)
-        d_y = pyamgx.Vector().create(rsc, mode)
-        d_b2 = pyamgx.Vector().create(rsc, mode)
+        d_A11 = pyamgx.Matrix().create(rsc1, mode)
+        d_x = pyamgx.Vector().create(rsc1, mode)
+        d_b1 = pyamgx.Vector().create(rsc1, mode)
+        d_A22 = pyamgx.Matrix().create(rsc2, mode)
+        d_y = pyamgx.Vector().create(rsc2, mode)
+        d_b2 = pyamgx.Vector().create(rsc2, mode)
 
         #vc.update_matrix_for_coupled_elliptic(
         d_A11.upload_CSR(vc.A11)
@@ -386,8 +528,10 @@ def run_tests(env, g, vc, c, s):
         d_b2.destroy()
         slv11.destroy()
         slv22.destroy()
-        rsc.destroy()
-        cfg.destroy()
+        rsc1.destroy()
+        cfg1.destroy()
+        rsc2.destroy()
+        cfg2.destroy()
         pyamgx.finalize()
         
         print("")
@@ -510,7 +654,7 @@ def run_tests(env, g, vc, c, s):
     if False:
         # Test the linear solver for the coupled elliptic equation on a bounded domain
         # using the EllipticCPL object
-        # vorticity and divergence come from TC #12
+        # vorticity and divergence come from TC #22
 
         latmin = np.min(g.latCell[:]); latmax = np.max(g.latCell[:])
         lonmin = np.min(g.lonCell[:]); lonmax = np.max(g.lonCell[:])
