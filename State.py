@@ -553,7 +553,8 @@ class state_data:
 
         # Update the coefficient matrix for the coupled system
         vc.update_matrix_for_coupled_elliptic(self.thickness_edge, c, g)
-        
+
+        # Prepare the right-hand side and initial solution
         self.vortdiv[:g.nCells] = self.vorticity * g.areaCell
         self.vortdiv[g.nCells:] = self.divergence * g.areaCell
         self.psiphi[:g.nCells] = self.psi_cell[:]
@@ -568,7 +569,7 @@ class state_data:
             # A bounded domain with homogeneous Dirichlet for the psi and
             # homogeneous Neumann for phi
             self.vortdiv[vc.cellBoundary-1] = 0.   # Set boundary elements to zeor to make psi_cell zero there
-            self.vortdiv[g.nCells] = 0.   # Set first element to zeor to make phi_cell[0] zero
+            self.vortdiv[g.nCells] = 0.            # Set first element to zeor to make phi_cell[0] zero
 
         vc.POcpl.solve(vc.coefM, self.vortdiv, self.psiphi, linear_solver = c.linear_solver)
         self.psi_cell[:] = self.psiphi[:g.nCells]

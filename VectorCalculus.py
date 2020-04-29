@@ -20,15 +20,7 @@ class EllipticCPL:
             pyamgx.initialize( )
 
             hA = A.tocsr( )
-            #AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_AGGREGATION_JACOBI.json'
-            #AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json'
-            #AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_V_JACOBI.json'
             AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS_JACOBI.json'
-            #AMGX_CONFIG_FILE_NAME = 'amgx_config/FGMRES_AGGREGATION_JACOBI.json'
-            #AMGX_CONFIG_FILE_NAME = 'amgx_config/FGMRES_CLASSICAL_AGGRESSIVE_PMIS.json'
-            #AMGX_CONFIG_FILE_NAME = 'amgx_config/AMG_AGGREGATION_CG.json'
-            #AMGX_CONFIG_FILE_NAME = 'amgx_config/PBICGSTAB_AGGREGATION_W_JACOBI.json'
-            #AMGX_CONFIG_FILE_NAME = 'amgx_config/AGGREGATION_JACOBI.json'
 
             if False:
                 cfg = pyamgx.Config( ).create_from_file(AMGX_CONFIG_FILE_NAME)
@@ -131,6 +123,231 @@ class EllipticCPL:
         else:
             raise ValueError("Invalid solver choice.")
 
+
+class EllipticCpl2:
+    def __init__(self, A11, A12, A21, A22, linear_solver, env):
+
+        ## Construct an artificial thickness vector
+        thickness_edge = 100 * (10. + np.random.rand(g.nEdges))
+        self.mThicknessInv = eye(g.nEdges)  
+        self.mThicknessInv.data[0,:] = 1./thickness_edge
+        
+        if linear_solver is 'lu':
+            self.A11 = A11.tocsc( )
+            self.A22 = A22.tocsc( )
+            
+        elif linear_solver is 'amgx':
+            import pyamgx
+
+            pyamgx.initialize( )
+
+            err_tol = c.err_tol*1e-5*np.mean(g.areaCell)*np.sqrt(g.nCells)  # For vorticity
+            cfg1 = pyamgx.Config( ).create_from_dict({    
+                "config_version": 2, 
+                "determinism_flag": 0, 
+                "solver": {
+                    "preconditioner": {
+                        "print_grid_stats": c.print_stats, 
+                        "algorithm": "AGGREGATION", 
+                        "print_vis_data": 0, 
+                        "solver": "AMG", 
+                        "smoother": {
+                            "relaxation_factor": 0.8, 
+                            "scope": "jacobi", 
+                            "solver": "BLOCK_JACOBI", 
+                            "monitor_residual": 0, 
+                            "print_solve_stats": 0
+                        }, 
+                        "print_solve_stats": 0, 
+                        "presweeps": 2, 
+                        "selector": "SIZE_2", 
+                        "coarse_solver": "NOSOLVER", 
+                        "max_iters": 2, 
+                        "monitor_residual": 0, 
+                        "store_res_history": 0, 
+                        "scope": "amg_solver", 
+                        "max_levels": 100, 
+                        "postsweeps": 2, 
+                        "cycle": "V"
+                    }, 
+                    "solver": "PCGF", 
+                    "print_solve_stats": c.print_stats, 
+                    "obtain_timings": c.print_stats, 
+                    "max_iters": c.max_iters, 
+                    "monitor_residual": 1, 
+                    "convergence": "ABSOLUTE", 
+                    "scope": "main", 
+                    "tolerance": err_tol,
+                    "norm": "L2"
+                }
+            })
+
+            err_tol = c.err_tol*1e-6*np.mean(g.areaCell)*np.sqrt(g.nCells) # For divergence
+            cfg2 = pyamgx.Config( ).create_from_dict({    
+                "config_version": 2, 
+                "determinism_flag": 0, 
+                "solver": {
+                    "preconditioner": {
+                        "print_grid_stats": c.print_stats, 
+                        "algorithm": "AGGREGATION", 
+                        "print_vis_data": 0, 
+                        "solver": "AMG", 
+                        "smoother": {
+                            "relaxation_factor": 0.8, 
+                            "scope": "jacobi", 
+                            "solver": "BLOCK_JACOBI", 
+                            "monitor_residual": 0, 
+                            "print_solve_stats": 0
+                        }, 
+                        "print_solve_stats": 0, 
+                        "presweeps": 2, 
+                        "selector": "SIZE_2", 
+                        "coarse_solver": "NOSOLVER", 
+                        "max_iters": 2, 
+                        "monitor_residual": 0, 
+                        "store_res_history": 0, 
+                        "scope": "amg_solver", 
+                        "max_levels": 100, 
+                        "postsweeps": 2, 
+                        "cycle": "V"
+                    }, 
+                    "solver": "PCGF", 
+                    "print_solve_stats": c.print_stats, 
+                    "obtain_timings": c.print_stats, 
+                    "max_iters": c.max_iters, 
+                    "monitor_residual": 1, 
+                    "convergence": "ABSOLUTE", 
+                    "scope": "main", 
+                    "tolerance": err_tol,
+                    "norm": "L2"
+                }
+            })
+
+            rsc1 = pyamgx.Resources().create_simple(cfg1)
+            rsc2 = pyamgx.Resources().create_simple(cfg2)
+            mode = 'dDDI'
+
+            # Create solver:
+            self.slv11 = pyamgx.Solver().create(rsc1, cfg1, mode)
+            self.slv22 = pyamgx.Solver().create(rsc2, cfg2, mode)
+
+            # Create matrices and vectors:
+            self.d_A11 = pyamgx.Matrix().create(rsc1, mode)
+            self.d_x = pyamgx.Vector().create(rsc1, mode)
+            self.d_b1 = pyamgx.Vector().create(rsc1, mode)
+            self.d_A22 = pyamgx.Matrix().create(rsc2, mode)
+            self.d_y = pyamgx.Vector().create(rsc2, mode)
+            self.d_b2 = pyamgx.Vector().create(rsc2, mode)
+            
+            ## Clean up:
+            #A.destroy()
+            #x.destroy()
+            #b.destroy()
+            #self.amgx.destroy()
+            #rsc.destroy()
+            #cfg.destroy()
+
+            #pyamgx.finalize()
+
+        elif linear_solver is 'amg':
+            from pyamg import rootnode_solver
+        
+        else:
+            raise ValueError("Invalid solver choice.")
+
+    def update(self, thickness_edge, c, g):
+        self.mThicknessInv.data[0,:] = 1./thickness_edge
+
+        ## Construct the blocks
+        self.A11 = self.AC * self.mThicknessInv * self.mSkewgrad_td
+        self.A12 = self.AMC * self.mThicknessInv * self.mGrad_n_n
+        self.A12 += self.AC * self.mThicknessInv * self.GN
+        self.A12 *= 0.5
+        self.A21 = self.AD * self.mThicknessInv * self.SN
+        self.A21 += self.AMD * self.mThicknessInv * self.mSkewgrad_td
+        self.A21 *= 0.5
+        self.A22 = self.AD * self.mThicknessInv * self.mGrad_n_n
+
+        if c.on_a_global_sphere:
+            self.A11[0,0] = -2*np.sqrt(3.)/thickness_edge[0]
+            self.A22[0,0] = -2*np.sqrt(3.)/thickness_edge[0]
+        else:
+            self.A11[self.cellBoundary-1, self.cellBoundary-1] = -2*np.sqrt(3.)/thickness_edge[0]
+            self.A22[0,0] = -2*np.sqrt(3.)/thickness_edge[0]
+        
+        if linear_solver is 'lu':
+            raise ValueError("Not ready yet for this solver")
+            self.A11.tocsc( )
+            self.A22.tocsc( )
+            
+        elif linear_solver is 'amg':
+            self.A11 *= -1
+            self.A12 *= -1
+            self.A21 *= -1
+            self.A22 *= -1
+
+            B11 = np.ones((self.A11.shape[0],1), dtype=self.A11.dtype); BH11 = B11.copy()
+            self.A11_solver = rootnode_solver(self.A11, B=B11, BH=BH11,
+                strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
+                smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
+                improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
+                                    None, None, None, None, None, None, None, None, None, None, \
+                                    None, None, None, None],
+                aggregate="standard",
+                presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                max_levels=15,
+                max_coarse=300,
+                coarse_solver="pinv")
+
+            B22 = np.ones((self.A22.shape[0],1), dtype=self.A22.dtype); BH22 = B22.copy()
+            self.A22_solver = rootnode_solver(self.A22, B=B22, BH=BH22,
+                strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
+                smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
+                improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
+                                    None, None, None, None, None, None, None, None, None, None, \
+                                    None, None, None, None],
+                aggregate="standard",
+                presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                max_levels=15,
+                max_coarse=300,
+                coarse_solver="pinv")
+            
+        elif linear_solver is 'amgx':
+            raise ValueError("Not ready yet for this solver")
+            
+
+        
+        else:
+            raise ValueError("Invalid solver choice.")
+
+    def solve(self, b1, b2, x, y, env=None, linear_solver='lu', nIter = 10):
+        
+        if linear_solver is 'lu':
+            raise ValueError("Not ready yet for this solver")
+
+
+        elif linear_solver is 'amgx':
+            raise ValueError("Not ready yet for this solver")
+
+        elif linear_solver is 'amg':
+            x_res = []; y_res = []
+            for k in np.arange(nIter):
+                x0 = x; y0 = y
+                b1 -=  self.A12.dot(y0)
+                b2 -=  self.A21.dot(x0)
+                x = self.A11_solver.solve(b1, x0=x0, tol=c.err_tol, residuals=x_res)
+                y = self.A22_solver.solve(b2, x0=y0, tol=c.err_tol, residuals=y_res)
+                #print("k = %d,  AMG nIters = %d, %d" % (k, len(x_res), len(y_res)))
+                #print(x_res)
+
+            x *= -1; y *= -1
+            
+
+        else:
+            raise ValueError("Invalid solver choice.")
+        
 
 class Poisson:
     def __init__(self, A, linear_solver, env):

@@ -61,6 +61,8 @@ def run_tests(env, g, vc, c, s):
         # To compare various solvers (direct, amgx, amg) for the coupled elliptic equation
         from scipy.sparse.linalg import spsolve
         import pyamgx
+        import cupy as cp
+        import cupyx
 
         ##########################################################
         if False:
@@ -146,6 +148,7 @@ def run_tests(env, g, vc, c, s):
             # A bounded domain with homogeneous Dirichlet for the psi and
             # homogeneous Neumann for phi
             s.vortdiv[vc.cellBoundary-1] = 0.   # Set boundary elements to zeor to make psi_cell zero there
+            
         s.vortdiv[g.nCells] = 0.   # Set first element to zeor to make phi_cell[0] zero
         
         cpu0 = time.clock( )
@@ -185,558 +188,559 @@ def run_tests(env, g, vc, c, s):
 
 
         ###########################################################################
-        print("")
-        print("Solve the coupled linear system by AMGX")
-        import pyamgx
-        import cupy as cp
-        import cupyx
-        
-        pyamgx.initialize( )
-        
-        # Initialize config, resources and mode:
-        #cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json')
-        cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_AGGREGATION_JACOBI.json') 
-        rsc = pyamgx.Resources().create_simple(cfg)
-        mode = 'dDDI'
+        if False:
+            print("")
+            print("Solve the coupled linear system by AMGX")
 
-        # Create solver:
-        slv = pyamgx.Solver().create(rsc, cfg, mode)
+            pyamgx.initialize( )
 
-        # Create matrices and vectors:
-        d_A = pyamgx.Matrix().create(rsc, mode)
-        d_x = pyamgx.Vector().create(rsc, mode)
-        d_b = pyamgx.Vector().create(rsc, mode)
+            # Initialize config, resources and mode:
+            #cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json')
+            cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_AGGREGATION_JACOBI.json') 
+            rsc = pyamgx.Resources().create_simple(cfg)
+            mode = 'dDDI'
 
-        #vc.update_matrix_for_coupled_elliptic(
-        #d_A.upload_CSR(vc.coefM)
-        d_A.upload(vc.coefM.indptr, vc.coefM.indices, vc.coefM.data)
+            # Create solver:
+            slv = pyamgx.Solver().create(rsc, cfg, mode)
 
-        d_vortdiv = cp.array(s.vortdiv)
-        d_b.upload_raw(d_vortdiv.data, d_vortdiv.size)
-        x = np.zeros(g.nCells*2)
-        d_x.upload(x)
+            # Create matrices and vectors:
+            d_A = pyamgx.Matrix().create(rsc, mode)
+            d_x = pyamgx.Vector().create(rsc, mode)
+            d_b = pyamgx.Vector().create(rsc, mode)
 
-        # Setup and solve system:
-        cpu0 = time.clock( )
-        wall0 = time.time( )
-        slv.setup(d_A)
-        slv.solve(d_b, d_x)
-        cpu1 = time.clock( )
-        wall1 = time.time( )
+            #vc.update_matrix_for_coupled_elliptic(
+            #d_A.upload_CSR(vc.coefM)
+            d_A.upload(vc.coefM.indptr, vc.coefM.indices, vc.coefM.data)
 
-        d_x.download(x)
+            d_vortdiv = cp.array(s.vortdiv)
+            d_b.upload_raw(d_vortdiv.data, d_vortdiv.size)
+            x = np.zeros(g.nCells*2)
+            d_x.upload(x)
 
-        # Clean up:
-        d_A.destroy()
-        d_x.destroy()
-        d_b.destroy()
-        slv.destroy()
-        rsc.destroy()
-        cfg.destroy()
-        pyamgx.finalize()
-        
-        print("")
-        print(("CPU time for AMGX: %f" % (cpu1-cpu0,)))
-        print(("Wall time for AMGX: %f" % (wall1-wall0,)))
-        
-        # Compute the errors
-        s.psi_cell[:] = x[:g.nCells]
-        s.phi_cell[:] = x[g.nCells:]
-        l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
-        l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
-        l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
-        l2 = np.sqrt(l2)
-        print("Errors in psi")
-        print("L infinity error = ", l8)
-        print("L^2 error        = ", l2)        
+            # Setup and solve system:
+            cpu0 = time.clock( )
+            wall0 = time.time( )
+            slv.setup(d_A)
+            slv.solve(d_b, d_x)
+            cpu1 = time.clock( )
+            wall1 = time.time( )
 
-
-        ###########################################################################
-        print("")
-        print("Solve the linear system by pyamg")
-        from pyamg import rootnode_solver
-        A_spd = -vc.coefM
-        B = np.ones((A_spd.shape[0],1), dtype=A_spd.dtype); BH = B.copy()
-        
-        cpu0 = time.clock( )
-        wall0 = time.time( )
-        amg_solver = rootnode_solver(A_spd, B=B, BH=BH,
-            strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
-            smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
-            improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
-                                None, None, None, None, None, None, None, None, None, None, \
-                                None, None, None, None],
-            aggregate="standard",
-            presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-            postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-            max_levels=15,
-            max_coarse=300,
-            coarse_solver="pinv")
-        
-        res = []
-        x0 = np.zeros(g.nCells*2)
-        x = amg_solver.solve(s.vortdiv, x0=x0, tol=c.err_tol, residuals=res)
-        cpu1 = time.clock( )
-        wall1 = time.time( )
-
-        x *= -1
-        
-        print("")
-        print(amg_solver)
-        print(res)
-        print("AMG, nIter = %d" % (len(res),))
-        print(("CPU time pyAMG: %f" % (cpu1-cpu0,)))
-        print(("Wall time pyAMG: %f" % (wall1-wall0,)))
-        
-        # Compute the errors
-        s.psi_cell[:] = x[:g.nCells]
-        s.phi_cell[:] = x[g.nCells:]
-        l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
-        l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
-        l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
-        l2 = np.sqrt(l2)
-        print("Errors in psi")
-        print("L infinity error = ", l8)
-        print("L^2 error        = ", l2)        
-
-        ###########################################################################
-        print("")
-        print("Solve the coupled linear system with an iterative scheme and pyamg")
-
-        from pyamg import rootnode_solver
-        A11 = -vc.A11
-        A12 = -vc.A12
-        A21 = -vc.A21
-        A22 = -vc.A22
-        
-        B11 = np.ones((A11.shape[0],1), dtype=A11.dtype); BH11 = B11.copy()
-        A11_solver = rootnode_solver(A11, B=B11, BH=BH11,
-            strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
-            smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
-            improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
-                                None, None, None, None, None, None, None, None, None, None, \
-                                None, None, None, None],
-            aggregate="standard",
-            presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-            postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-            max_levels=15,
-            max_coarse=300,
-            coarse_solver="pinv")
-
-        B22 = np.ones((A22.shape[0],1), dtype=A22.dtype); BH22 = B22.copy()
-        A22_solver = rootnode_solver(A22, B=B22, BH=BH22,
-            strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
-            smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
-            improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
-                                None, None, None, None, None, None, None, None, None, None, \
-                                None, None, None, None],
-            aggregate="standard",
-            presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-            postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-            max_levels=15,
-            max_coarse=300,
-            coarse_solver="pinv")
-
-        print("")
-        print(A11_solver)
-        print(A22_solver)
-        cpu0 = time.clock( )
-        wall0 = time.time( )
-        x_res = []
-        y_res = []
-        x0 = np.zeros(g.nCells); x = x0.copy( )
-        y0 = np.zeros(g.nCells); y = y0.copy( )
-        for k in np.arange(10):
-            xtemp = x0; ytemp = y0
-            x0 = x; y0 = y
-            x = xtemp; y = ytemp
-            b1 = s.vortdiv[:g.nCells] - A12.dot(y0)
-            b2 = s.vortdiv[g.nCells:] - A21.dot(x0)
-            x = A11_solver.solve(b1, x0=x0, tol=c.err_tol, residuals=x_res)
-            y = A22_solver.solve(b2, x0=y0, tol=c.err_tol, residuals=y_res)
-            print("k = %d,  AMG nIters = %d, %d" % (k, len(x_res), len(y_res)))
-            print(x_res)
-            
-        cpu1 = time.clock( )
-        wall1 = time.time( )
-
-        print(("CPU time by iterative pyAMG: %f" % (cpu1-cpu0,)))
-        print(("Wall time by iterative pyAMG: %f" % (wall1-wall0,)))
-
-        # Compute the errors
-        s.psi_cell[:] = -x[:]
-        s.phi_cell[:] = -y[:]
-        l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
-        l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
-        l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
-        l2 = np.sqrt(l2)
-        print("Errors in psi")
-        print("L infinity error = ", l8)
-        print("L^2 error        = ", l2)
-
-        ###########################################################################
-        print("")
-        print("Solve the coupled linear system with an iterative scheme and amgx")
-        pyamgx.initialize()
-
-        # Initialize config, resources and mode:
-        #cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json')
-        #cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_AGGREGATION_JACOBI.json')
-        err_tol = 1e-8*1e-5*np.mean(g.areaCell)*np.sqrt(g.nCells)  # For vorticity
-        cfg1 = pyamgx.Config( ).create_from_dict({    
-            "config_version": 2, 
-            "determinism_flag": 0, 
-            "solver": {
-                "preconditioner": {
-                    "print_grid_stats": 1, 
-                    "algorithm": "AGGREGATION", 
-                    "print_vis_data": 0, 
-                    "solver": "AMG", 
-                    "smoother": {
-                        "relaxation_factor": 0.8, 
-                        "scope": "jacobi", 
-                        "solver": "BLOCK_JACOBI", 
-                        "monitor_residual": 0, 
-                        "print_solve_stats": 0
-                    }, 
-                    "print_solve_stats": 0, 
-                    "presweeps": 2, 
-                    "selector": "SIZE_2", 
-                    "coarse_solver": "NOSOLVER", 
-                    "max_iters": 2, 
-                    "monitor_residual": 0, 
-                    "store_res_history": 0, 
-                    "scope": "amg_solver", 
-                    "max_levels": 100, 
-                    "postsweeps": 2, 
-                    "cycle": "V"
-                }, 
-                "solver": "PCGF", 
-                "print_solve_stats": 1, 
-                "obtain_timings": 1, 
-                "max_iters": c.max_iters, 
-                "monitor_residual": 1, 
-                "convergence": "ABSOLUTE", 
-                "scope": "main", 
-                "tolerance": err_tol,
-                "norm": "L2"
-            }
-        })
-
-        err_tol = 1e-8*1e-6*np.mean(g.areaCell)*np.sqrt(g.nCells) # For divergence
-        cfg2 = pyamgx.Config( ).create_from_dict({    
-            "config_version": 2, 
-            "determinism_flag": 0, 
-            "solver": {
-                "preconditioner": {
-                    "print_grid_stats": 1, 
-                    "algorithm": "AGGREGATION", 
-                    "print_vis_data": 0, 
-                    "solver": "AMG", 
-                    "smoother": {
-                        "relaxation_factor": 0.8, 
-                        "scope": "jacobi", 
-                        "solver": "BLOCK_JACOBI", 
-                        "monitor_residual": 0, 
-                        "print_solve_stats": 0
-                    }, 
-                    "print_solve_stats": 0, 
-                    "presweeps": 2, 
-                    "selector": "SIZE_2", 
-                    "coarse_solver": "NOSOLVER", 
-                    "max_iters": 2, 
-                    "monitor_residual": 0, 
-                    "store_res_history": 0, 
-                    "scope": "amg_solver", 
-                    "max_levels": 100, 
-                    "postsweeps": 2, 
-                    "cycle": "V"
-                }, 
-                "solver": "PCGF", 
-                "print_solve_stats": 1, 
-                "obtain_timings": 1, 
-                "max_iters": c.max_iters, 
-                "monitor_residual": 1, 
-                "convergence": "ABSOLUTE", 
-                "scope": "main", 
-                "tolerance": err_tol,
-                "norm": "L2"
-            }
-        })
-        
-        rsc1 = pyamgx.Resources().create_simple(cfg1)
-        rsc2 = pyamgx.Resources().create_simple(cfg2)
-        mode = 'dDDI'
-
-        # Create solver:
-        slv11 = pyamgx.Solver().create(rsc1, cfg1, mode)
-        slv22 = pyamgx.Solver().create(rsc2, cfg2, mode)
-
-        # Create matrices and vectors:
-        d_A11 = pyamgx.Matrix().create(rsc1, mode)
-        d_x = pyamgx.Vector().create(rsc1, mode)
-        d_b1 = pyamgx.Vector().create(rsc1, mode)
-        d_A22 = pyamgx.Matrix().create(rsc2, mode)
-        d_y = pyamgx.Vector().create(rsc2, mode)
-        d_b2 = pyamgx.Vector().create(rsc2, mode)
-
-        d_A11.upload_CSR(vc.A11)
-        d_A22.upload_CSR(vc.A22)
-        
-        b1 = s.vortdiv[:g.nCells]
-        d_b1.upload(b1)
-        x = np.zeros(g.nCells)
-        d_x.upload(x)
-        b2 = s.vortdiv[g.nCells:]
-        d_b2.upload(b2)
-        y = np.zeros(g.nCells)
-        d_y.upload(y)
-
-        # Setup and solve system:
-        slv11.setup(d_A11)
-        slv22.setup(d_A22)
-
-        cpu0 = time.clock( )
-        wall0 = time.time( )
-        for k in np.arange(10):
-            b1 = s.vortdiv[:g.nCells] - vc.A12.dot(y)
-            b2 = s.vortdiv[g.nCells:] - vc.A21.dot(x)
-            print("s.vortdiv[g.nCells:] =")
-            print(s.vortdiv[g.nCells:])
-            print("vc.A21.dot(x) = ")
-            print(vc.A21.dot(x))
-            print("b1")
-            print(b1)
-            print("b2")
-            print(b2)
-            d_b1.upload(b1)
-            d_b2.upload(b2)
-            slv11.solve(d_b1, d_x)
-            slv22.solve(d_b2, d_y)
             d_x.download(x)
-            d_y.download(y)
-            print("x = ")
-            print(x)
-            print("y = ")
-            print(y)
-            
-        cpu1 = time.clock( )
-        wall1 = time.time( )
 
-        # Clean up:
-        d_A11.destroy()
-        d_A22.destroy()
-        d_x.destroy()
-        d_y.destroy()
-        d_b1.destroy()
-        d_b2.destroy()
-        slv11.destroy()
-        slv22.destroy()
-        rsc1.destroy()
-        cfg1.destroy()
-        rsc2.destroy()
-        cfg2.destroy()
-        pyamgx.finalize()
-        
-        print("")
-        print(("CPU time for AMGX: %f" % (cpu1-cpu0,)))
-        print(("Wall time for AMGX: %f" % (wall1-wall0,)))
-        
-        # Compute the errors
-        s.psi_cell[:] = x[:]
-        s.phi_cell[:] = y[:]
-        l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
-        l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
-        l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
-        l2 = np.sqrt(l2)
-        print("Errors in psi")
-        print("L infinity error = ", l8)
-        print("L^2 error        = ", l2)        
+            # Clean up:
+            d_A.destroy()
+            d_x.destroy()
+            d_b.destroy()
+            slv.destroy()
+            rsc.destroy()
+            cfg.destroy()
+            pyamgx.finalize()
+
+            print("")
+            print(("CPU time for AMGX: %f" % (cpu1-cpu0,)))
+            print(("Wall time for AMGX: %f" % (wall1-wall0,)))
+
+            # Compute the errors
+            s.psi_cell[:] = x[:g.nCells]
+            s.phi_cell[:] = x[g.nCells:]
+            l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
+            l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
+            l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
+            l2 = np.sqrt(l2)
+            print("Errors in psi")
+            print("L infinity error = ", l8)
+            print("L^2 error        = ", l2)        
+
+
+        ###########################################################################
+        if False:
+            print("")
+            print("Solve the linear system by pyamg")
+            from pyamg import rootnode_solver
+            A_spd = -vc.coefM
+            B = np.ones((A_spd.shape[0],1), dtype=A_spd.dtype); BH = B.copy()
+
+            cpu0 = time.clock( )
+            wall0 = time.time( )
+            amg_solver = rootnode_solver(A_spd, B=B, BH=BH,
+                strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
+                smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
+                improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
+                                    None, None, None, None, None, None, None, None, None, None, \
+                                    None, None, None, None],
+                aggregate="standard",
+                presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                max_levels=15,
+                max_coarse=300,
+                coarse_solver="pinv")
+
+            res = []
+            x0 = np.zeros(g.nCells*2)
+            x = amg_solver.solve(s.vortdiv, x0=x0, tol=c.err_tol, residuals=res)
+            cpu1 = time.clock( )
+            wall1 = time.time( )
+
+            x *= -1
+
+            print("")
+            print(amg_solver)
+            print(res)
+            print("AMG, nIter = %d" % (len(res),))
+            print(("CPU time pyAMG: %f" % (cpu1-cpu0,)))
+            print(("Wall time pyAMG: %f" % (wall1-wall0,)))
+
+            # Compute the errors
+            s.psi_cell[:] = x[:g.nCells]
+            s.phi_cell[:] = x[g.nCells:]
+            l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
+            l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
+            l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
+            l2 = np.sqrt(l2)
+            print("Errors in psi")
+            print("L infinity error = ", l8)
+            print("L^2 error        = ", l2)        
+
+        ###########################################################################
+        if False:
+            print("")
+            print("Solve the coupled linear system with an iterative scheme and pyamg")
+
+            from pyamg import rootnode_solver
+            A11 = -vc.A11
+            A12 = -vc.A12
+            A21 = -vc.A21
+            A22 = -vc.A22
+
+            B11 = np.ones((A11.shape[0],1), dtype=A11.dtype); BH11 = B11.copy()
+            A11_solver = rootnode_solver(A11, B=B11, BH=BH11,
+                strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
+                smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
+                improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
+                                    None, None, None, None, None, None, None, None, None, None, \
+                                    None, None, None, None],
+                aggregate="standard",
+                presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                max_levels=15,
+                max_coarse=300,
+                coarse_solver="pinv")
+
+            B22 = np.ones((A22.shape[0],1), dtype=A22.dtype); BH22 = B22.copy()
+            A22_solver = rootnode_solver(A22, B=B22, BH=BH22,
+                strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
+                smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
+                improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
+                                    None, None, None, None, None, None, None, None, None, None, \
+                                    None, None, None, None],
+                aggregate="standard",
+                presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
+                max_levels=15,
+                max_coarse=300,
+                coarse_solver="pinv")
+
+            print("")
+            print(A11_solver)
+            print(A22_solver)
+            cpu0 = time.clock( )
+            wall0 = time.time( )
+            x_res = []
+            y_res = []
+            x0 = np.zeros(g.nCells); x = x0.copy( )
+            y0 = np.zeros(g.nCells); y = y0.copy( )
+            for k in np.arange(10):
+                xtemp = x0; ytemp = y0
+                x0 = x; y0 = y
+                x = xtemp; y = ytemp
+                b1 = s.vortdiv[:g.nCells] - A12.dot(y0)
+                b2 = s.vortdiv[g.nCells:] - A21.dot(x0)
+                x = A11_solver.solve(b1, x0=x0, tol=c.err_tol, residuals=x_res)
+                y = A22_solver.solve(b2, x0=y0, tol=c.err_tol, residuals=y_res)
+                print("k = %d,  AMG nIters = %d, %d" % (k, len(x_res), len(y_res)))
+                print(x_res)
+
+            cpu1 = time.clock( )
+            wall1 = time.time( )
+
+            print(("CPU time by iterative pyAMG: %f" % (cpu1-cpu0,)))
+            print(("Wall time by iterative pyAMG: %f" % (wall1-wall0,)))
+
+            # Compute the errors
+            s.psi_cell[:] = -x[:]
+            s.phi_cell[:] = -y[:]
+            l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
+            l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
+            l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
+            l2 = np.sqrt(l2)
+            print("Errors in psi")
+            print("L infinity error = ", l8)
+            print("L^2 error        = ", l2)
+
+        ###########################################################################
+        if True:
+            print("")
+            print("Solve the coupled linear system with an iterative scheme and amgx")
+            pyamgx.initialize()
+
+            # Initialize config, resources and mode:
+            #cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json')
+            #cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_AGGREGATION_JACOBI.json')
+            err_tol = 1e-8*1e-5*np.mean(g.areaCell)*np.sqrt(g.nCells)  # For vorticity
+            cfg1 = pyamgx.Config( ).create_from_dict({    
+                "config_version": 2, 
+                "determinism_flag": 0, 
+                "solver": {
+                    "preconditioner": {
+                        "print_grid_stats": 1, 
+                        "algorithm": "AGGREGATION", 
+                        "print_vis_data": 0, 
+                        "solver": "AMG", 
+                        "smoother": {
+                            "relaxation_factor": 0.8, 
+                            "scope": "jacobi", 
+                            "solver": "BLOCK_JACOBI", 
+                            "monitor_residual": 0, 
+                            "print_solve_stats": 0
+                        }, 
+                        "print_solve_stats": 0, 
+                        "presweeps": 2, 
+                        "selector": "SIZE_2", 
+                        "coarse_solver": "NOSOLVER", 
+                        "max_iters": 2, 
+                        "monitor_residual": 0, 
+                        "store_res_history": 0, 
+                        "scope": "amg_solver", 
+                        "max_levels": 100, 
+                        "postsweeps": 2, 
+                        "cycle": "V"
+                    }, 
+                    "solver": "PCGF", 
+                    "print_solve_stats": 1, 
+                    "obtain_timings": 1, 
+                    "max_iters": c.max_iters, 
+                    "monitor_residual": 1, 
+                    "convergence": "ABSOLUTE", 
+                    "scope": "main", 
+                    "tolerance": err_tol,
+                    "norm": "L2"
+                }
+            })
+
+            err_tol = 1e-8*1e-6*np.mean(g.areaCell)*np.sqrt(g.nCells) # For divergence
+            cfg2 = pyamgx.Config( ).create_from_dict({    
+                "config_version": 2, 
+                "determinism_flag": 0, 
+                "solver": {
+                    "preconditioner": {
+                        "print_grid_stats": 1, 
+                        "algorithm": "AGGREGATION", 
+                        "print_vis_data": 0, 
+                        "solver": "AMG", 
+                        "smoother": {
+                            "relaxation_factor": 0.8, 
+                            "scope": "jacobi", 
+                            "solver": "BLOCK_JACOBI", 
+                            "monitor_residual": 0, 
+                            "print_solve_stats": 0
+                        }, 
+                        "print_solve_stats": 0, 
+                        "presweeps": 2, 
+                        "selector": "SIZE_2", 
+                        "coarse_solver": "NOSOLVER", 
+                        "max_iters": 2, 
+                        "monitor_residual": 0, 
+                        "store_res_history": 0, 
+                        "scope": "amg_solver", 
+                        "max_levels": 100, 
+                        "postsweeps": 2, 
+                        "cycle": "V"
+                    }, 
+                    "solver": "PCGF", 
+                    "print_solve_stats": 1, 
+                    "obtain_timings": 1, 
+                    "max_iters": c.max_iters, 
+                    "monitor_residual": 1, 
+                    "convergence": "ABSOLUTE", 
+                    "scope": "main", 
+                    "tolerance": err_tol,
+                    "norm": "L2"
+                }
+            })
+
+            rsc1 = pyamgx.Resources().create_simple(cfg1)
+            rsc2 = pyamgx.Resources().create_simple(cfg2)
+            mode = 'dDDI'
+
+            # Create solver:
+            slv11 = pyamgx.Solver().create(rsc1, cfg1, mode)
+            slv22 = pyamgx.Solver().create(rsc2, cfg2, mode)
+
+            # Create matrices and vectors:
+            d_A11 = pyamgx.Matrix().create(rsc1, mode)
+            d_x = pyamgx.Vector().create(rsc1, mode)
+            d_b1 = pyamgx.Vector().create(rsc1, mode)
+            d_A22 = pyamgx.Matrix().create(rsc2, mode)
+            d_y = pyamgx.Vector().create(rsc2, mode)
+            d_b2 = pyamgx.Vector().create(rsc2, mode)
+
+            d_A11.upload_CSR(vc.A11)
+            d_A22.upload_CSR(vc.A22)
+
+            b1 = s.vortdiv[:g.nCells]
+            d_b1.upload(b1)
+            x = np.zeros(g.nCells)
+            d_x.upload(x)
+            b2 = s.vortdiv[g.nCells:]
+            d_b2.upload(b2)
+            y = np.zeros(g.nCells)
+            d_y.upload(y)
+
+            # Setup and solve system:
+            slv11.setup(d_A11)
+            slv22.setup(d_A22)
+
+            cpu0 = time.clock( )
+            wall0 = time.time( )
+            for k in np.arange(10):
+                b1 = s.vortdiv[:g.nCells] - vc.A12.dot(y)
+                b2 = s.vortdiv[g.nCells:] - vc.A21.dot(x)
+                print("s.vortdiv[g.nCells:] =")
+                print(s.vortdiv[g.nCells:])
+                print("vc.A21.dot(x) = ")
+                print(vc.A21.dot(x))
+                print("b1")
+                print(b1)
+                print("b2")
+                print(b2)
+                d_b1.upload(b1)
+                d_b2.upload(b2)
+                slv11.solve(d_b1, d_x)
+                slv22.solve(d_b2, d_y)
+                d_x.download(x)
+                d_y.download(y)
+                print("x = ")
+                print(x)
+                print("y = ")
+                print(y)
+
+            cpu1 = time.clock( )
+            wall1 = time.time( )
+
+            # Clean up:
+            d_A11.destroy()
+            d_A22.destroy()
+            d_x.destroy()
+            d_y.destroy()
+            d_b1.destroy()
+            d_b2.destroy()
+            slv11.destroy()
+            slv22.destroy()
+            rsc1.destroy()
+            cfg1.destroy()
+            rsc2.destroy()
+            cfg2.destroy()
+            pyamgx.finalize()
+
+            print("")
+            print(("CPU time for AMGX: %f" % (cpu1-cpu0,)))
+            print(("Wall time for AMGX: %f" % (wall1-wall0,)))
+
+            # Compute the errors
+            s.psi_cell[:] = x[:]
+            s.phi_cell[:] = y[:]
+            l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
+            l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
+            l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
+            l2 = np.sqrt(l2)
+            print("Errors in psi")
+            print("L infinity error = ", l8)
+            print("L^2 error        = ", l2)        
         
         ###########################################################################
-        print("")
-        print("Solve the coupled linear system with an iterative scheme, amgx, upload_raw and download_raw")
-        pyamgx.initialize()
+        if True:
+            print("")
+            print("Solve the coupled linear system with an iterative scheme, amgx, upload_raw and download_raw")
+            pyamgx.initialize()
 
-        # Initialize config, resources and mode:
-        #cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json')
-        #cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_AGGREGATION_JACOBI.json')
-        err_tol = 1e-8*1e-5*np.mean(g.areaCell)*np.sqrt(g.nCells)  # For vorticity
-        cfg1 = pyamgx.Config( ).create_from_dict({    
-            "config_version": 2, 
-            "determinism_flag": 0, 
-            "solver": {
-                "preconditioner": {
-                    "print_grid_stats": 1, 
-                    "algorithm": "AGGREGATION", 
-                    "print_vis_data": 0, 
-                    "solver": "AMG", 
-                    "smoother": {
-                        "relaxation_factor": 0.8, 
-                        "scope": "jacobi", 
-                        "solver": "BLOCK_JACOBI", 
+            # Initialize config, resources and mode:
+            #cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json')
+            #cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_AGGREGATION_JACOBI.json')
+            err_tol = 1e-8*1e-5*np.mean(g.areaCell)*np.sqrt(g.nCells)  # For vorticity
+            cfg1 = pyamgx.Config( ).create_from_dict({    
+                "config_version": 2, 
+                "determinism_flag": 0, 
+                "solver": {
+                    "preconditioner": {
+                        "print_grid_stats": 1, 
+                        "algorithm": "AGGREGATION", 
+                        "print_vis_data": 0, 
+                        "solver": "AMG", 
+                        "smoother": {
+                            "relaxation_factor": 0.8, 
+                            "scope": "jacobi", 
+                            "solver": "BLOCK_JACOBI", 
+                            "monitor_residual": 0, 
+                            "print_solve_stats": 0
+                        }, 
+                        "print_solve_stats": 0, 
+                        "presweeps": 2, 
+                        "selector": "SIZE_2", 
+                        "coarse_solver": "NOSOLVER", 
+                        "max_iters": 2, 
                         "monitor_residual": 0, 
-                        "print_solve_stats": 0
+                        "store_res_history": 0, 
+                        "scope": "amg_solver", 
+                        "max_levels": 100, 
+                        "postsweeps": 2, 
+                        "cycle": "V"
                     }, 
-                    "print_solve_stats": 0, 
-                    "presweeps": 2, 
-                    "selector": "SIZE_2", 
-                    "coarse_solver": "NOSOLVER", 
-                    "max_iters": 2, 
-                    "monitor_residual": 0, 
-                    "store_res_history": 0, 
-                    "scope": "amg_solver", 
-                    "max_levels": 100, 
-                    "postsweeps": 2, 
-                    "cycle": "V"
-                }, 
-                "solver": "PCGF", 
-                "print_solve_stats": 1, 
-                "obtain_timings": 1, 
-                "max_iters": c.max_iters, 
-                "monitor_residual": 1, 
-                "convergence": "ABSOLUTE", 
-                "scope": "main", 
-                "tolerance": err_tol,
-                "norm": "L2"
-            }
-        })
+                    "solver": "PCGF", 
+                    "print_solve_stats": 1, 
+                    "obtain_timings": 1, 
+                    "max_iters": c.max_iters, 
+                    "monitor_residual": 1, 
+                    "convergence": "ABSOLUTE", 
+                    "scope": "main", 
+                    "tolerance": err_tol,
+                    "norm": "L2"
+                }
+            })
 
-        err_tol = 1e-8*1e-6*np.mean(g.areaCell)*np.sqrt(g.nCells) # For divergence
-        cfg2 = pyamgx.Config( ).create_from_dict({    
-            "config_version": 2, 
-            "determinism_flag": 0, 
-            "solver": {
-                "preconditioner": {
-                    "print_grid_stats": 1, 
-                    "algorithm": "AGGREGATION", 
-                    "print_vis_data": 0, 
-                    "solver": "AMG", 
-                    "smoother": {
-                        "relaxation_factor": 0.8, 
-                        "scope": "jacobi", 
-                        "solver": "BLOCK_JACOBI", 
+            err_tol = 1e-8*1e-6*np.mean(g.areaCell)*np.sqrt(g.nCells) # For divergence
+            cfg2 = pyamgx.Config( ).create_from_dict({    
+                "config_version": 2, 
+                "determinism_flag": 0, 
+                "solver": {
+                    "preconditioner": {
+                        "print_grid_stats": 1, 
+                        "algorithm": "AGGREGATION", 
+                        "print_vis_data": 0, 
+                        "solver": "AMG", 
+                        "smoother": {
+                            "relaxation_factor": 0.8, 
+                            "scope": "jacobi", 
+                            "solver": "BLOCK_JACOBI", 
+                            "monitor_residual": 0, 
+                            "print_solve_stats": 0
+                        }, 
+                        "print_solve_stats": 0, 
+                        "presweeps": 2, 
+                        "selector": "SIZE_2", 
+                        "coarse_solver": "NOSOLVER", 
+                        "max_iters": 2, 
                         "monitor_residual": 0, 
-                        "print_solve_stats": 0
+                        "store_res_history": 0, 
+                        "scope": "amg_solver", 
+                        "max_levels": 100, 
+                        "postsweeps": 2, 
+                        "cycle": "V"
                     }, 
-                    "print_solve_stats": 0, 
-                    "presweeps": 2, 
-                    "selector": "SIZE_2", 
-                    "coarse_solver": "NOSOLVER", 
-                    "max_iters": 2, 
-                    "monitor_residual": 0, 
-                    "store_res_history": 0, 
-                    "scope": "amg_solver", 
-                    "max_levels": 100, 
-                    "postsweeps": 2, 
-                    "cycle": "V"
-                }, 
-                "solver": "PCGF", 
-                "print_solve_stats": 1, 
-                "obtain_timings": 1, 
-                "max_iters": c.max_iters, 
-                "monitor_residual": 1, 
-                "convergence": "ABSOLUTE", 
-                "scope": "main", 
-                "tolerance": err_tol,
-                "norm": "L2"
-            }
-        })
-        
-        rsc1 = pyamgx.Resources().create_simple(cfg1)
-        rsc2 = pyamgx.Resources().create_simple(cfg2)
-        mode = 'dDDI'
+                    "solver": "PCGF", 
+                    "print_solve_stats": 1, 
+                    "obtain_timings": 1, 
+                    "max_iters": c.max_iters, 
+                    "monitor_residual": 1, 
+                    "convergence": "ABSOLUTE", 
+                    "scope": "main", 
+                    "tolerance": err_tol,
+                    "norm": "L2"
+                }
+            })
 
-        # Create solver:
-        slv11 = pyamgx.Solver().create(rsc1, cfg1, mode)
-        slv22 = pyamgx.Solver().create(rsc2, cfg2, mode)
+            rsc1 = pyamgx.Resources().create_simple(cfg1)
+            rsc2 = pyamgx.Resources().create_simple(cfg2)
+            mode = 'dDDI'
 
-        # Create matrices and vectors:
-        d_A11 = pyamgx.Matrix().create(rsc1, mode)
-        d_x = pyamgx.Vector().create(rsc1, mode); x_cp = cp.zeros(g.nCells)
-        d_b1 = pyamgx.Vector().create(rsc1, mode); b1_cp = cp.zeros(g.nCells)
-        d_A22 = pyamgx.Matrix().create(rsc2, mode)
-        d_y = pyamgx.Vector().create(rsc2, mode); y_cp = cp.zeros(g.nCells)
-        d_b2 = pyamgx.Vector().create(rsc2, mode); b2_cp = cp.zeros(g.nCells)
+            # Create solver:
+            slv11 = pyamgx.Solver().create(rsc1, cfg1, mode)
+            slv22 = pyamgx.Solver().create(rsc2, cfg2, mode)
 
-        A11_cp = cupyx.scipy.sparse.csr_matrix(vc.A11)
-        A12_cp = cupyx.scipy.sparse.csr_matrix(vc.A12)
-        A21_cp = cupyx.scipy.sparse.csr_matrix(vc.A21)
-        A22_cp = cupyx.scipy.sparse.csr_matrix(vc.A22)
-        d_A11.upload_CSR(vc.A11)
-        d_A22.upload_CSR(vc.A22)
+            # Create matrices and vectors:
+            d_A11 = pyamgx.Matrix().create(rsc1, mode)
+            d_x = pyamgx.Vector().create(rsc1, mode); x_cp = cp.zeros(g.nCells)
+            d_b1 = pyamgx.Vector().create(rsc1, mode); b1_cp = cp.zeros(g.nCells)
+            d_A22 = pyamgx.Matrix().create(rsc2, mode)
+            d_y = pyamgx.Vector().create(rsc2, mode); y_cp = cp.zeros(g.nCells)
+            d_b2 = pyamgx.Vector().create(rsc2, mode); b2_cp = cp.zeros(g.nCells)
 
-        vortdiv_cp = cp.asarray(s.vortdiv)
-        b1_cp = cp.asarray(s.vortdiv[:g.nCells])
-        d_b1.upload_raw(b1_cp.data, b1_cp.size)
-        d_x.upload_raw(x_cp.data, x_cp.size)
-        b2_cp = cp.asarray(s.vortdiv[g.nCells:])
-        d_b2.upload_raw(b2_cp.data, b2_cp.size)
-        d_y.upload_raw(y_cp.data, y_cp.size)
+            A11_cp = cupyx.scipy.sparse.csr_matrix(vc.A11)
+            A12_cp = cupyx.scipy.sparse.csr_matrix(vc.A12)
+            A21_cp = cupyx.scipy.sparse.csr_matrix(vc.A21)
+            A22_cp = cupyx.scipy.sparse.csr_matrix(vc.A22)
+            d_A11.upload_CSR(vc.A11)
+            d_A22.upload_CSR(vc.A22)
 
-        # Setup and solve system:
-        slv11.setup(d_A11)
-        slv22.setup(d_A22)
-
-        cpu0 = time.clock( )
-        wall0 = time.time( )
-        for k in np.arange(10):
-            b1_cp = vortdiv_cp[:g.nCells] - A12_cp.dot(y_cp)
-            b2_cp = vortdiv_cp[g.nCells:] - A21_cp.dot(x_cp)
-            print("vortdiv_cp[g.nCells:] = ")
-            print(vortdiv_cp[g.nCells:])
-            print("A21_cp.dot(x_cp) = ")
-            print(A21_cp.dot(x_cp))
-            print("b1_cp")
-            print(b1_cp)
-            print("b2_cp")
-            print(b2_cp)
+            vortdiv_cp = cp.asarray(s.vortdiv)
+            b1_cp = cp.asarray(s.vortdiv[:g.nCells])
             d_b1.upload_raw(b1_cp.data, b1_cp.size)
+            d_x.upload_raw(x_cp.data, x_cp.size)
+            b2_cp = cp.asarray(s.vortdiv[g.nCells:])
             d_b2.upload_raw(b2_cp.data, b2_cp.size)
-            slv11.solve(d_b1, d_x)
-            slv22.solve(d_b2, d_y)
-            d_x.download_raw(x_cp.data)
-            d_y.download_raw(y_cp.data)
-            print("x_cp = ")
-            print(x_cp)
-            print("y_cp = ")
-            print(y_cp)
-            
-        cpu1 = time.clock( )
-        wall1 = time.time( )
+            d_y.upload_raw(y_cp.data, y_cp.size)
 
-        # Clean up:
-        d_A11.destroy()
-        d_A22.destroy()
-        d_x.destroy()
-        d_y.destroy()
-        d_b1.destroy()
-        d_b2.destroy()
-        slv11.destroy()
-        slv22.destroy()
-        rsc1.destroy()
-        cfg1.destroy()
-        rsc2.destroy()
-        cfg2.destroy()
-        pyamgx.finalize()
-        
-        print("")
-        print(("CPU time for AMGX: %f" % (cpu1-cpu0,)))
-        print(("Wall time for AMGX: %f" % (wall1-wall0,)))
-        
-        # Compute the errors
-        s.psi_cell[:] = x[:]
-        s.phi_cell[:] = y[:]
-        l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
-        l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
-        l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
-        l2 = np.sqrt(l2)
-        print("Errors in psi")
-        print("L infinity error = ", l8)
-        print("L^2 error        = ", l2)
+            # Setup and solve system:
+            slv11.setup(d_A11)
+            slv22.setup(d_A22)
 
-        raise ValueError("Debugging")
-        
+            cpu0 = time.clock( )
+            wall0 = time.time( )
+            for k in np.arange(10):
+                b1_cp = vortdiv_cp[:g.nCells] - A12_cp.dot(y_cp)
+                b2_cp = vortdiv_cp[g.nCells:] - A21_cp.dot(x_cp)
+                print("vortdiv_cp[g.nCells:] = ")
+                print(vortdiv_cp[g.nCells:])
+                print("A21_cp.dot(x_cp) = ")
+                print(A21_cp.dot(x_cp))
+                print("b1_cp")
+                print(b1_cp)
+                print("b2_cp")
+                print(b2_cp)
+                d_b1.upload_raw(b1_cp.data, b1_cp.size)
+                d_b2.upload_raw(b2_cp.data, b2_cp.size)
+                slv11.solve(d_b1, d_x)
+                slv22.solve(d_b2, d_y)
+                d_x.download_raw(x_cp.data)
+                d_y.download_raw(y_cp.data)
+                print("x_cp = ")
+                print(x_cp)
+                print("y_cp = ")
+                print(y_cp)
+
+            cpu1 = time.clock( )
+            wall1 = time.time( )
+
+            # Clean up:
+            d_A11.destroy()
+            d_A22.destroy()
+            d_x.destroy()
+            d_y.destroy()
+            d_b1.destroy()
+            d_b2.destroy()
+            slv11.destroy()
+            slv22.destroy()
+            rsc1.destroy()
+            cfg1.destroy()
+            rsc2.destroy()
+            cfg2.destroy()
+            pyamgx.finalize()
+
+            print("")
+            print(("CPU time for AMGX: %f" % (cpu1-cpu0,)))
+            print(("Wall time for AMGX: %f" % (wall1-wall0,)))
+
+            # Compute the errors
+            s.psi_cell[:] = x_cp[:]
+            s.phi_cell[:] = y_cp[:]
+            l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
+            l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
+            l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
+            l2 = np.sqrt(l2)
+            print("Errors in psi")
+            print("L infinity error = ", l8)
+            print("L^2 error        = ", l2)
+
+            raise ValueError("Debugging")
 
         
     if False:
