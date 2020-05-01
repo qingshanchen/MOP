@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 from scipy.sparse.linalg import spsolve, splu
+from swe_comp import swe_comp as cmp
 import netCDF4 as nc
 import os
 
@@ -120,6 +121,29 @@ class grid_data:
         out.variables['kiteAreasOnVertex'][:] = self.kiteAreasOnVertex[:]
 
         out.close( )
+
+        #
+        # Computed mesh element indices
+        #
+        if not c.on_a_global_sphere:
+            # Collect non-boundary (interior) cells and put into a vector,
+            # and boundary cells into a separate vector
+            nCellsBoundary = np.sum(self.boundaryCellMark[:]>0)
+            nCellsInterior = self.nCells - nCellsBoundary
+            
+            self.cellInterior, self.cellBoundary, self.cellRankInterior, \
+                cellInner_tmp, cellOuter_tmp, self.cellRankInner, \
+                nCellsInner, nCellsOuter = \
+                cmp.separate_boundary_interior_inner_cells(nCellsInterior,  \
+                nCellsBoundary, c.max_int, self.boundaryCellMark, self.cellsOnCell, self.nEdgesOnCell)
+            self.cellInner = cellInner_tmp[:nCellsInner]
+            self.cellOuter = cellOuter_tmp[:nCellsOuter]
+
+            self.cellBoundary_ord = cmp.boundary_cells_ordered(\
+                                nCellsBoundary, self.boundaryCellMark, self.cellsOnCell)
+
+        else:
+            self.cellBoundary = np.array([], dtype='int')
 
             
             

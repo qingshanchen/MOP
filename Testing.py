@@ -59,6 +59,7 @@ def run_tests(env, g, vc, c, s):
 
     if True:
         # To compare various solvers (direct, amgx, amg) for the coupled elliptic equation
+        # The solvers are invoked directly
         from scipy.sparse.linalg import spsolve
         import pyamgx
         import cupy as cp
@@ -253,7 +254,7 @@ def run_tests(env, g, vc, c, s):
 
 
         ###########################################################################
-        if False:
+        if True:
             print("")
             print("Solve the linear system by pyamg")
             from pyamg import rootnode_solver
@@ -302,7 +303,7 @@ def run_tests(env, g, vc, c, s):
             print("L^2 error        = ", l2)        
 
         ###########################################################################
-        if False:
+        if True:
             print("")
             print("Solve the coupled linear system with an iterative scheme and pyamg")
 
@@ -359,6 +360,7 @@ def run_tests(env, g, vc, c, s):
                 y = A22_solver.solve(b2, x0=y0, tol=c.err_tol, residuals=y_res)
                 print("k = %d,  AMG nIters = %d, %d" % (k, len(x_res), len(y_res)))
                 print(x_res)
+                print(y_res)
 
             cpu1 = time.clock( )
             wall1 = time.time( )
@@ -378,7 +380,7 @@ def run_tests(env, g, vc, c, s):
             print("L^2 error        = ", l2)
 
         ###########################################################################
-        if True:
+        if False:
             print("")
             print("Solve the coupled linear system with an iterative scheme and amgx")
             pyamgx.initialize()
@@ -505,24 +507,24 @@ def run_tests(env, g, vc, c, s):
             for k in np.arange(10):
                 b1 = s.vortdiv[:g.nCells] - vc.A12.dot(y)
                 b2 = s.vortdiv[g.nCells:] - vc.A21.dot(x)
-                print("s.vortdiv[g.nCells:] =")
-                print(s.vortdiv[g.nCells:])
-                print("vc.A21.dot(x) = ")
-                print(vc.A21.dot(x))
-                print("b1")
-                print(b1)
-                print("b2")
-                print(b2)
+                #print("s.vortdiv[g.nCells:] =")
+                #print(s.vortdiv[g.nCells:])
+                #print("vc.A21.dot(x) = ")
+                #print(vc.A21.dot(x))
+                #print("b1")
+                #print(b1)
+                #print("b2")
+                #print(b2)
                 d_b1.upload(b1)
                 d_b2.upload(b2)
                 slv11.solve(d_b1, d_x)
                 slv22.solve(d_b2, d_y)
                 d_x.download(x)
                 d_y.download(y)
-                print("x = ")
-                print(x)
-                print("y = ")
-                print(y)
+                #print("x = ")
+                #print(x)
+                #print("y = ")
+                #print(y)
 
             cpu1 = time.clock( )
             wall1 = time.time( )
@@ -558,7 +560,7 @@ def run_tests(env, g, vc, c, s):
             print("L^2 error        = ", l2)        
         
         ###########################################################################
-        if True:
+        if False:
             print("")
             print("Solve the coupled linear system with an iterative scheme, amgx, upload_raw and download_raw")
             pyamgx.initialize()
@@ -740,7 +742,132 @@ def run_tests(env, g, vc, c, s):
             print("L infinity error = ", l8)
             print("L^2 error        = ", l2)
 
-            raise ValueError("Debugging")
+            #raise ValueError("Debugging")
+
+
+    if True:
+        print("Testing the EllipticCpl2 object for the coupled elliptic equation")
+
+        ##########################################################
+        if False:
+            ## Data from SWSTC #2 (stationary zonal flow over the global sphere)
+            if not c.on_a_global_sphere:
+                raise ValueError("Must use a global spheric domain")
+
+            a = c.sphere_radius
+            u0 = 2*np.pi*a / (12*86400)
+            gh0 = 2.94e4
+            gh = np.sin(g.latCell[:])**2
+            gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
+            s.thickness[:] = gh / c.gravity
+            h0 = gh0 / c.gravity
+
+            s.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
+            s.divergence[:] = 0.
+
+            psi_cell_true = -a * h0 * u0 * np.sin(g.latCell[:]) 
+            psi_cell_true[:] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (np.sin(g.latCell[:]))**3 / 3.
+            psi_cell_true -= psi_cell_true[0]
+            phi_cell_true = np.zeros(g.nCells)
+
+        elif True:
+            # SWSTC #2, with a stationary analytic solution, modified for the northern hemisphere
+            if c.on_a_global_sphere:
+                print("This is a test case on the northern hemisphere.")
+                raise ValueError("Must use a bounded domain")
+            
+            a = c.sphere_radius
+            u0 = 2*np.pi*a / (12*86400)
+            gh0 = 2.94e4
+            gh = np.sin(g.latCell[:])**2
+            gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
+            s.thickness[:] = gh / c.gravity
+            h0 = gh0 / c.gravity
+
+            s.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
+            s.divergence[:] = 0.
+            
+            psi_cell_true = -a * h0 * u0 * np.sin(g.latCell[:]) 
+            psi_cell_true[:] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (np.sin(g.latCell[:]))**3 / 3.
+            phi_cell_true = np.zeros(g.nCells)
+
+            s.SS0 = np.sum((s.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
+            
+        elif False:
+            ## Data from Test Case #22 (a free gyre in the northern atlantic)
+            if c.on_a_global_sphere:
+                print("This is a test case in the northern Atlantic")
+                print("A global spheric domain cannot be used.")
+                raise ValueError("Must use a bounded domain")
+                
+            latmin = np.min(g.latCell[:]); latmax = np.max(g.latCell[:])
+            lonmin = np.min(g.lonCell[:]); lonmax = np.max(g.lonCell[:])
+
+            latmid = 0.5*(latmin+latmax)
+            latwidth = latmax - latmin
+
+            lonmid = 0.5*(lonmin+lonmax)
+            lonwidth = lonmax - lonmin
+
+            pi = np.pi; sin = np.sin; exp = np.exp
+            r = c.sphere_radius
+        
+            d = np.sqrt(32*(g.latCell[:] - latmid)**2/latwidth**2 + 4*(g.lonCell[:]-(-1.1))**2/.3**2)
+            f0 = np.mean(g.fCell)
+            s.thickness[:] = 4000.
+            psi_cell_true = 2*np.exp(-d**2) * 0.5*(1-np.tanh(20*(d-1.5)))
+            psi_cell_true *= c.gravity / f0 * s.thickness
+            phi_cell_true = np.zeros(g.nCells)
+            s.vorticity = vc.discrete_laplace_v(psi_cell_true)
+            s.vorticity /= s.thickness
+            s.divergence[:] = 0.
+
+        # To prepare the rhs
+        s.vortdiv[:g.nCells] = s.vorticity * g.areaCell
+        s.vortdiv[g.nCells:] = s.divergence * g.areaCell
+        if c.on_a_global_sphere:
+            # A global domain with no boundary
+            s.vortdiv[0] = 0.   # Set first element to zeor to make psi_cell[0] zero
+        else:
+            # A bounded domain with homogeneous Dirichlet for the psi and
+            # homogeneous Neumann for phi
+            s.vortdiv[vc.cellBoundary-1] = 0.   # Set boundary elements to zeor to make psi_cell zero there
+            
+        s.vortdiv[g.nCells] = 0.   # Set first element to zeor to make phi_cell[0] zero
+
+        cpu0 = time.clock( )
+        wall0 = time.time( )
+        s.thickness_edge = vc.cell2edge(s.thickness)
+        vc.POcpl2.update(s.thickness_edge, vc.mSkewgrad_td, vc.mGrad_n_n, c, g)
+        cpu1 = time.clock( )
+        wall1 = time.time( )
+        print(("CPU time for updating matrices: %f" % (cpu1-cpu0,)))
+        print(("Wall time for updating matrices: %f" % (wall1-wall0,)))
+
+        cpu0 = time.clock( )
+        wall0 = time.time( )
+        x = np.zeros(g.nCells); y = np.zeros(g.nCells)
+        b1 = s.vortdiv[:g.nCells]; b2 = s.vortdiv[g.nCells:]
+        vc.POcpl2.solve(b1, b2, x, y)
+        cpu1 = time.clock( )
+        wall1 = time.time( )
+
+        print("Solver used: %s" % c.linear_solver)
+        print(("CPU time: %f" % (cpu1-cpu0,)))
+        print(("Wall time: %f" % (wall1-wall0,)))
+
+        # Compute the errors
+        s.psi_cell[:] = x[:]
+        s.phi_cell[:] = y[:]
+        l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
+        l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
+        l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
+        l2 = np.sqrt(l2)
+        print("Errors in psi")
+        print("L infinity error = ", l8)
+        print("L^2 error        = ", l2)
+
+        
 
         
     if False:
