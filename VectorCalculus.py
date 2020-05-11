@@ -353,6 +353,7 @@ class EllipticCpl2:
 
 
     def solve(self, b1, b2, x, y, env=None, nIter = 10):
+        x_tmp = x; y_tmp = y
         
         if c.linear_solver is 'lu':
             raise ValueError("Not ready yet for this solver")
@@ -362,7 +363,6 @@ class EllipticCpl2:
 
         elif c.linear_solver is 'amg':
             x_res = []; y_res = []
-            x_tmp = x; y_tmp = y
             for k in np.arange(nIter):
                 b11 = b1 - self.A12.dot(y_tmp)
                 b22 = b2 - self.A21.dot(x_tmp)
