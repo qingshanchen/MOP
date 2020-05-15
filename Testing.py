@@ -66,7 +66,7 @@ def run_tests(env, g, vc, c, s):
         import cupyx
 
         ##########################################################
-        if False:
+        if True:
             ## Data from SWSTC #2 (stationary zonal flow over the global sphere)
             if not c.on_a_global_sphere:
                 raise ValueError("Must use a global spheric domain")
@@ -87,7 +87,7 @@ def run_tests(env, g, vc, c, s):
             psi_cell_true -= psi_cell_true[0]
             phi_cell_true = np.zeros(g.nCells)
 
-        elif True:
+        elif False:
             # SWSTC #2, with a stationary analytic solution, modified for the northern hemisphere
             if c.on_a_global_sphere:
                 print("This is a test case on the northern hemisphere.")
@@ -163,7 +163,7 @@ def run_tests(env, g, vc, c, s):
         print(("Wall time for updating matrices: %f" % (wall1-wall0,)))
 
         ########################################################################
-        if True:
+        if False:
             print("")
             print("Solve the linear system by the direct method")
             cpu0 = time.clock( )
@@ -189,7 +189,7 @@ def run_tests(env, g, vc, c, s):
 
 
         ###########################################################################
-        if False:
+        if True:
             print("")
             print("Solve the coupled linear system by AMGX")
 
@@ -197,7 +197,48 @@ def run_tests(env, g, vc, c, s):
 
             # Initialize config, resources and mode:
             #cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json')
-            cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_AGGREGATION_JACOBI.json') 
+            #cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_AGGREGATION_JACOBI.json')
+            cfg = pyamgx.Config( ).create_from_dict({    
+                "config_version": 2, 
+                "determinism_flag": 0, 
+                "solver": {
+                    "preconditioner": {
+                        "print_grid_stats": 1, 
+                        "algorithm": "AGGREGATION", 
+                        "print_vis_data": 0, 
+                        "solver": "AMG", 
+                        "smoother": {
+                            "relaxation_factor": 0.8, 
+                            "scope": "jacobi", 
+                            "solver": "BLOCK_JACOBI", 
+                            "monitor_residual": 0, 
+                            "print_solve_stats": 0
+                        }, 
+                        "print_solve_stats": 0, 
+                        "presweeps": 2, 
+                        "selector": "SIZE_2", 
+                        "coarse_solver": "NOSOLVER", 
+                        "max_iters": 2, 
+                        "monitor_residual": 0, 
+                        "store_res_history": 0, 
+                        "scope": "amg_solver", 
+                        "max_levels": 100, 
+                        "postsweeps": 2, 
+                        "cycle": "V"
+                    }, 
+                    "solver": "PCGF", 
+                    "print_solve_stats": 1, 
+                    "obtain_timings": 1, 
+                    "max_iters": c.max_iters, 
+                    "monitor_residual": 1, 
+                    "convergence": "RELATIVE_INI_CORE", 
+                    "scope": "main", 
+                    "tolerance": c.err_tol,
+                    "norm": "L2"
+                }
+            })
+
+            
             rsc = pyamgx.Resources().create_simple(cfg)
             mode = 'dDDI'
 
@@ -380,7 +421,7 @@ def run_tests(env, g, vc, c, s):
             print("L^2 error        = ", l2)
 
         ###########################################################################
-        if False:
+        if True:
             print("")
             print("Solve the coupled linear system with an iterative scheme and amgx")
             pyamgx.initialize()
@@ -745,7 +786,7 @@ def run_tests(env, g, vc, c, s):
             #raise ValueError("Debugging")
 
 
-    if True:
+    if False:
         print("Testing the EllipticCpl2 object for the coupled elliptic equation")
 
         ##########################################################
