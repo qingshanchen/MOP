@@ -124,262 +124,6 @@ class EllipticCPL:
             raise ValueError("Invalid solver choice.")
 
 
-class EllipticCpl2:
-    def __init__(self, mVertex2cell, mCurl_t, mCurl_v, mDiv_t, mDiv_v, \
-                 mGrad_tn, mCell2vertex_n, mSkewgrad_nd, mCell2vertex_psi, g, c):
-
-        # Construct matrix blocks of the coupled elliptic system
-        # A diagonal matrix representing scaling by cell areas
-        mAreaCell = diags(g.areaCell, 0, format='csr')
-        mAreaCell_phi = mAreaCell.copy( )
-        mAreaCell_phi[0,0] = 0.
-        mAreaCell_phi.eliminate_zeros( )
-
-        if c.on_a_global_sphere:
-            mAreaCell_psi = mAreaCell_phi.copy( )
-        else:
-            areaCell_psi = g.areaCell.copy( )
-            areaCell_psi[g.cellBoundary - 1] = 0.
-            mAreaCell_psi = diags(areaCell_psi, 0, format='csr')
-            mAreaCell_psi.eliminate_zeros( )
-            
-        ## Construct the coefficient matrix for the coupled elliptic
-        ## system for psi and phi, using the normal vector
-        # Left, row 1
-        self.AMC = mAreaCell_psi * mVertex2cell * mCurl_t
-        self.AC = mAreaCell_psi * mCurl_v
-        self.AMC.eliminate_zeros( )
-        self.AC.eliminate_zeros( )
-        
-        # Left, row 2
-        self.AMD = mAreaCell_phi * mVertex2cell * mDiv_t
-        self.AD = mAreaCell_phi * mDiv_v
-        self.AMD.eliminate_zeros( )
-        self.AD.eliminate_zeros( )
-        
-        # Right, col 2
-        self.GN = mGrad_tn * mCell2vertex_n
-        self.GN.eliminate_zeros( )
-        
-        # Right, col 1
-        self.SN = mSkewgrad_nd * mCell2vertex_psi
-        self.SN.eliminate_zeros( )
-        
-        ## Construct an artificial thickness vector
-        thickness_edge = 100 * (10. + np.random.rand(g.nEdges))
-        self.mThicknessInv = eye(g.nEdges)  
-        self.mThicknessInv.data[0,:] = 1./thickness_edge
-        
-        if c.linear_solver is 'amgx':
-            raise ValueError("Not ready yet for this solver")
-            import pyamgx
-
-            pyamgx.initialize( )
-
-            err_tol = c.err_tol*1e-5*np.mean(g.areaCell)*np.sqrt(g.nCells)  # For vorticity
-            cfg1 = pyamgx.Config( ).create_from_dict({    
-                "config_version": 2, 
-                "determinism_flag": 0, 
-                "solver": {
-                    "preconditioner": {
-                        "print_grid_stats": c.print_stats, 
-                        "algorithm": "AGGREGATION", 
-                        "print_vis_data": 0, 
-                        "solver": "AMG", 
-                        "smoother": {
-                            "relaxation_factor": 0.8, 
-                            "scope": "jacobi", 
-                            "solver": "BLOCK_JACOBI", 
-                            "monitor_residual": 0, 
-                            "print_solve_stats": 0
-                        }, 
-                        "print_solve_stats": 0, 
-                        "presweeps": 2, 
-                        "selector": "SIZE_2", 
-                        "coarse_solver": "NOSOLVER", 
-                        "max_iters": 2, 
-                        "monitor_residual": 0, 
-                        "store_res_history": 0, 
-                        "scope": "amg_solver", 
-                        "max_levels": 100, 
-                        "postsweeps": 2, 
-                        "cycle": "V"
-                    }, 
-                    "solver": "PCGF", 
-                    "print_solve_stats": c.print_stats, 
-                    "obtain_timings": c.print_stats, 
-                    "max_iters": c.max_iters, 
-                    "monitor_residual": 1, 
-                    "convergence": "ABSOLUTE", 
-                    "scope": "main", 
-                    "tolerance": err_tol,
-                    "norm": "L2"
-                }
-            })
-
-            # Smaller error tolerance for divergence because geophysical flows
-            # are largely nondivergent
-            err_tol = c.err_tol*1e-6*np.mean(g.areaCell)*np.sqrt(g.nCells)
-            cfg2 = pyamgx.Config( ).create_from_dict({    
-                "config_version": 2, 
-                "determinism_flag": 0, 
-                "solver": {
-                    "preconditioner": {
-                        "print_grid_stats": c.print_stats, 
-                        "algorithm": "AGGREGATION", 
-                        "print_vis_data": 0, 
-                        "solver": "AMG", 
-                        "smoother": {
-                            "relaxation_factor": 0.8, 
-                            "scope": "jacobi", 
-                            "solver": "BLOCK_JACOBI", 
-                            "monitor_residual": 0, 
-                            "print_solve_stats": 0
-                        }, 
-                        "print_solve_stats": 0, 
-                        "presweeps": 2, 
-                        "selector": "SIZE_2", 
-                        "coarse_solver": "NOSOLVER", 
-                        "max_iters": 2, 
-                        "monitor_residual": 0, 
-                        "store_res_history": 0, 
-                        "scope": "amg_solver", 
-                        "max_levels": 100, 
-                        "postsweeps": 2, 
-                        "cycle": "V"
-                    }, 
-                    "solver": "PCGF", 
-                    "print_solve_stats": c.print_stats, 
-                    "obtain_timings": c.print_stats, 
-                    "max_iters": c.max_iters, 
-                    "monitor_residual": 1, 
-                    "convergence": "ABSOLUTE", 
-                    "scope": "main", 
-                    "tolerance": err_tol,
-                    "norm": "L2"
-                }
-            })
-
-            rsc1 = pyamgx.Resources().create_simple(cfg1)
-            rsc2 = pyamgx.Resources().create_simple(cfg2)
-            mode = 'dDDI'
-
-            # Create solver:
-            self.slv11 = pyamgx.Solver().create(rsc1, cfg1, mode)
-            self.slv22 = pyamgx.Solver().create(rsc2, cfg2, mode)
-
-            # Create matrices and vectors:
-            self.d_A11 = pyamgx.Matrix().create(rsc1, mode)
-            self.d_x = pyamgx.Vector().create(rsc1, mode)
-            self.d_b1 = pyamgx.Vector().create(rsc1, mode)
-            self.d_A22 = pyamgx.Matrix().create(rsc2, mode)
-            self.d_y = pyamgx.Vector().create(rsc2, mode)
-            self.d_b2 = pyamgx.Vector().create(rsc2, mode)
-            
-        elif c.linear_solver is 'amg':
-            from pyamg import rootnode_solver
-        
-        else:
-            raise ValueError("Invalid solver choice.")
-
-    def update(self, thickness_edge, mSkewgrad_td, mGrad_n_n, c, g):
-        self.mThicknessInv.data[0,:] = 1./thickness_edge
-
-        ## Construct the blocks
-        self.A11 = self.AC * self.mThicknessInv * mSkewgrad_td
-        self.A12 = self.AMC * self.mThicknessInv * mGrad_n_n
-        self.A12 += self.AC * self.mThicknessInv * self.GN
-        self.A12 *= 0.5
-        self.A21 = self.AD * self.mThicknessInv * self.SN
-        self.A21 += self.AMD * self.mThicknessInv * mSkewgrad_td
-        self.A21 *= 0.5
-        self.A22 = self.AD * self.mThicknessInv * mGrad_n_n
-
-        if c.on_a_global_sphere:
-            self.A11[0,0] = -2*np.sqrt(3.)/thickness_edge[0]
-            self.A22[0,0] = -2*np.sqrt(3.)/thickness_edge[0]
-        else:
-            self.A11[g.cellBoundary-1, g.cellBoundary-1] = -2*np.sqrt(3.)/thickness_edge[0]
-            self.A22[0,0] = -2*np.sqrt(3.)/thickness_edge[0]
-        
-        if c.linear_solver is 'lu':
-            raise ValueError("Not ready yet for this solver")
-        
-            # Convert the matrices to CSC for better performance
-            self.A11.tocsc( )
-            self.A22.tocsc( )
-            
-        elif c.linear_solver is 'amg':
-            self.A11 *= -1
-            self.A12 *= -1
-            self.A21 *= -1
-            self.A22 *= -1
-
-            B11 = np.ones((self.A11.shape[0],1), dtype=self.A11.dtype); BH11 = B11.copy()
-            self.A11_solver = rootnode_solver(self.A11, B=B11, BH=BH11,
-                strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
-                smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
-                improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
-                                    None, None, None, None, None, None, None, None, None, None, \
-                                    None, None, None, None],
-                aggregate="standard",
-                presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-                postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-                max_levels=15,
-                max_coarse=300,
-                coarse_solver="pinv")
-
-            B22 = np.ones((self.A22.shape[0],1), dtype=self.A22.dtype); BH22 = B22.copy()
-            self.A22_solver = rootnode_solver(self.A22, B=B22, BH=BH22,
-                strength=('evolution', {'epsilon': 2.0, 'k': 2, 'proj_type': 'l2'}),
-                smooth=('energy', {'weighting': 'local', 'krylov': 'cg', 'degree': 2, 'maxiter': 3}),
-                improve_candidates=[('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 4}), \
-                                    None, None, None, None, None, None, None, None, None, None, \
-                                    None, None, None, None],
-                aggregate="standard",
-                presmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-                postsmoother=('block_gauss_seidel', {'sweep': 'symmetric', 'iterations': 1}),
-                max_levels=15,
-                max_coarse=300,
-                coarse_solver="pinv")
-            
-        elif c.linear_solver is 'amgx':
-            raise ValueError("Not ready yet for this solver")
-            
-
-        
-        else:
-            raise ValueError("Invalid solver choice.")
-
-
-    def solve(self, b1, b2, x, y, env=None, nIter = 10):
-        x_tmp = x; y_tmp = y
-        
-        if c.linear_solver is 'lu':
-            raise ValueError("Not ready yet for this solver")
-
-        elif c.linear_solver is 'amgx':
-            raise ValueError("Not ready yet for this solver")
-
-        elif c.linear_solver is 'amg':
-            x_res = []; y_res = []
-            for k in np.arange(nIter):
-                b11 = b1 - self.A12.dot(y_tmp)
-                b22 = b2 - self.A21.dot(x_tmp)
-                x_tmp = self.A11_solver.solve(b11, x0=x_tmp, tol=c.err_tol, residuals=x_res)
-                y_tmp = self.A22_solver.solve(b22, x0=y_tmp, tol=c.err_tol, residuals=y_res)
-                print("k = %d,  AMG nIters = %d, %d" % (k, len(x_res), len(y_res)))
-                print(x_res)
-                print(y_res)
-
-            # Negate the solution, since the matrices were negated in
-            # the update stage for positive definiteness
-            x[:] = -1 * x_tmp; y[:] = -1 * y_tmp
-            
-        else:
-            raise ValueError("Invalid solver choice.")
-        
-
 class Poisson:
     def __init__(self, A, linear_solver, env):
 
@@ -895,6 +639,7 @@ class VectorCalculus:
         self.coefM = None
         self.update_matrix_for_coupled_elliptic(thickness_edge, c, g)
 
+        ## EllipticCPL and EllipticCpl2 only one can be in use
         self.POcpl = EllipticCPL(self.coefM, c.linear_solver, env)
 
         # Construct the coefficient matrices for the coupled elliptic problem
@@ -905,9 +650,9 @@ class VectorCalculus:
         self.update_matrices_for_coupled_elliptic(thickness_edge, c, g)
 
         # Construct the EllipticCpl2 object for the coupled elliptic system
-        self.POcpl2 = EllipticCpl2(self.mVertex2cell, self.mCurl_t, self.mCurl_v, \
-                self.mDiv_t, self.mDiv_v, self.mGrad_tn, self.mCell2vertex_n, \
-                                   self.mSkewgrad_nd, self.mCell2vertex_psi, g, c)
+        #self.POcpl2 = EllipticCpl2(self.mVertex2cell, self.mCurl_t, self.mCurl_v, \
+        #        self.mDiv_t, self.mDiv_v, self.mGrad_tn, self.mCell2vertex_n, \
+        #                           self.mSkewgrad_nd, self.mCell2vertex_psi, g, c)
         
         ## Some temporary variables as place holders
         self.scalar_cell = np.zeros(g.nCells)
@@ -917,14 +662,14 @@ class VectorCalculus:
 
         # Construct matrix for discrete Laplacian on all cells, corresponding to the
         # Poisson problem with Neumann BC's, or to the Poisson problem on a global sphere (no boundary)
-        nEntries, rows, cols, valEntries = \
-          cmp.construct_discrete_laplace_neumann(g.cellsOnEdge, g.dvEdge, g.dcEdge, \
-                    g.areaCell)
-        D2s_coo = coo_matrix((valEntries[:nEntries]*g.areaCell[rows[:nEntries]], (rows[:nEntries], \
-                               cols[:nEntries])), shape=(g.nCells, g.nCells))
-        D2s_coo.eliminate_zeros( )
+#        nEntries, rows, cols, valEntries = \
+#          cmp.construct_discrete_laplace_neumann(g.cellsOnEdge, g.dvEdge, g.dcEdge, \
+#                    g.areaCell)
+#        D2s_coo = coo_matrix((valEntries[:nEntries]*g.areaCell[rows[:nEntries]], (rows[:nEntries], \
+#                               cols[:nEntries])), shape=(g.nCells, g.nCells))
+#        D2s_coo.eliminate_zeros( )
 
-        self.POpn = Poisson(D2s_coo, self.linear_solver, env)
+#        self.POpn = Poisson(D2s_coo, self.linear_solver, env)
             
     def construct_EllipticCPL_blocks(self, env, g, c):
         # A diagonal matrix representing scaling by cell areas

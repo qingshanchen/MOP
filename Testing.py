@@ -66,7 +66,7 @@ def run_tests(env, g, vc, c, s):
         import cupyx
 
         ##########################################################
-        if True:
+        if False:
             ## Data from SWSTC #2 (stationary zonal flow over the global sphere)
             if not c.on_a_global_sphere:
                 raise ValueError("Must use a global spheric domain")
@@ -87,7 +87,7 @@ def run_tests(env, g, vc, c, s):
             psi_cell_true -= psi_cell_true[0]
             phi_cell_true = np.zeros(g.nCells)
 
-        elif False:
+        elif True:
             # SWSTC #2, with a stationary analytic solution, modified for the northern hemisphere
             if c.on_a_global_sphere:
                 print("This is a test case on the northern hemisphere.")
@@ -163,7 +163,7 @@ def run_tests(env, g, vc, c, s):
         print(("Wall time for updating matrices: %f" % (wall1-wall0,)))
 
         ########################################################################
-        if False:
+        if True:
             print("")
             print("Solve the linear system by the direct method")
             cpu0 = time.clock( )
@@ -189,7 +189,7 @@ def run_tests(env, g, vc, c, s):
 
 
         ###########################################################################
-        if True:
+        if False:
             print("")
             print("Solve the coupled linear system by AMGX")
 
@@ -421,7 +421,7 @@ def run_tests(env, g, vc, c, s):
             print("L^2 error        = ", l2)
 
         ###########################################################################
-        if True:
+        if False:
             print("")
             print("Solve the coupled linear system with an iterative scheme and amgx")
             pyamgx.initialize()
@@ -548,24 +548,12 @@ def run_tests(env, g, vc, c, s):
             for k in np.arange(10):
                 b1 = s.vortdiv[:g.nCells] - vc.A12.dot(y)
                 b2 = s.vortdiv[g.nCells:] - vc.A21.dot(x)
-                #print("s.vortdiv[g.nCells:] =")
-                #print(s.vortdiv[g.nCells:])
-                #print("vc.A21.dot(x) = ")
-                #print(vc.A21.dot(x))
-                #print("b1")
-                #print(b1)
-                #print("b2")
-                #print(b2)
                 d_b1.upload(b1)
                 d_b2.upload(b2)
                 slv11.solve(d_b1, d_x)
                 slv22.solve(d_b2, d_y)
                 d_x.download(x)
                 d_y.download(y)
-                #print("x = ")
-                #print(x)
-                #print("y = ")
-                #print(y)
 
             cpu1 = time.clock( )
             wall1 = time.time( )
@@ -786,8 +774,10 @@ def run_tests(env, g, vc, c, s):
             #raise ValueError("Debugging")
 
 
-    if False:
+    if True:
+        print("")
         print("Testing the EllipticCpl2 object for the coupled elliptic equation")
+        from Elliptic import EllipticCpl2
 
         ##########################################################
         if False:
@@ -876,10 +866,12 @@ def run_tests(env, g, vc, c, s):
             
         s.vortdiv[g.nCells] = 0.   # Set first element to zeor to make phi_cell[0] zero
 
+        
         cpu0 = time.clock( )
         wall0 = time.time( )
+        POcpl2 = EllipticCpl2(vc, g, c)
         s.thickness_edge = vc.cell2edge(s.thickness)
-        vc.POcpl2.update(s.thickness_edge, vc.mSkewgrad_td, vc.mGrad_n_n, c, g)
+        POcpl2.update(s.thickness_edge, vc, c, g)
         cpu1 = time.clock( )
         wall1 = time.time( )
         print(("CPU time for updating matrices: %f" % (cpu1-cpu0,)))
@@ -889,7 +881,7 @@ def run_tests(env, g, vc, c, s):
         wall0 = time.time( )
         x = np.zeros(g.nCells); y = np.zeros(g.nCells)
         b1 = s.vortdiv[:g.nCells]; b2 = s.vortdiv[g.nCells:]
-        vc.POcpl2.solve(b1, b2, x, y)
+        POcpl2.solve(b1, b2, x, y)
         cpu1 = time.clock( )
         wall1 = time.time( )
 
@@ -907,8 +899,6 @@ def run_tests(env, g, vc, c, s):
         print("Errors in psi")
         print("L infinity error = ", l8)
         print("L^2 error        = ", l2)
-
-        
 
         
     if False:
