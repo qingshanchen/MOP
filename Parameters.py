@@ -1,9 +1,9 @@
 import numpy as np
 
 ### Parameters essential
-test_case = 12
+test_case = 5
 use_gpu = False
-performing_test = True
+performing_test = False
 
 do_restart = False
 restart_file = 'restart.nc'
@@ -17,9 +17,9 @@ timestepping = 'RK4'
 conserve_enstrophy = True     # False for energy-conserving only; True for both energy and enstrophy conserving 
 
 # Duration, time stepping size, saving interval
-#dt = 360.   #2880 for 480km
-dt = 90.   #360 for NA818
-nYears = 1./360
+dt = 1440.   #1440 for 480km
+#dt = 90.   #360 for NA818
+nYears = 50./360
 save_inter_days = 1.
 
 # Model configuraitons, boundary conditions
@@ -30,7 +30,7 @@ no_slip_BC = False
 free_slip_BC = False
 
 # Solver config
-linear_solver = 'amgx'      # lu, cg, cudaCG, cudaPCG, amg, amgx
+linear_solver = 'lu'      # lu, cg, cudaCG, cudaPCG, amg, amgx
 err_tol = 5e-8
 max_iters = 1000
 print_stats = 0             # 1 for True, 0 for False
