@@ -380,20 +380,21 @@ class EllipticCpl2:
 
             
         elif c.linear_solver is 'amg':
-            x_tmp = x; y_tmp = y
+#            x_tmp = x; y_tmp = y
             x_res = []; y_res = []
             for k in np.arange(nIter):
-                b11 = b1 - self.A12.dot(y_tmp)
-                b22 = b2 - self.A21.dot(x_tmp)
-                x_tmp = self.A11_solver.solve(b11, x0=x_tmp, tol=c.err_tol, residuals=x_res)
-                y_tmp = self.A22_solver.solve(b22, x0=y_tmp, tol=c.err_tol, residuals=y_res)
+                b11 = b1 - self.A12.dot(y)
+                b22 = b2 - self.A21.dot(x)
+                x[:] = self.A11_solver.solve(b11, x0=x, tol=c.err_tol, residuals=x_res)
+                y[:] = self.A22_solver.solve(b22, x0=y, tol=c.err_tol, residuals=y_res)
                 print("k = %d,  AMG nIters = %d, %d" % (k, len(x_res), len(y_res)))
                 print(x_res)
                 print(y_res)
 
             # Negate the solution, since the matrices were negated in
             # the update stage for positive definiteness
-            x[:] = -1 * x_tmp; y[:] = -1 * y_tmp
+#            x[:] = -1 * x_tmp; y[:] = -1 * y_tmp
+            x *= -1; y *= -1 
             
         else:
             raise ValueError("Invalid solver choice.")

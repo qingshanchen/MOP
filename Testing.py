@@ -163,7 +163,7 @@ def run_tests(env, g, vc, c, s):
         print(("Wall time for updating matrices: %f" % (wall1-wall0,)))
 
         ########################################################################
-        if True:
+        if False:
             print("")
             print("Solve the linear system by the direct method")
             cpu0 = time.clock( )
