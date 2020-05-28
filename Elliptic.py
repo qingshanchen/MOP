@@ -276,6 +276,9 @@ class EllipticCpl2:
         elif c.linear_solver is 'amg':
             from pyamg import rootnode_solver
         
+        elif c.linear_solver is 'lu':
+            pass
+        
         else:
             raise ValueError("Invalid solver choice.")
 
@@ -300,11 +303,9 @@ class EllipticCpl2:
             self.A22[0,0] = -2*np.sqrt(3.)/thickness_edge[0]
         
         if c.linear_solver is 'lu':
-            raise ValueError("Not ready yet for this solver")
-        
             # Convert the matrices to CSC for better performance
-            self.A11.tocsc( )
-            self.A22.tocsc( )
+            self.A11 = self.A11.tocsc( )
+            self.A22 = self.A22.tocsc( )
             
         elif c.linear_solver is 'amg':
             self.A11 *= -1
@@ -353,7 +354,15 @@ class EllipticCpl2:
     def solve(self, b1, b2, x, y, env=None, nIter = 10):
         
         if c.linear_solver is 'lu':
-            raise ValueError("Not ready yet for this solver")
+            A11_lu = splu(self.A11)
+            A22_lu = splu(self.A22)
+            b1_new = b1.copy(); b2_new = b2.copy( )
+            
+            for k in np.arange(nIter):
+                b1_new[:] = b1 - self.A12.dot(y)
+                b2_new[:] = b2 - self.A21.dot(x)
+                x[:] = A11_lu.solve(b1_new)
+                y[:] = A22_lu.solve(b2_new)
 
         elif c.linear_solver is 'amgx':
             b1_new = b1.copy(); b2_new = b2.copy( )

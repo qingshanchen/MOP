@@ -3,7 +3,7 @@ import numpy as np
 ### Parameters essential
 test_case = 5
 use_gpu = False
-performing_test = False
+performing_test = True
 
 do_restart = False
 restart_file = 'restart.nc'
