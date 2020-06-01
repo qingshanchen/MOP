@@ -387,9 +387,9 @@ class EllipticCpl2:
                 b22 = b2 - self.A21.dot(x)
                 x[:] = self.A11_solver.solve(b11, x0=x, tol=c.err_tol, residuals=x_res)
                 y[:] = self.A22_solver.solve(b22, x0=y, tol=c.err_tol, residuals=y_res)
-                print("k = %d,  AMG nIters = %d, %d" % (k, len(x_res), len(y_res)))
-                print(x_res)
-                print(y_res)
+#                print("k = %d,  AMG nIters = %d, %d" % (k, len(x_res), len(y_res)))
+#                print(x_res)
+#                print(y_res)
 
             # Negate the solution, since the matrices were negated in
             # the update stage for positive definiteness

@@ -15,6 +15,8 @@ class state_data:
         # Diagnostic variables
         self.vorticity_vertex = np.zeros(g.nVertices)
         self.divergence_vertex = np.zeros(g.nVertices)
+        self.circulation = np.zeros(g.nCells)
+        self.flux = np.zeros(g.nCells)
         self.vortdiv = np.zeros(2*g.nCells)
 
         self.psi_cell = np.zeros(g.nCells)
@@ -380,7 +382,7 @@ class state_data:
         
         rdata.close( )
 
-    def initialization(self, g, vc, c):
+    def initialization(self, poisson, g, vc, c):
 
         if c.do_restart:
             self.restart_from_file(g,c)
@@ -388,7 +390,7 @@ class state_data:
             self.start_from_function(vc, g, c)
 
         # Compute diagnostic variables
-        self.compute_diagnostics(g, vc, c)
+        self.compute_diagnostics(poisson, g, vc, c)
             
         # Open the output file and create new state variables
         out = nc.Dataset(c.output_file, 'a', format='NETCDF3_64BIT')
@@ -498,7 +500,7 @@ class state_data:
 
         self.tend_divergence[:] += c.delVisc * vc.discrete_laplace_v(self.divergence)
         
-    def compute_diagnostics(self, g, vc, c):
+    def compute_diagnostics(self, poisson, g, vc, c):
 
         if c.test_case == 1:
             #For shallow water test case #1, reset the vorticity and divergence to the initial states
@@ -509,7 +511,8 @@ class state_data:
 
         self.thickness_edge[:] = vc.cell2edge(self.thickness)
 
-        self.compute_psi_phi(vc, g, c)
+#        self.compute_psi_phi(vc, g, c)
+        self.compute_psi_phi_cpl2(poisson, vc, g, c)
 
         self.psi_vertex[:] = vc.cell2vertex(self.psi_cell)
         self.phi_vertex[:] = vc.cell2vertex(self.phi_cell)
@@ -576,6 +579,29 @@ class state_data:
         self.phi_cell[:] = self.psiphi[g.nCells:]
 
 
+    def compute_psi_phi_cpl2(self, poisson, vc, g, c):
+        # To compute psi_cell and phi_cell
+
+        # Update the coefficient matrix for the coupled system
+        poisson.update(self.thickness_edge, vc, c, g)
+
+        # Prepare the right-hand side and initial solution
+        self.circulation[:] = self.vorticity * g.areaCell
+        self.flux[:] = self.divergence * g.areaCell
+        
+        if c.on_a_global_sphere:
+            # A global domain with no boundary
+            self.circulation[0] = 0.   # Set first element to zeor to make psi_cell[0] zero
+            self.flux[0] = 0.   # Set first element to zeor to make phi_cell[0] zero
+            
+        else:
+            # A bounded domain with homogeneous Dirichlet for the psi and
+            # homogeneous Neumann for phi
+            self.circulation[vc.cellBoundary-1] = 0.   # Set boundary elements to zeor to make psi_cell zero there
+            self.flux[0] = 0.                   # Set first element to zeor to make phi_cell[0] zero
+
+        poisson.solve(self.circulation, self.flux, self.psi_cell, self.phi_cell)
+        
     def save(self, c, g, k):
         # Open the output file to save current data data
         out = nc.Dataset(c.output_file, 'a', format='NETCDF3_64BIT')
@@ -627,7 +653,7 @@ class state_data:
         self.kenergy_edge /= self.thickness_edge**2
         
         
-def timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, g, vc, c):
+def timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, poisson, g, vc, c):
 
     coef = np.array([0., .5, .5, 1.])
     accum = np.array([1./6, 1./3, 1./3, 1./6])
@@ -670,13 +696,13 @@ def timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, g, vc, c):
                 s_intm.psi_cell[:] = 2*s_intm.psi_cell[:] - s_pre.psi_cell[:]
                 s_intm.phi_cell[:] = 2*s_intm.phi_cell[:] - s_pre.phi_cell[:]
 
-            s_intm.compute_diagnostics(g, vc, c)
+            s_intm.compute_diagnostics(poisson, g, vc, c)
 
     # Prediction using the latest s_intm values
     s.psi_cell[:] = s_intm.psi_cell[:]
     s.phi_cell[:] = s_intm.phi_cell[:]
     
-    s.compute_diagnostics(g, vc, c)
+    s.compute_diagnostics(poisson, g, vc, c)
 
 def timestepping_euler(s, g, c):
 
@@ -711,6 +737,6 @@ def timestepping_euler(s, g, c):
     s.divergence[:] += s.tend_divergence[:]*dt
 
 
-    s.compute_diagnostics(g, vc, c)
+    s.compute_diagnostics(poisson, g, vc, c)
 
     

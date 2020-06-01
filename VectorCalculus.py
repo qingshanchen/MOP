@@ -640,7 +640,7 @@ class VectorCalculus:
         self.update_matrix_for_coupled_elliptic(thickness_edge, c, g)
 
         ## EllipticCPL and EllipticCpl2 only one can be in use
-        self.POcpl = EllipticCPL(self.coefM, c.linear_solver, env)
+#        self.POcpl = EllipticCPL(self.coefM, c.linear_solver, env)
 
         # Construct the coefficient matrices for the coupled elliptic problem
         self.A11 = None

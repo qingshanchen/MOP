@@ -3,7 +3,7 @@ import numpy as np
 ### Parameters essential
 test_case = 5
 use_gpu = False
-performing_test = True
+performing_test = False
 
 do_restart = False
 restart_file = 'restart.nc'
@@ -19,7 +19,7 @@ conserve_enstrophy = True     # False for energy-conserving only; True for both 
 # Duration, time stepping size, saving interval
 dt = 1440.   #1440 for 480km
 #dt = 90.   #360 for NA818
-nYears = 50./360
+nYears = 1./360
 save_inter_days = 1.
 
 # Model configuraitons, boundary conditions
