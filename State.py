@@ -584,7 +584,7 @@ class state_data:
 
         # Update the coefficient matrix for the coupled system
         poisson.update(self.thickness_edge, vc, c, g)
-
+        
         # Prepare the right-hand side and initial solution
         self.circulation[:] = self.vorticity * g.areaCell
         self.flux[:] = self.divergence * g.areaCell
