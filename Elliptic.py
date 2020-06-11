@@ -147,21 +147,27 @@ class EllipticCpl2:
         self.AMC = mAreaCell_psi * vc.mVertex2cell * vc.mCurl_t
         self.AC = mAreaCell_psi * vc.mCurl_v
         self.AMC.eliminate_zeros( )
+        self.AMC.sort_indices( )
         self.AC.eliminate_zeros( )
+        self.AC.sort_indices( )
         
         # Left, row 2
         self.AMD = mAreaCell_phi * vc.mVertex2cell * vc.mDiv_t
         self.AD = mAreaCell_phi * vc.mDiv_v
         self.AMD.eliminate_zeros( )
+        self.AMD.sort_indices( )
         self.AD.eliminate_zeros( )
+        self.AD.sort_indices( )
         
         # Right, col 2
         self.GN = vc.mGrad_tn * vc.mCell2vertex_n
         self.GN.eliminate_zeros( )
+        self.GN.sort_indices( )
         
         # Right, col 1
         self.SN = vc.mSkewgrad_nd * vc.mCell2vertex_psi
         self.SN.eliminate_zeros( )
+        self.SN.sort_indices( )
         
         ## Construct an artificial thickness vector
         thickness_edge = 100 * (10. + np.random.rand(g.nEdges))
@@ -284,16 +290,32 @@ class EllipticCpl2:
 
     def update(self, thickness_edge, vc, c, g):
         self.mThicknessInv.data[0,:] = 1./thickness_edge
+        thicknessInv = 1./thickness_edge
 
         ## Construct the blocks
-        self.A11 = self.AC * self.mThicknessInv * vc.mSkewgrad_td
-        self.A12 = self.AMC * self.mThicknessInv * vc.mGrad_n_n
-        self.A12 += self.AC * self.mThicknessInv * self.GN
+#        self.A11 = self.AC * self.mThicknessInv * vc.mSkewgrad_td
+        self.A11 = self.AC.multiply(thicknessInv)
+        self.A11 *= vc.mSkewgrad_td
+        
+#        self.A12 = self.AMC * self.mThicknessInv * vc.mGrad_n_n
+#        self.A12 += self.AC * self.mThicknessInv * self.GN
+#        self.A12 *= 0.5
+        self.A12 = self.AMC.multiply(thicknessInv)
+        self.A12 *= vc.mGrad_n_n
+        self.A12 += self.AC.multiply(thicknessInv) * self.GN
         self.A12 *= 0.5
-        self.A21 = self.AD * self.mThicknessInv * self.SN
-        self.A21 += self.AMD * self.mThicknessInv * vc.mSkewgrad_td
+        
+        #self.A21 = self.AD * self.mThicknessInv * self.SN
+        #self.A21 += self.AMD * self.mThicknessInv * vc.mSkewgrad_td
+        #self.A21 *= 0.5
+        self.A21 = self.AD.multiply(thicknessInv)
+        self.A21 *= self.SN
+        self.A21 += self.AMD.multiply(thicknessInv) * vc.mSkewgrad_td
         self.A21 *= 0.5
-        self.A22 = self.AD * self.mThicknessInv * vc.mGrad_n_n
+        
+        #self.A22 = self.AD * self.mThicknessInv * vc.mGrad_n_n
+        self.A22 = self.AD.multiply(thicknessInv)
+        self.A22 *= vc.mGrad_n_n
 
         #self.A11 = self.A11.tolil( )
         #self.A22 = self.A22.tolil( )

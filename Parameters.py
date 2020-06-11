@@ -19,7 +19,7 @@ conserve_enstrophy = True     # False for energy-conserving only; True for both 
 # Duration, time stepping size, saving interval
 dt = 90.   #1440 for 480km
 #dt = 90.   #360 for NA818
-nYears = .01/360
+nYears = .02/360
 save_inter_days = 1.
 
 # Model configuraitons, boundary conditions
