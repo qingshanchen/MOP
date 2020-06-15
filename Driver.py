@@ -98,14 +98,14 @@ def main( ):
     t0a = time.time( )
     s_pre = deepcopy(s)
     s_old = deepcopy(s)
-    s_old1 = deepcopy(s)
+#    s_old1 = deepcopy(s)
     
     for iStep in range(c.nTimeSteps):
 
         print(("Doing step %d/%d " % (iStep+1, c.nTimeSteps)))
 
         if c.timestepping == 'RK4':
-            timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, poisson, g, vc, c)
+            timestepping_rk4_z_hex(s, s_pre, s_old, poisson, g, vc, c)
         elif c.timestepping == 'E':
             timestepping_euler(s, poisson, g, vc, c)
         else:
@@ -135,8 +135,8 @@ def main( ):
         if c.test_case == 2 or c.test_case == 12:
             s.compute_tc2_errors(iStep, s_init, error1, error2, errorInf, g)
 
-        s_tmp = s_old1
-        s_old1 = s_old
+#        s_tmp = s_old1
+        s_tmp = s_old
         s_old = s_pre
         s_pre = s
         s = s_tmp

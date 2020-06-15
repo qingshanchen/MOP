@@ -653,7 +653,7 @@ class state_data:
         self.kenergy_edge /= self.thickness_edge**2
         
         
-def timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, poisson, g, vc, c):
+def timestepping_rk4_z_hex(s, s_pre, s_old, poisson, g, vc, c):
 
     coef = np.array([0., .5, .5, 1.])
     accum = np.array([1./6, 1./3, 1./3, 1./6])
@@ -701,7 +701,7 @@ def timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, poisson, g, vc, c):
     # Prediction using the latest s_intm values
     s.psi_cell[:] = s_intm.psi_cell[:]
     s.phi_cell[:] = s_intm.phi_cell[:]
-    
+
     s.compute_diagnostics(poisson, g, vc, c)
 
 def timestepping_euler(s, g, c):
