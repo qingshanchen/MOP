@@ -42,7 +42,7 @@ def main( ):
     if c.performing_test:
         print("========== Beginning tests =======================================")
         from Testing import run_tests
-        run_tests(env, g, vc, c, s)
+        run_tests(env, g, c, s, vc, poisson)
         raise ValueError("Just for testing.")
 
     print("========== Setting the initial state of the model ================")
