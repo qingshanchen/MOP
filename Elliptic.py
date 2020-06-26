@@ -293,27 +293,19 @@ class EllipticCpl2:
         thicknessInv = 1./thickness_edge
 
         ## Construct the blocks
-#        self.A11 = self.AC * self.mThicknessInv * vc.mSkewgrad_td
         self.A11 = self.AC.multiply(thicknessInv)
         self.A11 *= vc.mSkewgrad_td
         
-#        self.A12 = self.AMC * self.mThicknessInv * vc.mGrad_n_n
-#        self.A12 += self.AC * self.mThicknessInv * self.GN
-#        self.A12 *= 0.5
         self.A12 = self.AMC.multiply(thicknessInv)
         self.A12 *= vc.mGrad_n_n
         self.A12 += self.AC.multiply(thicknessInv) * self.GN
         self.A12 *= 0.5
         
-        #self.A21 = self.AD * self.mThicknessInv * self.SN
-        #self.A21 += self.AMD * self.mThicknessInv * vc.mSkewgrad_td
-        #self.A21 *= 0.5
         self.A21 = self.AD.multiply(thicknessInv)
         self.A21 *= self.SN
         self.A21 += self.AMD.multiply(thicknessInv) * vc.mSkewgrad_td
         self.A21 *= 0.5
         
-        #self.A22 = self.AD * self.mThicknessInv * vc.mGrad_n_n
         self.A22 = self.AD.multiply(thicknessInv)
         self.A22 *= vc.mGrad_n_n
 

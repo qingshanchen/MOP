@@ -525,7 +525,6 @@ class state_data:
             #print("Total vorticity = %e" % (np.sum(self.vorticity * g.areaCell)))
             #print("Total divergence = %e" % (np.sum(self.divergence * g.areaCell)))
         else:
-#            raise ValueError
             pass
         
         # Compute the absolute vorticity
@@ -552,7 +551,7 @@ class state_data:
 
 
     def compute_psi_phi(self, vc, g, c):
-        # To compute the psi_cell and phi_cell
+        # To compute the psi_cell and phi_cell, requires EllipticCpl object
 
         # Update the coefficient matrix for the coupled system
         vc.update_matrix_for_coupled_elliptic(self.thickness_edge, c, g)
@@ -580,7 +579,7 @@ class state_data:
 
 
     def compute_psi_phi_cpl2(self, poisson, vc, g, c):
-        # To compute psi_cell and phi_cell
+        # To compute psi_cell and phi_cell, requires the EllipticCpl2 object (that is, poisson)
 
         # Update the coefficient matrix for the coupled system
         poisson.update(self.thickness_edge, vc, c, g)
