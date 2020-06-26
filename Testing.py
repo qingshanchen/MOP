@@ -2,8 +2,6 @@ import numpy as np
 import time
 from scipy.sparse import isspmatrix_bsr, isspmatrix_csr
 from scipy.sparse.linalg import factorized, splu
-#from copy import deepcopy as deepcopy
-#import numba
 from swe_comp import swe_comp as cmp
 
 def run_tests(env, g, c, s, vc, poisson):
@@ -694,29 +692,40 @@ def run_tests(env, g, c, s, vc, poisson):
             d_y = pyamgx.Vector().create(rsc2, mode); y_cp = cp.zeros(g.nCells)
             d_b2 = pyamgx.Vector().create(rsc2, mode); b2_cp = cp.zeros(g.nCells)
 
-            print("Copying CSR matrices from host to device")
+            # Export A11 out for more testing
+            from scipy.io import mmwrite
+            mmwrite('A11-40962', poisson.A11)
+            
+            t0 = time.time( )
             A11_cp = cupyx.scipy.sparse.csr_matrix(poisson.A11)
+            t1 = time.time( )
+            print("Time to convert scipy CSR into cupy CSR: %f" % (t1-t0))
+            
+            d_A11.upload_CSR(poisson.A11)
+            t2 = time.time( )
+            print("Time to upload scipy CSR to AMGX solver: %f" % (t2-t1))
+            
+            d_A11.upload_CSR(A11_cp)
+            t3 = time.time( )
+            print("Time to upload cupy CSR to AMGX solver: %f" % (t3-t2))
+            
+            d_A11.upload_CSR(A11_cp)
+            t4 = time.time( )
+            print("Time to upload cupy CSR to AMGX solver: %f" % (t4-t3))
+            
+            d_A11.upload_CSR(A11_cp)
+            t5 = time.time( )
+            print("Time to upload cupy CSR to AMGX solver: %f" % (t5-t4))
+
+            
             A22_cp = cupyx.scipy.sparse.csr_matrix(poisson.A22)
-#            poisson.A12.sort_indices( )
-#            poisson.A21.sort_indices( )
-#            A12_cp = cupyx.scipy.sparse.csr_matrix((cp.array(poisson.A12.data), \
-#                                                    cp.array(poisson.A12.indices), \
-#                                                    cp.array(poisson.A12.indptr)))
-#            A21_cp = cupyx.scipy.sparse.csr_matrix((cp.array(poisson.A21.data), \
-#                                                    cp.array(poisson.A21.indices), \
-#                                                    cp.array(poisson.A21.indptr)))
+            d_A22.upload_CSR(poisson.A22)
+#            d_A22.upload_CSR(A22_cp)
+            
             A12_cp = cupyx.scipy.sparse.csr_matrix(poisson.A12)
             A21_cp = cupyx.scipy.sparse.csr_matrix(poisson.A21)
 
-#            print("Uploading CSR matrices from host to AMGX solver on device")
-#            d_A11.upload_CSR(poisson.A11)
-#            d_A22.upload_CSR(poisson.A22)
-            print("Uploading CSR matrices to AMGX solver on device")
-#            d_A11.upload_CSR(A11_cp)
-#            d_A22.upload_CSR(A22_cp)
-            d_A11.upload(A11_cp.indptr, A11_cp.indices, A11_cp.data)
-            d_A22.upload(A22_cp.indptr, A22_cp.indices, A22_cp.data)
-            print("Done uploading CSR matrices to AMGX solver on device")
+            
 
 #            raise ValueError( )
         
