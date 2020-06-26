@@ -2,11 +2,9 @@ import numpy as np
 import time
 from scipy.sparse import isspmatrix_bsr, isspmatrix_csr
 from scipy.sparse.linalg import factorized, splu
-#from copy import deepcopy as deepcopy
-#import numba
 from swe_comp import swe_comp as cmp
 
-def run_tests(env, g, vc, c, s):
+def run_tests(env, g, c, s, vc, poisson):
 
     if False:   # Test the linear solver the Lapace equation on the interior cells with homogeneous Dirichlet BC's
         psi_cell_true = np.random.rand(vc.nCells)
@@ -66,7 +64,7 @@ def run_tests(env, g, vc, c, s):
         import cupyx
 
         ##########################################################
-        if False:
+        if True:
             ## Data from SWSTC #2 (stationary zonal flow over the global sphere)
             if not c.on_a_global_sphere:
                 raise ValueError("Must use a global spheric domain")
@@ -87,7 +85,7 @@ def run_tests(env, g, vc, c, s):
             psi_cell_true -= psi_cell_true[0]
             phi_cell_true = np.zeros(g.nCells)
 
-        elif True:
+        elif False:
             # SWSTC #2, with a stationary analytic solution, modified for the northern hemisphere
             if c.on_a_global_sphere:
                 print("This is a test case on the northern hemisphere.")
@@ -155,17 +153,16 @@ def run_tests(env, g, vc, c, s):
         cpu0 = time.clock( )
         wall0 = time.time( )
         s.thickness_edge = vc.cell2edge(s.thickness)
-        vc.update_matrix_for_coupled_elliptic(s.thickness_edge, c, g)
-        vc.update_matrices_for_coupled_elliptic(s.thickness_edge, c, g)
+        poisson.update(s.thickness_edge, vc, c, g)
         cpu1 = time.clock( )
         wall1 = time.time( )
         print(("CPU time for updating matrices: %f" % (cpu1-cpu0,)))
         print(("Wall time for updating matrices: %f" % (wall1-wall0,)))
 
         ########################################################################
-        if True:
+        if False:
             print("")
-            print("Solve the linear system by the direct method")
+            print("Solve the linear system by the direct method") # Obselete, may be removed in future
             cpu0 = time.clock( )
             wall0 = time.time( )
             x = spsolve(vc.coefM, s.vortdiv)
@@ -191,7 +188,7 @@ def run_tests(env, g, vc, c, s):
         ###########################################################################
         if False:
             print("")
-            print("Solve the coupled linear system by AMGX")
+            print("Solve the coupled linear system by AMGX")  # Obselete
 
             pyamgx.initialize( )
 
@@ -295,9 +292,9 @@ def run_tests(env, g, vc, c, s):
 
 
         ###########################################################################
-        if True:
+        if False:
             print("")
-            print("Solve the linear system by pyamg")
+            print("Solve the linear system by pyamg")   # Obsolete
             from pyamg import rootnode_solver
             A_spd = -vc.coefM
             B = np.ones((A_spd.shape[0],1), dtype=A_spd.dtype); BH = B.copy()
@@ -349,10 +346,10 @@ def run_tests(env, g, vc, c, s):
             print("Solve the coupled linear system with an iterative scheme and pyamg")
 
             from pyamg import rootnode_solver
-            A11 = -vc.A11
-            A12 = -vc.A12
-            A21 = -vc.A21
-            A22 = -vc.A22
+            A11 = -poisson.A11
+            A12 = -poisson.A12
+            A21 = -poisson.A21
+            A22 = -poisson.A22
 
             B11 = np.ones((A11.shape[0],1), dtype=A11.dtype); BH11 = B11.copy()
             A11_solver = rootnode_solver(A11, B=B11, BH=BH11,
@@ -421,7 +418,7 @@ def run_tests(env, g, vc, c, s):
             print("L^2 error        = ", l2)
 
         ###########################################################################
-        if False:
+        if True:
             print("")
             print("Solve the coupled linear system with an iterative scheme and amgx")
             pyamgx.initialize()
@@ -527,8 +524,8 @@ def run_tests(env, g, vc, c, s):
             d_y = pyamgx.Vector().create(rsc2, mode)
             d_b2 = pyamgx.Vector().create(rsc2, mode)
 
-            d_A11.upload_CSR(vc.A11)
-            d_A22.upload_CSR(vc.A22)
+            d_A11.upload_CSR(poisson.A11)
+            d_A22.upload_CSR(poisson.A22)
 
             b1 = s.vortdiv[:g.nCells]
             d_b1.upload(b1)
@@ -546,8 +543,8 @@ def run_tests(env, g, vc, c, s):
             cpu0 = time.clock( )
             wall0 = time.time( )
             for k in np.arange(10):
-                b1 = s.vortdiv[:g.nCells] - vc.A12.dot(y)
-                b2 = s.vortdiv[g.nCells:] - vc.A21.dot(x)
+                b1 = s.vortdiv[:g.nCells] - poisson.A12.dot(y)
+                b2 = s.vortdiv[g.nCells:] - poisson.A21.dot(x)
                 d_b1.upload(b1)
                 d_b2.upload(b2)
                 slv11.solve(d_b1, d_x)
@@ -589,7 +586,7 @@ def run_tests(env, g, vc, c, s):
             print("L^2 error        = ", l2)        
         
         ###########################################################################
-        if False:
+        if True:
             print("")
             print("Solve the coupled linear system with an iterative scheme, amgx, upload_raw and download_raw")
             pyamgx.initialize()
@@ -695,13 +692,43 @@ def run_tests(env, g, vc, c, s):
             d_y = pyamgx.Vector().create(rsc2, mode); y_cp = cp.zeros(g.nCells)
             d_b2 = pyamgx.Vector().create(rsc2, mode); b2_cp = cp.zeros(g.nCells)
 
-            A11_cp = cupyx.scipy.sparse.csr_matrix(vc.A11)
-            A12_cp = cupyx.scipy.sparse.csr_matrix(vc.A12)
-            A21_cp = cupyx.scipy.sparse.csr_matrix(vc.A21)
-            A22_cp = cupyx.scipy.sparse.csr_matrix(vc.A22)
-            d_A11.upload_CSR(vc.A11)
-            d_A22.upload_CSR(vc.A22)
+            # Export A11 out for more testing
+            from scipy.io import mmwrite
+            mmwrite('A11-40962', poisson.A11)
+            
+            t0 = time.time( )
+            A11_cp = cupyx.scipy.sparse.csr_matrix(poisson.A11)
+            t1 = time.time( )
+            print("Time to convert scipy CSR into cupy CSR: %f" % (t1-t0))
+            
+            d_A11.upload_CSR(poisson.A11)
+            t2 = time.time( )
+            print("Time to upload scipy CSR to AMGX solver: %f" % (t2-t1))
+            
+            d_A11.upload_CSR(A11_cp)
+            t3 = time.time( )
+            print("Time to upload cupy CSR to AMGX solver: %f" % (t3-t2))
+            
+            d_A11.upload_CSR(A11_cp)
+            t4 = time.time( )
+            print("Time to upload cupy CSR to AMGX solver: %f" % (t4-t3))
+            
+            d_A11.upload_CSR(A11_cp)
+            t5 = time.time( )
+            print("Time to upload cupy CSR to AMGX solver: %f" % (t5-t4))
 
+            
+            A22_cp = cupyx.scipy.sparse.csr_matrix(poisson.A22)
+            d_A22.upload_CSR(poisson.A22)
+#            d_A22.upload_CSR(A22_cp)
+            
+            A12_cp = cupyx.scipy.sparse.csr_matrix(poisson.A12)
+            A21_cp = cupyx.scipy.sparse.csr_matrix(poisson.A21)
+
+            
+
+#            raise ValueError( )
+        
             vortdiv_cp = cp.asarray(s.vortdiv)
             b1_cp = cp.asarray(s.vortdiv[:g.nCells])
             d_b1.upload_raw(b1_cp.data, b1_cp.size)
@@ -719,24 +746,24 @@ def run_tests(env, g, vc, c, s):
             for k in np.arange(10):
                 b1_cp = vortdiv_cp[:g.nCells] - A12_cp.dot(y_cp)
                 b2_cp = vortdiv_cp[g.nCells:] - A21_cp.dot(x_cp)
-                print("vortdiv_cp[g.nCells:] = ")
-                print(vortdiv_cp[g.nCells:])
-                print("A21_cp.dot(x_cp) = ")
-                print(A21_cp.dot(x_cp))
-                print("b1_cp")
-                print(b1_cp)
-                print("b2_cp")
-                print(b2_cp)
+#                print("vortdiv_cp[g.nCells:] = ")
+#                print(vortdiv_cp[g.nCells:])
+#                print("A21_cp.dot(x_cp) = ")
+#                print(A21_cp.dot(x_cp))
+#                print("b1_cp")
+#                print(b1_cp)
+#                print("b2_cp")
+#                print(b2_cp)
                 d_b1.upload_raw(b1_cp.data, b1_cp.size)
                 d_b2.upload_raw(b2_cp.data, b2_cp.size)
                 slv11.solve(d_b1, d_x)
                 slv22.solve(d_b2, d_y)
                 d_x.download_raw(x_cp.data)
                 d_y.download_raw(y_cp.data)
-                print("x_cp = ")
-                print(x_cp)
-                print("y_cp = ")
-                print(y_cp)
+#                print("x_cp = ")
+#                print(x_cp)
+#                print("y_cp = ")
+#                print(y_cp)
 
             cpu1 = time.clock( )
             wall1 = time.time( )
@@ -761,8 +788,8 @@ def run_tests(env, g, vc, c, s):
             print(("Wall time for AMGX: %f" % (wall1-wall0,)))
 
             # Compute the errors
-            s.psi_cell[:] = x_cp[:]
-            s.phi_cell[:] = y_cp[:]
+            s.psi_cell[:] = x_cp.get( )
+            s.phi_cell[:] = y_cp.get( )
             l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
             l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
             l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
@@ -774,13 +801,12 @@ def run_tests(env, g, vc, c, s):
             #raise ValueError("Debugging")
 
 
-    if True:
+    if False:
         print("")
         print("Testing the EllipticCpl2 object for the coupled elliptic equation")
-        from Elliptic import EllipticCpl2
 
         ##########################################################
-        if False:
+        if True:
             ## Data from SWSTC #2 (stationary zonal flow over the global sphere)
             if not c.on_a_global_sphere:
                 raise ValueError("Must use a global spheric domain")
@@ -801,7 +827,7 @@ def run_tests(env, g, vc, c, s):
             psi_cell_true -= psi_cell_true[0]
             phi_cell_true = np.zeros(g.nCells)
 
-        elif True:
+        elif False:
             # SWSTC #2, with a stationary analytic solution, modified for the northern hemisphere
             if c.on_a_global_sphere:
                 print("This is a test case on the northern hemisphere.")
@@ -869,9 +895,8 @@ def run_tests(env, g, vc, c, s):
         
         cpu0 = time.clock( )
         wall0 = time.time( )
-        POcpl2 = EllipticCpl2(vc, g, c)
         s.thickness_edge = vc.cell2edge(s.thickness)
-        POcpl2.update(s.thickness_edge, vc, c, g)
+        poisson.update(s.thickness_edge, vc, c, g)
         cpu1 = time.clock( )
         wall1 = time.time( )
         print(("CPU time for updating matrices: %f" % (cpu1-cpu0,)))
@@ -881,7 +906,7 @@ def run_tests(env, g, vc, c, s):
         wall0 = time.time( )
         x = np.zeros(g.nCells); y = np.zeros(g.nCells)
         b1 = s.vortdiv[:g.nCells]; b2 = s.vortdiv[g.nCells:]
-        POcpl2.solve(b1, b2, x, y)
+        poisson.solve(b1, b2, x, y)
         cpu1 = time.clock( )
         wall1 = time.time( )
 

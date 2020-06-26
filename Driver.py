@@ -4,6 +4,7 @@ from ComputeEnvironment import ComputeEnvironment
 from Grid import grid_data
 from State import state_data, timestepping_rk4_z_hex
 from VectorCalculus import VectorCalculus
+from Elliptic import EllipticCpl2
 from matplotlib import use
 use('Agg')
 import matplotlib.pyplot as plt
@@ -31,6 +32,9 @@ def main( ):
     print("===========Initializing the VectorCalculus object ================")
     vc = VectorCalculus(g, c, env)
 
+    print("===========Initializing the Poisson object ================")
+    poisson = EllipticCpl2(vc, g, c)
+
     print("========== Initializing the State object =========================")
     s = state_data(vc, g, c)
 
@@ -38,11 +42,11 @@ def main( ):
     if c.performing_test:
         print("========== Beginning tests =======================================")
         from Testing import run_tests
-        run_tests(env, g, vc, c, s)
+        run_tests(env, g, c, s, vc, poisson)
         raise ValueError("Just for testing.")
 
     print("========== Setting the initial state of the model ================")
-    s.initialization(g, vc, c)
+    s.initialization(poisson, g, vc, c)
 
     
     print("========== Making a copy of the state object =====================")
@@ -94,16 +98,16 @@ def main( ):
     t0a = time.time( )
     s_pre = deepcopy(s)
     s_old = deepcopy(s)
-    s_old1 = deepcopy(s)
+#    s_old1 = deepcopy(s)
     
     for iStep in range(c.nTimeSteps):
 
         print(("Doing step %d/%d " % (iStep+1, c.nTimeSteps)))
 
         if c.timestepping == 'RK4':
-            timestepping_rk4_z_hex(s, s_pre, s_old, s_old1, g, vc, c)
+            timestepping_rk4_z_hex(s, s_pre, s_old, poisson, g, vc, c)
         elif c.timestepping == 'E':
-            timestepping_euler(s, g, vc, c)
+            timestepping_euler(s, poisson, g, vc, c)
         else:
             raise ValueError("Invalid choice for time stepping")
 
@@ -131,8 +135,8 @@ def main( ):
         if c.test_case == 2 or c.test_case == 12:
             s.compute_tc2_errors(iStep, s_init, error1, error2, errorInf, g)
 
-        s_tmp = s_old1
-        s_old1 = s_old
+#        s_tmp = s_old1
+        s_tmp = s_old
         s_old = s_pre
         s_pre = s
         s = s_tmp
