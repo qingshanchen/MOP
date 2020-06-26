@@ -1,7 +1,7 @@
 # MOP
 Mathematical Ocean Prototype
 
-Required software packages: Numpy, Scipy, matplotlib, netcdf4-python, f2py, Fortran compiler
+Required software packages: Numpy, Scipy, matplotlib, netcdf4-python, f2py, Fortran compiler, pyamg
 
 Optional packages: AMGX, pyAMGX, cudatoolkit
 
@@ -16,7 +16,7 @@ Builing and execution procedure:
    $ ipython Driver.py
 
 # Installation
-Here's a brief review of the steps that I needed to take to run the package on Ubuntu 18.04. (Everything is done using Anaconda)
+Here's a brief review of the steps that I needed to take to run the package on Ubuntu 18.04. (Everything is done using Anaconda) 
 ## Dependencies (CPU):
 Create a file named ```environment.yml``` and populate it with this code:
 
@@ -82,7 +82,7 @@ You will need to first go through and install everything needed for the CPU port
  - Run: ```pip install .```
 
 ### Test GPU Installation:
-Modify the ```parameters.py``` file by simply changing the existing line to:
+Modify the ```Parameters.py``` file by simply changing the existing line to:
 
  - ```33: linear_solver = 'amgx'```
  - Run: ```python Driver.py```
