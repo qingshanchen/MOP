@@ -3,7 +3,7 @@ import numpy as np
 ### Parameters essential
 test_case = 2
 use_gpu = False
-performing_test = False
+performing_test = True
 
 do_restart = False
 restart_file = 'restart.nc'
@@ -30,7 +30,7 @@ no_slip_BC = False
 free_slip_BC = False
 
 # Solver config
-linear_solver = 'amgx'      # lu, cg, cudaCG, cudaPCG, amg, amgx
+linear_solver = 'amg'      # lu, cg, cudaCG, cudaPCG, amg, amgx
 err_tol = 5e-8
 max_iters = 1000
 print_stats = 0             # 1 for True, 0 for False

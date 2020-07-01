@@ -55,7 +55,7 @@ def run_tests(env, g, c, s, vc, poisson):
         print("L^2 error        = ", l2)        
 
 
-    if True:
+    if False:
         # To compare various solvers (direct, amgx, amg) for the coupled elliptic equation
         # The solvers are invoked directly
         from scipy.sparse.linalg import spsolve
@@ -586,7 +586,7 @@ def run_tests(env, g, c, s, vc, poisson):
             print("L^2 error        = ", l2)        
         
         ###########################################################################
-        if True:
+        if False:
             print("")
             print("Solve the coupled linear system with an iterative scheme, amgx, upload_raw and download_raw")
             pyamgx.initialize()
@@ -693,8 +693,8 @@ def run_tests(env, g, c, s, vc, poisson):
             d_b2 = pyamgx.Vector().create(rsc2, mode); b2_cp = cp.zeros(g.nCells)
 
             # Export A11 out for more testing
-            from scipy.io import mmwrite
-            mmwrite('A11-40962', poisson.A11)
+#            from scipy.io import mmwrite
+#            mmwrite('A11-40962', poisson.A11)
             
             t0 = time.time( )
             A11_cp = cupyx.scipy.sparse.csr_matrix(poisson.A11)
@@ -925,7 +925,102 @@ def run_tests(env, g, c, s, vc, poisson):
         print("L infinity error = ", l8)
         print("L^2 error        = ", l2)
 
+    if True:
+        # Test multiplation of CuPy sparse matrices, and the matrix upload method
+        # for pyAMGX
+        import pyamgx
+        import cupy as cp
+        import cupyx
+
+        pyamgx.initialize()
+
+        # Initialize config, resources and mode:
+        cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json')
+        #cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_AGGREGATION_JACOBI.json')
+
+        rsc = pyamgx.Resources().create_simple(cfg)
+        mode = 'dDDI'
+
+        # Create matrices and vectors:
+        d_A11 = pyamgx.Matrix().create(rsc, mode)
+
+        AC = poisson.AC
+        d_AC = cupyx.scipy.sparse.csr_matrix(AC)
+        mSkewgrad_td = vc.mSkewgrad_td
+        d_mSkewgrad_td = cupyx.scipy.sparse.csr_matrix(mSkewgrad_td)
+
+        thicknessInv = np.random.rand(g.nEdges)
+        t0 = time.time( )
+        A11 = AC.multiply(thicknessInv)
+        A11 *= mSkewgrad_td
+        t1 = time.time()
+        d_A11.upload_CSR(A11)
+        t2 = time.time( )
+        print("")
+        print("Matrix multiplication on CPU: %f" % (t1-t0))
+        print("Upload matrix from host to AMGX on GPU: %f" % (t2-t1))
+
+        thicknessInv = np.random.rand(g.nEdges)
+        t0 = time.time( )
+        A11 = AC.multiply(thicknessInv)
+        A11 *= mSkewgrad_td
+        t1 = time.time()
+        d_A11.upload_CSR(A11)
+        t2 = time.time( )
+        print("")
+        print("Matrix multiplication on CPU: %f" % (t1-t0))
+        print("Upload matrix from host to AMGX on GPU: %f" % (t2-t1))
+
+        thicknessInv = np.random.rand(g.nEdges)
+        t0 = time.time( )
+        A11 = AC.multiply(thicknessInv)
+        A11 *= mSkewgrad_td
+        t1 = time.time()
+        d_A11.upload_CSR(A11)
+        t2 = time.time( )
+        print("")
+        print("Matrix multiplication on CPU: %f" % (t1-t0))
+        print("Upload matrix from host to AMGX on GPU: %f" % (t2-t1))
         
+        thicknessInv = np.random.rand(g.nEdges)
+        thicknessInv_cp = cupyx.scipy.sparse.diags(thicknessInv, format='csr')
+        t0 = time.time( )
+        A11_cp = d_AC * thicknessInv_cp
+        A11_cp *= d_mSkewgrad_td
+        t1 = time.time()
+        d_A11.upload_CSR(A11_cp)
+        t2 = time.time( )
+        print("")
+        print("Matrix multiplication on GPU: %f" % (t1-t0))
+        print("Upload matrix from device to AMGX on GPU: %f" % (t2-t1))
+
+        thicknessInv = np.random.rand(g.nEdges)
+        thicknessInv_cp = cupyx.scipy.sparse.diags(thicknessInv, format='csr')
+        t0 = time.time( )
+        A11_cp = d_AC * thicknessInv_cp
+        A11_cp *= d_mSkewgrad_td
+        t1 = time.time()
+        d_A11.upload_CSR(A11_cp)
+        t2 = time.time( )
+        print("")
+        print("Matrix multiplication on GPU: %f" % (t1-t0))
+        print("Upload matrix from device to AMGX on GPU: %f" % (t2-t1))
+
+        thicknessInv = np.random.rand(g.nEdges)
+        thicknessInv_cp = cupyx.scipy.sparse.diags(thicknessInv, format='csr')
+        t0 = time.time( )
+        A11_cp = d_AC * thicknessInv_cp
+        A11_cp *= d_mSkewgrad_td
+        t1 = time.time()
+        d_A11.upload_CSR(A11_cp)
+        t2 = time.time( )
+        print("")
+        print("Matrix multiplication on GPU: %f" % (t1-t0))
+        print("Upload matrix from device to AMGX on GPU: %f" % (t2-t1))
+        
+#        raise ValueError
+
+
     if False:
         # Test the linear solver for the coupled elliptic equation on the whole domain
         # Both normal and tangential components are used to define the Hamiltonian
