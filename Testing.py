@@ -887,8 +887,47 @@ def run_tests(env, g, c, s, vc, poisson):
         pyamgx.initialize()
 
         # Initialize config, resources and mode:
-        cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json')
+        #cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json')
         #cfg = pyamgx.Config().create_from_file('amgx_config/PCGF_AGGREGATION_JACOBI.json')
+        cfg = pyamgx.Config( ).create_from_dict({    
+            "config_version": 2, 
+            "determinism_flag": 0, 
+            "solver": {
+                "preconditioner": {
+                    "print_grid_stats": 1, 
+                    "algorithm": "AGGREGATION", 
+                    "print_vis_data": 0, 
+                    "solver": "AMG", 
+                    "smoother": {
+                        "relaxation_factor": 0.8, 
+                        "scope": "jacobi", 
+                        "solver": "BLOCK_JACOBI", 
+                        "monitor_residual": 0, 
+                        "print_solve_stats": 0
+                    }, 
+                    "print_solve_stats": 0, 
+                    "presweeps": 2, 
+                    "selector": "SIZE_2", 
+                    "coarse_solver": "NOSOLVER", 
+                    "max_iters": 2, 
+                    "monitor_residual": 0, 
+                    "store_res_history": 0, 
+                    "scope": "amg_solver", 
+                    "max_levels": 100, 
+                    "postsweeps": 2, 
+                    "cycle": "V"
+                }, 
+                "solver": "PCGF", 
+                "print_solve_stats": 1, 
+                "obtain_timings": 1, 
+                "max_iters": c.max_iters, 
+                "monitor_residual": 1, 
+                "convergence": "ABSOLUTE", 
+                "scope": "main", 
+                "tolerance": 1e-8,
+                "norm": "L2"
+            }
+        })
 
         rsc = pyamgx.Resources().create_simple(cfg)
         mode = 'dDDI'
