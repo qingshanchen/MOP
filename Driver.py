@@ -94,7 +94,7 @@ def main( ):
         nc_num = -1
 
     # Entering the loop
-    t0 = time.clock( )
+    t0 = time.process_time( )
     t0a = time.time( )
     s_pre = deepcopy(s)
     s_old = deepcopy(s)
@@ -142,7 +142,7 @@ def main( ):
         s = s_tmp
 
     days = c.dt * np.arange(c.nTimeSteps+1) / 86400.
-    t1 = time.clock( )
+    t1 = time.process_time( )
     t1a = time.time( )
     plt.close('all')
 

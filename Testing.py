@@ -974,17 +974,17 @@ def run_tests(env, g, c, s, vc, poisson):
         print("Upload matrix from host to AMGX on GPU: %f" % (t2-t1))
         
         thicknessInv = np.random.rand(g.nEdges)
-        thicknessInv_cp = cupyx.scipy.sparse.diags(thicknessInv, format='csr')
-        #thicknessInv_cp = cp.array(thicknessInv)
-        #A11_cp = d_AC.multiply(thicknessInv_cp)
+        #thicknessInv_cp = cupyx.scipy.sparse.diags(thicknessInv, format='csr')
+        thicknessInv_cp = cp.array(thicknessInv)
+        #A11_cp = d_AC * thicknessInv_cp
         t0 = time.time( )
-        A11_cp = d_AC * thicknessInv_cp
+        A11_cp = d_AC.multiply(thicknessInv_cp)
         A11_cp *= d_mSkewgrad_td
         t1 = time.time()
         d_A11.upload_CSR(A11_cp)
         t2 = time.time( )
         print("")
-        print("Matrix multiplication on GPU: %f" % (t1-t0))
+        print("Matrix multiplication on GPU, with multiply: %f" % (t1-t0))
         print("Upload matrix from device to AMGX on GPU: %f" % (t2-t1))
 
         thicknessInv = np.random.rand(g.nEdges)
@@ -996,9 +996,23 @@ def run_tests(env, g, c, s, vc, poisson):
         d_A11.upload_CSR(A11_cp)
         t2 = time.time( )
         print("")
-        print("Matrix multiplication on GPU: %f" % (t1-t0))
+        print("Matrix multiplication on GPU, with diagonals: %f" % (t1-t0))
         print("Upload matrix from device to AMGX on GPU: %f" % (t2-t1))
 
+        thicknessInv = np.random.rand(g.nEdges)
+        #thicknessInv_cp = cupyx.scipy.sparse.diags(thicknessInv, format='csr')
+        thicknessInv_cp = cp.array(thicknessInv)
+        #A11_cp = d_AC * thicknessInv_cp
+        t0 = time.time( )
+        A11_cp = d_AC.multiply(thicknessInv_cp)
+        A11_cp *= d_mSkewgrad_td
+        t1 = time.time()
+        d_A11.upload_CSR(A11_cp)
+        t2 = time.time( )
+        print("")
+        print("Matrix multiplication on GPU, with multiply: %f" % (t1-t0))
+        print("Upload matrix from device to AMGX on GPU: %f" % (t2-t1))
+        
         thicknessInv = np.random.rand(g.nEdges)
         thicknessInv_cp = cupyx.scipy.sparse.diags(thicknessInv, format='csr')
         t0 = time.time( )
@@ -1008,7 +1022,7 @@ def run_tests(env, g, c, s, vc, poisson):
         d_A11.upload_CSR(A11_cp)
         t2 = time.time( )
         print("")
-        print("Matrix multiplication on GPU: %f" % (t1-t0))
+        print("Matrix multiplication on GPU, with diagonals: %f" % (t1-t0))
         print("Upload matrix from device to AMGX on GPU: %f" % (t2-t1))
         
 
