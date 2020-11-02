@@ -941,8 +941,8 @@ def run_tests(env, g, c, s, vc, poisson):
         d_mSkewgrad_td = cupyx.scipy.sparse.csr_matrix(mSkewgrad_td)
 
         thicknessInv = np.random.rand(g.nEdges)
-        A11 = AC.multiply(thicknessInv)
         t0 = time.time( )
+        A11 = AC.multiply(thicknessInv)
         A11 *= mSkewgrad_td
         t1 = time.time()
         d_A11.upload_CSR(A11)
@@ -952,8 +952,8 @@ def run_tests(env, g, c, s, vc, poisson):
         print("Upload matrix from host to AMGX on GPU: %f" % (t2-t1))
 
         thicknessInv = np.random.rand(g.nEdges)
-        A11 = AC.multiply(thicknessInv)
         t0 = time.time( )
+        A11 = AC.multiply(thicknessInv)
         A11 *= mSkewgrad_td
         t1 = time.time()
         d_A11.upload_CSR(A11)
@@ -963,8 +963,8 @@ def run_tests(env, g, c, s, vc, poisson):
         print("Upload matrix from host to AMGX on GPU: %f" % (t2-t1))
 
         thicknessInv = np.random.rand(g.nEdges)
-        A11 = AC.multiply(thicknessInv)
         t0 = time.time( )
+        A11 = AC.multiply(thicknessInv)
         A11 *= mSkewgrad_td
         t1 = time.time()
         d_A11.upload_CSR(A11)
@@ -976,9 +976,9 @@ def run_tests(env, g, c, s, vc, poisson):
         thicknessInv = np.random.rand(g.nEdges)
         thicknessInv_cp = cupyx.scipy.sparse.diags(thicknessInv, format='csr')
         #thicknessInv_cp = cp.array(thicknessInv)
-        A11_cp = d_AC * thicknessInv_cp
         #A11_cp = d_AC.multiply(thicknessInv_cp)
         t0 = time.time( )
+        A11_cp = d_AC * thicknessInv_cp
         A11_cp *= d_mSkewgrad_td
         t1 = time.time()
         d_A11.upload_CSR(A11_cp)
@@ -989,8 +989,8 @@ def run_tests(env, g, c, s, vc, poisson):
 
         thicknessInv = np.random.rand(g.nEdges)
         thicknessInv_cp = cupyx.scipy.sparse.diags(thicknessInv, format='csr')
-        A11_cp = d_AC * thicknessInv_cp
         t0 = time.time( )
+        A11_cp = d_AC * thicknessInv_cp
         A11_cp *= d_mSkewgrad_td
         t1 = time.time()
         d_A11.upload_CSR(A11_cp)
@@ -1001,8 +1001,8 @@ def run_tests(env, g, c, s, vc, poisson):
 
         thicknessInv = np.random.rand(g.nEdges)
         thicknessInv_cp = cupyx.scipy.sparse.diags(thicknessInv, format='csr')
-        A11_cp = d_AC * thicknessInv_cp
         t0 = time.time( )
+        A11_cp = d_AC * thicknessInv_cp
         A11_cp *= d_mSkewgrad_td
         t1 = time.time()
         d_A11.upload_CSR(A11_cp)
