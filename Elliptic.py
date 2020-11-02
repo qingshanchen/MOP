@@ -1,4 +1,5 @@
 import numpy as np
+import cupy as cp
 import Parameters as c
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix, eye, diags, bmat
 from scipy.sparse.linalg import spsolve, splu, factorized
@@ -168,11 +169,30 @@ class EllipticCpl2:
         self.SN = vc.mSkewgrad_nd * vc.mCell2vertex_psi
         self.SN.eliminate_zeros( )
         self.SN.sort_indices( )
-        
+
         ## Construct an artificial thickness vector
         thickness_edge = 100 * (10. + np.random.rand(g.nEdges))
-        self.mThicknessInv = eye(g.nEdges)  
-        self.mThicknessInv.data[0,:] = 1./thickness_edge
+        self.thicknessInv = 1. / thickness_edge
+#        self.mThicknessInv = eye(g.nEdges)  
+#        self.mThicknessInv.data[0,:] = 1./thickness_edge
+
+        # Copy certain matrices over from VectorCalculus; maybe unnecessary
+        # in the future.
+        self.mSkewgrad_td = vc.mSkewgrad_td.copy( )
+        self.mGrad_n_n = vc.mGrad_n_n.copy( )
+        
+        if c.use_gpu2:
+            import cupy as cp
+            import cupyx 
+            self.AMC = cupyx.scipy.sparse.csr_matrix(self.AMC)
+            self.AC = cupyx.scipy.sparse.csr_matrix(self.AC)
+            self.AMD = cupyx.scipy.sparse.csr_matrix(self.AMD)
+            self.AD= cupyx.scipy.sparse.csr_matrix(self.AD)
+            self.GN = cupyx.scipy.sparse.csr_matrix(self.GN)
+            self.SN = cupyx.scipy.sparse.csr_matrix(self.SN)
+            self.mSkewgrad_td = cupyx.scipy.sparse.csr_matrix(self.mSkewgrad_td)
+            self.mGrad_n_n = cupyx.scipy.sparse.csr_matrix(self.mGrad_n_n)
+            self.thicknessInv = cp.array(self.thicknessInv)
         
         if c.linear_solver is 'amgx':
             import pyamgx
@@ -289,25 +309,27 @@ class EllipticCpl2:
             raise ValueError("Invalid solver choice.")
 
     def update(self, thickness_edge, vc, c, g):
-        self.mThicknessInv.data[0,:] = 1./thickness_edge
-        thicknessInv = 1./thickness_edge
+        if c.use_gpu2:
+            self.thicknessInv[:] = cp.array(1./thickness_edge)
+        else:
+            self.thicknessInv[:] = 1./thickness_edge
 
         ## Construct the blocks
-        self.A11 = self.AC.multiply(thicknessInv)
-        self.A11 *= vc.mSkewgrad_td
+        self.A11 = self.AC.multiply(self.thicknessInv)
+        self.A11 *= self.mSkewgrad_td
         
-        self.A12 = self.AMC.multiply(thicknessInv)
-        self.A12 *= vc.mGrad_n_n
-        self.A12 += self.AC.multiply(thicknessInv) * self.GN
+        self.A12 = self.AMC.multiply(self.thicknessInv)
+        self.A12 *= self.mGrad_n_n
+        self.A12 += self.AC.multiply(self.thicknessInv) * self.GN
         self.A12 *= 0.5
         
-        self.A21 = self.AD.multiply(thicknessInv)
+        self.A21 = self.AD.multiply(self.thicknessInv)
         self.A21 *= self.SN
-        self.A21 += self.AMD.multiply(thicknessInv) * vc.mSkewgrad_td
+        self.A21 += self.AMD.multiply(self.thicknessInv) * self.mSkewgrad_td
         self.A21 *= 0.5
         
-        self.A22 = self.AD.multiply(thicknessInv)
-        self.A22 *= vc.mGrad_n_n
+        self.A22 = self.AD.multiply(self.thicknessInv)
+        self.A22 *= self.mGrad_n_n
 
         #self.A11 = self.A11.tolil( )
         #self.A22 = self.A22.tolil( )
@@ -383,20 +405,29 @@ class EllipticCpl2:
                 y[:] = A22_lu.solve(b2_new)
 
         elif c.linear_solver is 'amgx':
+            if c.use_gpu2:
+                b1 = cp.array(b1)
+                b2 = cp.array(b2)
+
             b1_new = b1.copy(); b2_new = b2.copy( )
             self.d_x.upload(x)
             self.d_y.upload(y)
             for k in np.arange(nIter):
-                b1_new[:] = b1 - self.A12.dot(y)
-                b2_new[:] = b2 - self.A21.dot(x)
+                if c.use_gpu2:
+                    b1_new[:] = b1 - self.A12.dot(cp.array(y))
+                    b2_new[:] = b2 - self.A21.dot(cp.array(x))
+                else:
+                    b1_new[:] = b1 - self.A12.dot(y)
+                    b2_new[:] = b2 - self.A21.dot(x)
+                    
                 self.d_b1.upload(b1_new)
                 self.d_b2.upload(b2_new)
                 self.slv11.solve(self.d_b1, self.d_x)
                 self.slv22.solve(self.d_b2, self.d_y)
                 self.d_x.download(x)
                 self.d_y.download(y)
+                    
 
-            
         elif c.linear_solver is 'amg':
             x_res = []; y_res = []
             for k in np.arange(nIter):
