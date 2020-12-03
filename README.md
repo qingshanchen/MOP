@@ -25,7 +25,7 @@ Builing and execution procedure:
 7. (CUDA) [AMGX](https://github.com/NVIDIA/AMGX)
 8. (CUDA) [pyamgx](https://github.com/shwina/pyamgx)
 
-Steps marked by CUDA are only necessary if the model is to run on Nvidia graphics card using CUDA.
+Steps marked by CUDA are only necessary if the model is to run on Nvidia graphics cards using CUDA.
 
 
  
