@@ -3,6 +3,7 @@ import numpy as np
 ### Parameters essential
 test_case = 2
 use_gpu = False
+use_gpu2 = True
 performing_test = False
 
 do_restart = False
