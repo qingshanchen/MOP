@@ -1,6 +1,5 @@
 import numpy as np
-from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
-from scipy.sparse.linalg import spsolve, splu
+#from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 from swe_comp import swe_comp as cmp
 import netCDF4 as nc
 import os

@@ -1,5 +1,4 @@
 import numpy as np
-import Parameters as c
 import netCDF4 as nc
 from swe_comp import swe_comp as cmp
 from copy import deepcopy as deepcopy
