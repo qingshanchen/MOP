@@ -1,6 +1,5 @@
 import numpy as np
 import Parameters as c
-from ComputeEnvironment import ComputeEnvironment
 from Grid import grid_data
 from State import state_data, timestepping_rk4_z_hex
 from VectorCalculus import VectorCalculus
@@ -23,14 +22,11 @@ def main( ):
     # Create a grid_data object, a state_data object, and a parameter object.
     # -----------------------------------------------------------
 
-    print("=========== Setting up the compute environment====================")
-    env = ComputeEnvironment(c)
-
     print("=========== Init the grid object =================================")
     g = grid_data('grid.nc', c)
 
     print("===========Initializing the VectorCalculus object ================")
-    vc = VectorCalculus(g, c, env)
+    vc = VectorCalculus(g, c)
 
     print("===========Initializing the Poisson object ================")
     poisson = EllipticCpl2(vc, g, c)
@@ -42,7 +38,7 @@ def main( ):
     if c.performing_test:
         print("========== Beginning tests =======================================")
         from Testing import run_tests
-        run_tests(env, g, c, s, vc, poisson)
+        run_tests(g, c, s, vc, poisson)
         raise ValueError("Just for testing.")
 
     print("========== Setting the initial state of the model ================")

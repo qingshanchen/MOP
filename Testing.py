@@ -4,7 +4,7 @@ from scipy.sparse import isspmatrix_bsr, isspmatrix_csr
 from scipy.sparse.linalg import factorized, splu
 from swe_comp import swe_comp as cmp
 
-def run_tests(env, g, c, s, vc, poisson):
+def run_tests(g, c, s, vc, poisson):
 
 
     if False:
