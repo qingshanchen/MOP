@@ -1,5 +1,4 @@
 import numpy as np
-import Parameters as c
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 from swe_comp import swe_comp as cmp
 
@@ -22,6 +21,7 @@ class VectorCalculus:
 
         self.max_iters = c.max_iters
         self.err_tol = c.err_tol
+        self.use_gpu = c.use_gpu
 
         self.areaCell = g.areaCell.copy()
         self.areaTriangle = g.areaTriangle.copy()
@@ -60,7 +60,7 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nCells, g.nEdges))
         self.mDiv_v = A.tocsr( )
 
-        if c.use_gpu:
+        if self.use_gpu:
             self.d_mDiv_v = Device_CSR(self.mDiv_v, env)
 
         #
@@ -73,7 +73,7 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nVertices, g.nEdges))
         self.mDiv_t = A.tocsr( )
 
-        if c.use_gpu:
+        if self.use_gpu:
             self.d_mDiv_t = Device_CSR(self.mDiv_t, env)
 
         #
@@ -87,7 +87,7 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nCells, g.nEdges))
         self.mCurl_v = A.tocsr( )
 
-        if c.use_gpu:
+        if self.use_gpu:
             self.d_mCurl_v = Device_CSR(self.mCurl_v, env)
 
         #
@@ -100,7 +100,7 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nVertices, g.nEdges))
         self.mCurl_t = A.tocsr( )
 
-        if c.use_gpu:
+        if self.use_gpu:
             self.d_mCurl_t = Device_CSR(self.mCurl_t, env)
 
         #
@@ -115,7 +115,7 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nCells, g.nCells))
         self.mLaplace_v = A.tocsr( )
 
-        if c.use_gpu:
+        if self.use_gpu:
             self.d_mLaplace_v = Device_CSR(self.mLaplace_v, env)
 
         #
@@ -131,7 +131,7 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nVertices, g.nVertices))
         self.mLaplace_t = A.tocsr( )
 
-        if c.use_gpu:
+        if self.use_gpu:
             self.d_mLaplace_t = Device_CSR(self.mLaplace_t, env)
 
         #
@@ -149,7 +149,7 @@ class VectorCalculus:
         self.mGrad_n_n = A_n.tocsr( )
         self.mGrad_n_n.eliminate_zeros()
 
-        if c.use_gpu:
+        if self.use_gpu:
             self.d_mGrad_n = Device_CSR(self.mGrad_n, env)
 
         #
@@ -163,7 +163,7 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nEdges, g.nVertices))
         self.mGrad_td = A.tocsr( )
 
-        if c.use_gpu:
+        if self.use_gpu:
             self.d_mGrad_td = Device_CSR(self.mGrad_td, env)
 
         #
@@ -177,7 +177,7 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nEdges, g.nVertices))
         self.mGrad_tn = A.tocsr( )
 
-        if c.use_gpu:
+        if self.use_gpu:
             self.d_mGrad_tn = Device_CSR(self.mGrad_tn, env)
 
         #
@@ -191,7 +191,7 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nEdges, g.nCells))
         self.mSkewgrad_t = A.tocsr( )
 
-        if c.use_gpu:
+        if self.use_gpu:
             self.d_mSkewgrad_t = Device_CSR(self.mSkewgrad_t, env)
 
         #
@@ -206,7 +206,7 @@ class VectorCalculus:
         self.mSkewgrad_td = A.tocsr( )
         self.mSkewgrad_td.eliminate_zeros( )
         
-        if c.use_gpu:
+        if self.use_gpu:
             self.d_mSkewgrad_td = Device_CSR(self.mSkewgrad_td, env)
 
         #
@@ -221,7 +221,7 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nEdges, g.nVertices))
         self.mSkewgrad_nd = A.tocsr( )
 
-        if c.use_gpu:
+        if self.use_gpu:
             self.d_mSkewgrad_nd = Device_CSR(self.mSkewgrad_nd, env)
 
         #
@@ -235,7 +235,7 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nVertices, g.nCells))
         self.mCell2vertex = A.tocsr( )
 
-        if c.use_gpu:
+        if self.use_gpu:
             self.d_mCell2vertex = Device_CSR(self.mCell2vertex, env)
 
         A_n = A.tolil( )
@@ -256,7 +256,7 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nVertices, g.nCells))
         self.mCell2vertex_psi = A.tocsr( )
 
-        if c.use_gpu:
+        if self.use_gpu:
             self.d_mCell2vertex_psi = Device_CSR(self.mCell2vertex_psi, env)
 
         #
@@ -270,7 +270,7 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nCells, g.nVertices))
         self.mVertex2cell = A.tocsr( )
 
-        if c.use_gpu:
+        if self.use_gpu:
             self.d_mVertex2cell = Device_CSR(self.mVertex2cell, env)
 
         #
@@ -283,7 +283,7 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nEdges, g.nCells))
         self.mCell2edge = A.tocsr( )
 
-        if c.use_gpu:
+        if self.use_gpu:
             self.d_mCell2edge = Device_CSR(self.mCell2edge, env)
 
         #
@@ -296,7 +296,7 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nCells, g.nEdges))
         self.mEdge2cell = A.tocsr( )
 
-        if c.use_gpu:
+        if self.use_gpu:
             self.d_mEdge2cell = Device_CSR(self.mEdge2cell, env)
 
         
@@ -312,7 +312,7 @@ class VectorCalculus:
         No flux boundary conditions implied on the boundary.
         '''
 
-        if c.use_gpu:
+        if self.use_gpu:
             assert len(vEdge) == self.d_mDiv_v.shape[1], \
                 "Dimensions do not match."
             d_vectorIn = self.env.cuda.to_device(vEdge)
@@ -336,7 +336,7 @@ class VectorCalculus:
         No flux boundary conditions implied on the boundary.
         '''
 
-        if c.use_gpu:
+        if self.use_gpu:
             assert len(vEdge) == self.d_mDiv_t.shape[1], \
                 "Dimensions do not match."
             d_vectorIn = self.env.cuda.to_device(vEdge)
@@ -361,7 +361,7 @@ class VectorCalculus:
         No-slip boundary conditions implied on the boundary.
         '''
 
-        if c.use_gpu:
+        if self.use_gpu:
             assert len(vEdge) == self.d_mCurl_v.shape[1], \
                 "Dimensions do not match."
             d_vectorIn = self.env.cuda.to_device(vEdge)
@@ -385,7 +385,7 @@ class VectorCalculus:
         The discrete curl operator on the dual mesh.
         '''
 
-        if c.use_gpu:
+        if self.use_gpu:
             assert len(vEdge) == self.d_mCurl_t.shape[1], \
                 "Dimensions do not match."
             d_vectorIn = self.env.cuda.to_device(vEdge)
@@ -409,7 +409,7 @@ class VectorCalculus:
         Homogeneous Neumann BC's implied on the boundary.
         '''
 
-        if c.use_gpu:
+        if self.use_gpu:
             assert len(sCell) == self.d_mLaplace_v.shape[1], \
                 "Dimensions do not match."
             d_vectorIn = self.env.cuda.to_device(sCell)
@@ -433,7 +433,7 @@ class VectorCalculus:
         Homogeneous Neumann BC's implied on the boundary.
         '''
 
-        if c.use_gpu:
+        if self.use_gpu:
             assert len(sVertex) == self.d_mLaplace_t.shape[1], \
                 "Dimensions do not match."
             d_vectorIn = self.env.cuda.to_device(sVertex)
@@ -455,7 +455,7 @@ class VectorCalculus:
     # The discrete gradient operator along the normal direction
     def discrete_grad_n(self, sCell):
 
-        if c.use_gpu:
+        if self.use_gpu:
             assert len(sCell) == self.d_mGrad_n.shape[1], \
                 "Dimensions do not match."
             d_vectorIn = self.env.cuda.to_device(sCell)
@@ -479,7 +479,7 @@ class VectorCalculus:
     def discrete_grad_td(self, sVertex):
         '''With implied Dirichlet BC's'''
 
-        if c.use_gpu:
+        if self.use_gpu:
             assert len(sVertex) == self.d_mGrad_td.shape[1], \
                 "Dimensions do not match."
             d_vectorIn = self.env.cuda.to_device(sVertex)
@@ -503,7 +503,7 @@ class VectorCalculus:
     def discrete_grad_tn(self, sVertex):
         '''With implied Neumann BC's'''
 
-        if c.use_gpu:
+        if self.use_gpu:
             assert len(sVertex) == self.d_mGrad_tn.shape[1], \
                 "Dimensions do not match."
             d_vectorIn = self.env.cuda.to_device(sVertex)
@@ -527,7 +527,7 @@ class VectorCalculus:
     def discrete_skewgrad_nd(self, sVertex):
         '''With implied Neumann BC's'''
 
-        if c.use_gpu:
+        if self.use_gpu:
             assert len(sVertex) == self.d_mSkewgrad_nd.shape[1], \
                 "Dimensions do not match."
             d_vectorIn = self.env.cuda.to_device(sVertex)
@@ -548,7 +548,7 @@ class VectorCalculus:
     # The discrete skew gradient operator along the tangential direction
     def discrete_skewgrad_t(self, sCell):
 
-        if c.use_gpu:
+        if self.use_gpu:
             assert len(sCell) == self.d_mSkewgrad_t.shape[1], \
                 "Dimensions do not match."
             d_vectorIn = self.env.cuda.to_device(sCell)
@@ -569,7 +569,7 @@ class VectorCalculus:
 
     def cell2vertex(self, sCell):
 
-        if c.use_gpu:
+        if self.use_gpu:
             assert len(sCell) == self.d_mCell2vertex.shape[1], \
                 "Dimensions do not match."
             d_vectorIn = self.env.cuda.to_device(sCell)
@@ -590,7 +590,7 @@ class VectorCalculus:
 
     def vertex2cell(self, sVertex):
 
-        if c.use_gpu:
+        if self.use_gpu:
             assert len(sVertex) == self.d_mVertex2cell.shape[1], \
                 "Dimensions do not match."
             d_vectorIn = self.env.cuda.to_device(sVertex)
@@ -610,7 +610,7 @@ class VectorCalculus:
         
     def cell2edge(self, sCell):
 
-        if c.use_gpu:
+        if self.use_gpu:
             assert len(sCell) == self.d_mCell2edge.shape[1], \
                 "Dimensions do not match."
             d_vectorIn = self.env.cuda.to_device(sCell)
@@ -630,7 +630,7 @@ class VectorCalculus:
 
     def edge2cell(self, sEdge):
 
-        if c.use_gpu:
+        if self.use_gpu:
             assert len(sEdge) == self.d_mEdge2cell.shape[1], \
                 "Dimensions do not match."
             d_vectorIn = self.env.cuda.to_device(sEdge)
