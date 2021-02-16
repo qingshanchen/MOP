@@ -7,7 +7,7 @@ from swe_comp import swe_comp as cmp
 def run_tests(g, c, s, vc, poisson):
 
 
-    if False:
+    if True:
         # To compare various solvers (direct, amgx, amg) for the coupled elliptic equation
         # The solvers are invoked directly
         from scipy.sparse.linalg import spsolve
@@ -89,6 +89,9 @@ def run_tests(g, c, s, vc, poisson):
             s.vorticity /= s.thickness
             s.divergence[:] = 0.
 
+        else:
+            raise ValueError("No data are chosen!")
+
         # To prepare the rhs
         s.vortdiv[:g.nCells] = s.vorticity * g.areaCell
         s.vortdiv[g.nCells:] = s.divergence * g.areaCell
@@ -102,27 +105,21 @@ def run_tests(g, c, s, vc, poisson):
             
         s.vortdiv[g.nCells] = 0.   # Set first element to zeor to make phi_cell[0] zero
         
-        cpu0 = time.clock( )
         wall0 = time.time( )
         s.thickness_edge = vc.cell2edge(s.thickness)
         poisson.update(s.thickness_edge, vc, c, g)
-        cpu1 = time.clock( )
         wall1 = time.time( )
-        print(("CPU time for updating matrices: %f" % (cpu1-cpu0,)))
         print(("Wall time for updating matrices: %f" % (wall1-wall0,)))
 
         ########################################################################
         if False:
             print("")
             print("Solve the linear system by the direct method") # Obselete, may be removed in future
-            cpu0 = time.clock( )
             wall0 = time.time( )
             x = spsolve(vc.coefM, s.vortdiv)
-            cpu1 = time.clock( )
             wall1 = time.time( )
 
             print("")
-            print(("CPU time for direct method: %f" % (cpu1-cpu0,)))
             print(("Wall time for direct method: %f" % (wall1-wall0,)))
 
             # Compute the errors
@@ -293,7 +290,7 @@ def run_tests(g, c, s, vc, poisson):
             print("L^2 error        = ", l2)        
 
         ###########################################################################
-        if True:
+        if False:
             print("")
             print("Solve the coupled linear system with an iterative scheme and pyamg")
 
@@ -334,7 +331,6 @@ def run_tests(g, c, s, vc, poisson):
             print("")
             print(A11_solver)
             print(A22_solver)
-            cpu0 = time.clock( )
             wall0 = time.time( )
             x_res = []
             y_res = []
@@ -352,10 +348,8 @@ def run_tests(g, c, s, vc, poisson):
                 print(x_res)
                 print(y_res)
 
-            cpu1 = time.clock( )
             wall1 = time.time( )
 
-            print(("CPU time by iterative pyAMG: %f" % (cpu1-cpu0,)))
             print(("Wall time by iterative pyAMG: %f" % (wall1-wall0,)))
 
             # Compute the errors
@@ -408,8 +402,8 @@ def run_tests(g, c, s, vc, poisson):
                         "cycle": "V"
                     }, 
                     "solver": "PCGF", 
-                    "print_solve_stats": 1, 
-                    "obtain_timings": 1, 
+                    "print_solve_stats": 0, 
+                    "obtain_timings": 0, 
                     "max_iters": c.max_iters, 
                     "monitor_residual": 1, 
                     "convergence": "ABSOLUTE", 
@@ -449,8 +443,8 @@ def run_tests(g, c, s, vc, poisson):
                         "cycle": "V"
                     }, 
                     "solver": "PCGF", 
-                    "print_solve_stats": 1, 
-                    "obtain_timings": 1, 
+                    "print_solve_stats": 0, 
+                    "obtain_timings": 0, 
                     "max_iters": c.max_iters, 
                     "monitor_residual": 1, 
                     "convergence": "ABSOLUTE", 
@@ -492,7 +486,6 @@ def run_tests(g, c, s, vc, poisson):
             slv11.setup(d_A11)
             slv22.setup(d_A22)
 
-            cpu0 = time.clock( )
             wall0 = time.time( )
             for k in np.arange(10):
                 b1 = s.vortdiv[:g.nCells] - poisson.A12.dot(y)
@@ -504,7 +497,6 @@ def run_tests(g, c, s, vc, poisson):
                 d_x.download(x)
                 d_y.download(y)
 
-            cpu1 = time.clock( )
             wall1 = time.time( )
 
             # Clean up:
@@ -523,22 +515,25 @@ def run_tests(g, c, s, vc, poisson):
             pyamgx.finalize()
 
             print("")
-            print(("CPU time for AMGX: %f" % (cpu1-cpu0,)))
             print(("Wall time for AMGX: %f" % (wall1-wall0,)))
 
             # Compute the errors
-            s.psi_cell[:] = x[:]
-            s.phi_cell[:] = y[:]
+            s.psi_cell[:] = -x[:]
+            s.phi_cell[:] = -y[:]
             l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
             l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
             l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
             l2 = np.sqrt(l2)
             print("Errors in psi")
             print("L infinity error = ", l8)
-            print("L^2 error        = ", l2)        
+            print("L^2 error        = ", l2)
+#            print("psi_cell_true = ")
+#            print(psi_cell_true)
+#            print("s.psi_cell = ")
+#            print(s.psi_cell)
         
         ###########################################################################
-        if False:
+        if True:
             print("")
             print("Solve the coupled linear system with an iterative scheme, amgx, upload_raw and download_raw")
             pyamgx.initialize()
@@ -576,8 +571,8 @@ def run_tests(g, c, s, vc, poisson):
                         "cycle": "V"
                     }, 
                     "solver": "PCGF", 
-                    "print_solve_stats": 1, 
-                    "obtain_timings": 1, 
+                    "print_solve_stats": 0, 
+                    "obtain_timings": 0, 
                     "max_iters": c.max_iters, 
                     "monitor_residual": 1, 
                     "convergence": "ABSOLUTE", 
@@ -617,8 +612,8 @@ def run_tests(g, c, s, vc, poisson):
                         "cycle": "V"
                     }, 
                     "solver": "PCGF", 
-                    "print_solve_stats": 1, 
-                    "obtain_timings": 1, 
+                    "print_solve_stats": 0, 
+                    "obtain_timings": 0, 
                     "max_iters": c.max_iters, 
                     "monitor_residual": 1, 
                     "convergence": "ABSOLUTE", 
@@ -638,10 +633,12 @@ def run_tests(g, c, s, vc, poisson):
 
             # Create matrices and vectors:
             d_A11 = pyamgx.Matrix().create(rsc1, mode)
-            d_x = pyamgx.Vector().create(rsc1, mode); x_cp = cp.zeros(g.nCells)
+            d_x = pyamgx.Vector().create(rsc1, mode)
+            x_cp = cp.zeros(g.nCells); x = np.zeros(g.nCells)
             d_b1 = pyamgx.Vector().create(rsc1, mode); b1_cp = cp.zeros(g.nCells)
             d_A22 = pyamgx.Matrix().create(rsc2, mode)
-            d_y = pyamgx.Vector().create(rsc2, mode); y_cp = cp.zeros(g.nCells)
+            d_y = pyamgx.Vector().create(rsc2, mode)
+            y_cp = cp.zeros(g.nCells); y = np.zeros(g.nCells)
             d_b2 = pyamgx.Vector().create(rsc2, mode); b2_cp = cp.zeros(g.nCells)
 
             # Export A11 out for more testing
@@ -693,7 +690,6 @@ def run_tests(g, c, s, vc, poisson):
             slv11.setup(d_A11)
             slv22.setup(d_A22)
 
-            cpu0 = time.clock( )
             wall0 = time.time( )
             for k in np.arange(10):
                 b1_cp = vortdiv_cp[:g.nCells] - A12_cp.dot(y_cp)
@@ -706,18 +702,25 @@ def run_tests(g, c, s, vc, poisson):
 #                print(b1_cp)
 #                print("b2_cp")
 #                print(b2_cp)
-                d_b1.upload_raw(b1_cp.data, b1_cp.size)
-                d_b2.upload_raw(b2_cp.data, b2_cp.size)
+#                d_b1.upload_raw(b1_cp.data, b1_cp.size)
+#                d_b2.upload_raw(b2_cp.data, b2_cp.size)
+                d_b1.upload(b1_cp)
+                d_b2.upload(b2_cp)
                 slv11.solve(d_b1, d_x)
                 slv22.solve(d_b2, d_y)
                 d_x.download_raw(x_cp.data)
                 d_y.download_raw(y_cp.data)
+#                d_x.download(x_cp)     #This does not work yet. pyamgx does not 
+#                d_y.download(y_cp)     #download to cupy arrays yet.
+#                d_x.download(x)
+#                d_y.download(y)
+#                x_cp = cp.asarray(x)
+#                y_cp = cp.asarray(y)
 #                print("x_cp = ")
 #                print(x_cp)
 #                print("y_cp = ")
 #                print(y_cp)
 
-            cpu1 = time.clock( )
             wall1 = time.time( )
 
             # Clean up:
@@ -736,12 +739,11 @@ def run_tests(g, c, s, vc, poisson):
             pyamgx.finalize()
 
             print("")
-            print(("CPU time for AMGX: %f" % (cpu1-cpu0,)))
             print(("Wall time for AMGX: %f" % (wall1-wall0,)))
 
             # Compute the errors
-            s.psi_cell[:] = x_cp.get( )
-            s.phi_cell[:] = y_cp.get( )
+            s.psi_cell[:] = -x_cp.get( )    # Not sure why this needs to be negated
+            s.phi_cell[:] = -y_cp.get( )    # But it works for the moment
             l8 = np.max(np.abs(psi_cell_true[:] - s.psi_cell[:])) / np.max(np.abs(psi_cell_true[:]))
             l2 = np.sum(np.abs(psi_cell_true[:] - s.psi_cell[:])**2 * g.areaCell[:])
             l2 /=  np.sum(np.abs(psi_cell_true[:])**2 * g.areaCell[:])
@@ -877,7 +879,7 @@ def run_tests(g, c, s, vc, poisson):
         print("L infinity error = ", l8)
         print("L^2 error        = ", l2)
 
-    if True:
+    if False:
         # Test multiplation of CuPy sparse matrices, and the matrix upload method
         # for pyAMGX
         import pyamgx
