@@ -408,14 +408,16 @@ class EllipticCpl2:
             if c.use_gpu2:
                 b1 = cp.array(b1)
                 b2 = cp.array(b2)
+                x_cp = cp.array(x)
+                y_cp = cp.array(y)
 
             b1_new = b1.copy(); b2_new = b2.copy( )
             self.d_x.upload(x)
             self.d_y.upload(y)
             for k in np.arange(nIter):
                 if c.use_gpu2:
-                    b1_new[:] = b1 - self.A12.dot(cp.array(y))
-                    b2_new[:] = b2 - self.A21.dot(cp.array(x))
+                    b1_new[:] = b1 - self.A12.dot(y_cp)
+                    b2_new[:] = b2 - self.A21.dot(x_cp)
                 else:
                     b1_new[:] = b1 - self.A12.dot(y)
                     b2_new[:] = b2 - self.A21.dot(x)
@@ -424,8 +426,17 @@ class EllipticCpl2:
                 self.d_b2.upload(b2_new)
                 self.slv11.solve(self.d_b1, self.d_x)
                 self.slv22.solve(self.d_b2, self.d_y)
-                self.d_x.download(x)
-                self.d_y.download(y)
+
+                if c.use_gpu2:
+                    self.d_x.download_raw(x_cp.data)
+                    self.d_y.download_raw(y_cp.data)
+                else:
+                    self.d_x.download(x)
+                    self.d_y.download(y)
+
+                if c.use_gpu2:   # Unnecessary when everything is on GPU
+                    x[:] = cp.asnumpy(x_cp)
+                    y[:] = cp.asnumpy(y_cp)
                     
 
         elif c.linear_solver is 'amg':
