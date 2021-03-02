@@ -18,8 +18,13 @@ class grid_data:
         self.nVertices = len(grid.dimensions['nVertices'])
         self.vertexDegree = len(grid.dimensions['vertexDegree'])
         self.nVertLevels = len(grid.dimensions['nVertLevels'])
+        
 
+        #
         # Read grid informaton
+        #
+
+        # Local variables that are only read and written here
         xCell = grid.variables['xCell'][:]
         yCell = grid.variables['yCell'][:]
         zCell = grid.variables['zCell'][:]
@@ -29,18 +34,12 @@ class grid_data:
         xVertex = grid.variables['xVertex'][:]
         yVertex = grid.variables['yVertex'][:]
         zVertex = grid.variables['zVertex'][:]
-        self.latCell = grid.variables['latCell'][:]
-        self.lonCell = grid.variables['lonCell'][:]
-        self.latEdge = grid.variables['latEdge'][:]
-        self.lonEdge = grid.variables['lonEdge'][:]
-        self.latVertex = grid.variables['latVertex'][:]
-        self.lonVertex = grid.variables['lonVertex'][:]
-        self.cellsOnEdge = grid.variables['cellsOnEdge'][:]
-        self.nEdgesOnCell = grid.variables['nEdgesOnCell'][:]
+
+        # Variables that are needed by the Fortran routines only
         self.dvEdge = grid.variables['dvEdge'][:]
         self.dcEdge = grid.variables['dcEdge'][:]
-        self.areaCell = grid.variables['areaCell'][:]
-        self.areaTriangle = grid.variables['areaTriangle'][:]
+        self.cellsOnEdge = grid.variables['cellsOnEdge'][:]
+        self.nEdgesOnCell = grid.variables['nEdgesOnCell'][:]
         self.cellsOnCell = grid.variables['cellsOnCell'][:]
         self.verticesOnCell = grid.variables['verticesOnCell'][:]
         self.edgesOnCell = grid.variables['edgesOnCell'][:]
@@ -48,14 +47,24 @@ class grid_data:
         self.edgesOnVertex = grid.variables['edgesOnVertex'][:]
         self.cellsOnVertex = grid.variables['cellsOnVertex'][:]
         self.kiteAreasOnVertex = grid.variables['kiteAreasOnVertex'][:]
+        self.boundaryEdgeMark = grid.variables['boundaryEdgeMark'][:]
+        self.boundaryCellMark = grid.variables['boundaryCellMark'][:]
 
+        # Variables that are lightly used in a simulation run
+        self.latCell = grid.variables['latCell'][:]
+        self.lonCell = grid.variables['lonCell'][:]
+        self.latEdge = grid.variables['latEdge'][:]
+        self.lonEdge = grid.variables['lonEdge'][:]
+        self.latVertex = grid.variables['latVertex'][:]
+        self.lonVertex = grid.variables['lonVertex'][:]
+
+        # Variables regularly used in a simulation run
+        self.areaCell = grid.variables['areaCell'][:]
+        self.areaTriangle = grid.variables['areaTriangle'][:]
         self.fEdge = grid.variables['fEdge'][:]
         self.fVertex = grid.variables['fVertex'][:]
         self.fCell = 2 * 7.292e-5 * np.sin(self.latCell[:])
         #self.fCell = grid.variables['fCell'][:]
-
-        self.boundaryEdgeMark = grid.variables['boundaryEdgeMark'][:]
-        self.boundaryCellMark = grid.variables['boundaryCellMark'][:]
 
         # To decide whether the domain is on a sphere
         rad2 = xCell**2 + yCell**2 + zCell**2
