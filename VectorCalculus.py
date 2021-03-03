@@ -1,4 +1,6 @@
 import numpy as np
+import cupy as cp
+import cupyx
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 from swe_comp import swe_comp as cmp
 
@@ -58,9 +60,7 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nCells, g.nEdges))
         self.mDiv_v = A.tocsr( )
 
-        if self.use_gpu:
-            self.d_mDiv_v = Device_CSR(self.mDiv_v)
-
+        
         #
         # Divergence on dual (triangle)
         #
@@ -70,9 +70,7 @@ class VectorCalculus:
         A = coo_matrix((valEntries[:nEntries],  (rows[:nEntries], \
                                cols[:nEntries])), shape=(g.nVertices, g.nEdges))
         self.mDiv_t = A.tocsr( )
-
-        if self.use_gpu:
-            self.d_mDiv_t = Device_CSR(self.mDiv_t)
+        
 
         #
         # Curl on primal
@@ -85,8 +83,6 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nCells, g.nEdges))
         self.mCurl_v = A.tocsr( )
 
-        if self.use_gpu:
-            self.d_mCurl_v = Device_CSR(self.mCurl_v)
 
         #
         # Curl on dual
@@ -98,8 +94,6 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nVertices, g.nEdges))
         self.mCurl_t = A.tocsr( )
 
-        if self.use_gpu:
-            self.d_mCurl_t = Device_CSR(self.mCurl_t)
 
         #
         # Laplace on primal (voronoi)
@@ -113,8 +107,6 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nCells, g.nCells))
         self.mLaplace_v = A.tocsr( )
 
-        if self.use_gpu:
-            self.d_mLaplace_v = Device_CSR(self.mLaplace_v)
 
         #
         # Laplace on dual (triangle)
@@ -129,8 +121,6 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nVertices, g.nVertices))
         self.mLaplace_t = A.tocsr( )
 
-        if self.use_gpu:
-            self.d_mLaplace_t = Device_CSR(self.mLaplace_t)
 
         #
         # Gradient normal
@@ -147,8 +137,6 @@ class VectorCalculus:
         self.mGrad_n_n = A_n.tocsr( )
         self.mGrad_n_n.eliminate_zeros()
 
-        if self.use_gpu:
-            self.d_mGrad_n = Device_CSR(self.mGrad_n)
 
         #
         # Gradient tangential(?) with Dirichlet
@@ -161,8 +149,6 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nEdges, g.nVertices))
         self.mGrad_td = A.tocsr( )
 
-        if self.use_gpu:
-            self.d_mGrad_td = Device_CSR(self.mGrad_td)
 
         #
         # Gradient tangential(?) with Neumann
@@ -175,8 +161,6 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nEdges, g.nVertices))
         self.mGrad_tn = A.tocsr( )
 
-        if self.use_gpu:
-            self.d_mGrad_tn = Device_CSR(self.mGrad_tn)
 
         #
         # Skew gradient tangential
@@ -189,8 +173,6 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nEdges, g.nCells))
         self.mSkewgrad_t = A.tocsr( )
 
-        if self.use_gpu:
-            self.d_mSkewgrad_t = Device_CSR(self.mSkewgrad_t)
 
         #
         # Skew gradient tangential w. Dirichlet
@@ -204,8 +186,6 @@ class VectorCalculus:
         self.mSkewgrad_td = A.tocsr( )
         self.mSkewgrad_td.eliminate_zeros( )
         
-        if self.use_gpu:
-            self.d_mSkewgrad_td = Device_CSR(self.mSkewgrad_td)
 
         #
         # Skew gradient normal w. Dirichlet
@@ -219,8 +199,6 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nEdges, g.nVertices))
         self.mSkewgrad_nd = A.tocsr( )
 
-        if self.use_gpu:
-            self.d_mSkewgrad_nd = Device_CSR(self.mSkewgrad_nd)
 
         #
         # Map from cell to vertex
@@ -233,8 +211,6 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nVertices, g.nCells))
         self.mCell2vertex = A.tocsr( )
 
-        if self.use_gpu:
-            self.d_mCell2vertex = Device_CSR(self.mCell2vertex)
 
         A_n = A.tolil( )
         A_n[:,0] = 0.       # zero for entry 0; Neumann
@@ -254,8 +230,6 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nVertices, g.nCells))
         self.mCell2vertex_psi = A.tocsr( )
 
-        if self.use_gpu:
-            self.d_mCell2vertex_psi = Device_CSR(self.mCell2vertex_psi)
 
         #
         # Map vertex to cell
@@ -268,8 +242,6 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nCells, g.nVertices))
         self.mVertex2cell = A.tocsr( )
 
-        if self.use_gpu:
-            self.d_mVertex2cell = Device_CSR(self.mVertex2cell)
 
         #
         # Map cell to edge
@@ -281,8 +253,6 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nEdges, g.nCells))
         self.mCell2edge = A.tocsr( )
 
-        if self.use_gpu:
-            self.d_mCell2edge = Device_CSR(self.mCell2edge)
 
         #
         # Map edge to cell
@@ -294,15 +264,35 @@ class VectorCalculus:
                                cols[:nEntries])), shape=(g.nCells, g.nEdges))
         self.mEdge2cell = A.tocsr( )
 
-        if self.use_gpu:
-            self.d_mEdge2cell = Device_CSR(self.mEdge2cell)
-
         
         ## Some temporary variables as place holders
         self.scalar_cell = np.zeros(g.nCells)
         self.scalar_vertex = np.zeros(g.nVertices)
         if not c.on_a_global_sphere:
             self.scalar_cell_interior = np.zeros(nCellsInterior)
+
+
+        ## Move matrices to GPU
+        if self.use_gpu:
+            # TODO - do we need "self.use_gpu", or can we just use c.use_gpu
+            self.mDiv_v = cupyx.scipy.sparse.csr_matrix(self.mDiv_v)
+            self.mDiv_t = cupyx.scipy.sparse.csr_matrix(self.mDiv_t)
+            self.mCurl_v = cupyx.scipy.sparse.csr_matrix(self.mCurl_v)
+            self.mCurl_t = cupyx.scipy.sparse.csr_matrix(self.mCurl_t)
+            self.mLaplace_v = cupyx.scipy.sparse.csr_matrix(self.mLaplace_v)
+            self.mLaplace_t = cupyx.scipy.sparse.csr_matrix(self.mLaplace_t)
+            self.mGrad_n = cupyx.scipy.sparse.csr_matrix(self.mGrad_n)
+            self.mGrad_td = cupyx.scipy.sparse.csr_matrix(self.mGrad_td)
+            self.mGrad_tn = cupyx.scipy.sparse.csr_matrix(self.mGrad_tn)
+            self.mSkewgrad_t = cupyx.scipy.sparse.csr_matrix(self.mSkewgrad_t)
+            self.mSkewgrad_td = cupyx.scipy.sparse.csr_matrix(self.mSkewgrad_td) # needed?
+            self.mSkewgrad_nd = cupyx.scipy.sparse.csr_matrix(self.mSkewgrad_nd)
+            self.mCell2vertex = cupyx.scipy.sparse.csr_matrix(self.mCell2vertex)
+            self.mCell2vertex_n = cupyx.scipy.sparse.csr_matrix(self.mCell2vertex_n) # needed?
+            self.mCell2vertex_psi = cupyx.scipy.sparse.csr_matrix(self.mCell2vertex_psi) # needed?
+            self.mVertex2cell = cupyx.scipy.sparse.csr_matrix(self.mVertex2cell)
+            self.mCell2edge = cupyx.scipy.sparse.csr_matrix(self.mCell2edge)
+            self.mEdge2cell = cupyx.scipy.sparse.csr_matrix(self.mEdge2cell)
 
             
     def discrete_div_v(self, vEdge):
