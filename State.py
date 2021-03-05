@@ -480,9 +480,10 @@ class state_data:
         self.tend_divergence[:] += 0.5 * vc.vertex2cell(self.vVertex)
 
 #        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_nd(self.phi_vertex)
-        self.vEdge[:] = cmp.discrete_skewgrad_nnat(self.phi_vertex, self.phi_cell, g.verticesOnEdge, g.cellsOnEdge, \
-                                                   g.dvEdge)
-        self.vEdge *= self.pv_edge
+        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_nn(self.phi_vertex)  # phi satisfies homog. Neumann
+#        self.vEdge[:] = cmp.discrete_skewgrad_nnat(self.phi_vertex, self.phi_cell, g.verticesOnEdge, g.cellsOnEdge, \
+#                                                   g.dvEdge)
+#        self.vEdge *= self.pv_edge
         self.tend_divergence[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
 
         ## The boundary terms

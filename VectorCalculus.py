@@ -379,9 +379,22 @@ class VectorCalculus:
     # The discrete skew gradient operator along the normal direction, assuming
     # homogeneous Dirichlet BC's
     def discrete_skewgrad_nd(self, sVertex):
-        '''With implied Neumann BC's'''
+        '''With implied Dirichlet BC's'''
 
         return self.mSkewgrad_nd.dot(sVertex)
+
+
+    # The discrete skew gradient operator along the normal direction, assuming
+    # homogeneous Neumann BC's
+    def discrete_skewgrad_nn(self, sVertex):
+        '''With implied Neumann BC's.
+
+           Since skew grad in the normal direction is the opposite of grad 
+           in the tangent direction, we re-use the coefficient matrix of the latter, 
+           but add an negative sign. See (B.4) and (B.6) of CJT21.
+        '''
+
+        return -self.mGrad_tn.dot(sVertex)
 
     
     # The discrete skew gradient operator along the tangential direction
