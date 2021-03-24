@@ -145,15 +145,24 @@ class EllipticCpl2:
         ## Construct the coefficient matrix for the coupled elliptic
         ## system for psi and phi, using the normal vector
         # Left, row 1
-        self.AMC = mAreaCell_psi * vc.mVertex2cell * vc.mCurl_t
-        self.AC = mAreaCell_psi * vc.mCurl_v
+        if vc.use_gpu:
+            self.AMC = mAreaCell_psi * vc.mVertex2cell.get() * vc.mCurl_t.get()
+        else:
+            self.AMC = mAreaCell_psi * vc.mVertex2cell * vc.mCurl_t
+        if vc.use_gpu:
+            self.AC = mAreaCell_psi * vc.mCurl_v.get()
+        else:
+            self.AC = mAreaCell_psi * vc.mCurl_v
         self.AMC.eliminate_zeros( )
         self.AMC.sort_indices( )
         self.AC.eliminate_zeros( )
         self.AC.sort_indices( )
         
         # Left, row 2
-        self.AMD = mAreaCell_phi * vc.mVertex2cell * vc.mDiv_t
+        if vc.use_gpu:
+            self.AMD = mAreaCell_phi * vc.mVertex2cell.get() * vc.mDiv_t.get()
+        else:
+            self.AMD = mAreaCell_phi * vc.mVertex2cell * vc.mDiv_t
         if vc.use_gpu:
             self.AD = mAreaCell_phi * vc.mDiv_v.get()
         else:
@@ -164,12 +173,20 @@ class EllipticCpl2:
         self.AD.sort_indices( )
         
         # Right, col 2
-        self.GN = vc.mGrad_tn * vc.mCell2vertex_n
+        if vc.use_gpu:
+            temp_d = vc.mGrad_tn * vc.mCell2vertex_n
+            self.GN = temp_d.get()
+        else:
+            self.GN = vc.mGrad_tn * vc.mCell2vertex_n
         self.GN.eliminate_zeros( )
         self.GN.sort_indices( )
         
         # Right, col 1
-        self.SN = vc.mSkewgrad_nd * vc.mCell2vertex_psi
+        if vc.use_gpu:
+            temp_d = vc.mSkewgrad_nd * vc.mCell2vertex_psi
+            self.SN = temp_d.get()
+        else:
+            self.SN = vc.mSkewgrad_nd * vc.mCell2vertex_psi
         self.SN.eliminate_zeros( )
         self.SN.sort_indices( )
 
