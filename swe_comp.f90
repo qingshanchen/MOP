@@ -928,6 +928,9 @@ subroutine construct_matrix_discrete_skewgrad_td(nEdges, nCells, &
 end subroutine construct_matrix_discrete_skewgrad_td
 
 
+! Discrete skewgrad in the normal direction, with natural boundary condition
+! This type of boundary condition is required to ensure the symmetry of the
+! Hamiltonian system, and hence the conservations. 
 subroutine discrete_skewgrad_nnat(nEdges, nVertices, nCells, &
      scalar_vertex, scalar_cell, verticesOnEdge, cellsOnEdge, dvEdge, &
      skewgrad_n)
