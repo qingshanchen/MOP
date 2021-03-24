@@ -154,7 +154,10 @@ class EllipticCpl2:
         
         # Left, row 2
         self.AMD = mAreaCell_phi * vc.mVertex2cell * vc.mDiv_t
-        self.AD = mAreaCell_phi * vc.mDiv_v
+        if vc.use_gpu:
+            self.AD = mAreaCell_phi * vc.mDiv_v.get()
+        else:
+            self.AD = mAreaCell_phi * vc.mDiv_v
         self.AMD.eliminate_zeros( )
         self.AMD.sort_indices( )
         self.AD.eliminate_zeros( )

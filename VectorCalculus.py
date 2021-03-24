@@ -276,32 +276,36 @@ class VectorCalculus:
         if self.use_gpu:
             # TODO - do we need "self.use_gpu", or can we just use c.use_gpu
             self.mDiv_v = cupyx.scipy.sparse.csr_matrix(self.mDiv_v)
-            self.mDiv_t = cupyx.scipy.sparse.csr_matrix(self.mDiv_t)
-            self.mCurl_v = cupyx.scipy.sparse.csr_matrix(self.mCurl_v)
-            self.mCurl_t = cupyx.scipy.sparse.csr_matrix(self.mCurl_t)
-            self.mLaplace_v = cupyx.scipy.sparse.csr_matrix(self.mLaplace_v)
-            self.mLaplace_t = cupyx.scipy.sparse.csr_matrix(self.mLaplace_t)
-            self.mGrad_n = cupyx.scipy.sparse.csr_matrix(self.mGrad_n)
-            self.mGrad_td = cupyx.scipy.sparse.csr_matrix(self.mGrad_td)
-            self.mGrad_tn = cupyx.scipy.sparse.csr_matrix(self.mGrad_tn)
-            self.mSkewgrad_t = cupyx.scipy.sparse.csr_matrix(self.mSkewgrad_t)
-            self.mSkewgrad_td = cupyx.scipy.sparse.csr_matrix(self.mSkewgrad_td) # needed?
-            self.mSkewgrad_nd = cupyx.scipy.sparse.csr_matrix(self.mSkewgrad_nd)
-            self.mCell2vertex = cupyx.scipy.sparse.csr_matrix(self.mCell2vertex)
-            self.mCell2vertex_n = cupyx.scipy.sparse.csr_matrix(self.mCell2vertex_n) # needed?
-            self.mCell2vertex_psi = cupyx.scipy.sparse.csr_matrix(self.mCell2vertex_psi) # needed?
-            self.mVertex2cell = cupyx.scipy.sparse.csr_matrix(self.mVertex2cell)
-            self.mCell2edge = cupyx.scipy.sparse.csr_matrix(self.mCell2edge)
-            self.mEdge2cell = cupyx.scipy.sparse.csr_matrix(self.mEdge2cell)
+            #self.mDiv_t = cupyx.scipy.sparse.csr_matrix(self.mDiv_t)
+            #self.mCurl_v = cupyx.scipy.sparse.csr_matrix(self.mCurl_v)
+            #self.mCurl_t = cupyx.scipy.sparse.csr_matrix(self.mCurl_t)
+            #self.mLaplace_v = cupyx.scipy.sparse.csr_matrix(self.mLaplace_v)
+            #self.mLaplace_t = cupyx.scipy.sparse.csr_matrix(self.mLaplace_t)
+            #self.mGrad_n = cupyx.scipy.sparse.csr_matrix(self.mGrad_n)
+            #self.mGrad_td = cupyx.scipy.sparse.csr_matrix(self.mGrad_td)
+            #self.mGrad_tn = cupyx.scipy.sparse.csr_matrix(self.mGrad_tn)
+            #self.mSkewgrad_t = cupyx.scipy.sparse.csr_matrix(self.mSkewgrad_t)
+            #self.mSkewgrad_td = cupyx.scipy.sparse.csr_matrix(self.mSkewgrad_td) # needed?
+            #self.mSkewgrad_nd = cupyx.scipy.sparse.csr_matrix(self.mSkewgrad_nd)
+            #self.mCell2vertex = cupyx.scipy.sparse.csr_matrix(self.mCell2vertex)
+            #self.mCell2vertex_n = cupyx.scipy.sparse.csr_matrix(self.mCell2vertex_n) # needed?
+            #self.mCell2vertex_psi = cupyx.scipy.sparse.csr_matrix(self.mCell2vertex_psi) # needed?
+            #self.mVertex2cell = cupyx.scipy.sparse.csr_matrix(self.mVertex2cell)
+            #self.mCell2edge = cupyx.scipy.sparse.csr_matrix(self.mCell2edge)
+            #self.mEdge2cell = cupyx.scipy.sparse.csr_matrix(self.mEdge2cell)
 
             
     def discrete_div_v(self, vEdge):
         '''
         No flux boundary conditions implied on the boundary.
         '''
-
-        return self.mDiv_v.dot(vEdge)
-
+        if self.use_gpu:
+            vEdge_d = cp.asarray(vEdge)
+            result_d = self.mDiv_v.dot(vEdge_d)
+            return result_d.get()
+        else:
+            return self.mDiv_v.dot(vEdge)
+            
 
     def discrete_div_t(self, vEdge):
         '''
