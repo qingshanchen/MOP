@@ -7,7 +7,7 @@ from swe_comp import swe_comp as cmp
 def run_tests(g, c, s, vc, poisson):
 
 
-    if True:
+    if False:
         # To compare various solvers (direct, amgx, amg) for the coupled elliptic equation
         # The solvers are invoked directly
         from scipy.sparse.linalg import spsolve
@@ -364,7 +364,7 @@ def run_tests(g, c, s, vc, poisson):
             print("L^2 error        = ", l2)
 
         ###########################################################################
-        if True:
+        if False:
             print("")
             print("Solve the coupled linear system with an iterative scheme and amgx")
             pyamgx.initialize()
@@ -1726,5 +1726,8 @@ def run_tests(g, c, s, vc, poisson):
         print("L^2 error        = %e" % l2)        
         print("L infinity error = %e" % l8)
 
-        
+
+    if True: # misc GPU tests
+        print(type(g.latCell))
+        print(type(np.asarray(g.latCell)))
     

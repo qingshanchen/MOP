@@ -9,6 +9,12 @@ max_int = np.iinfo('int32').max
 class grid_data:
     
     def __init__(self, netcdf_file, c):
+        # load appropriate module for defining arrays on GPU or CPU
+        if c.use_gpu:
+            import cupy as xp
+        else:
+            import numpy as xp
+
         # Read the grid file
         grid = nc.Dataset(netcdf_file,'r')
     
@@ -51,19 +57,19 @@ class grid_data:
         self.boundaryCellMark = grid.variables['boundaryCellMark'][:]
 
         # Variables that are lightly used in a simulation run
-        self.latCell = grid.variables['latCell'][:]
-        self.lonCell = grid.variables['lonCell'][:]
-        self.latEdge = grid.variables['latEdge'][:]
-        self.lonEdge = grid.variables['lonEdge'][:]
-        self.latVertex = grid.variables['latVertex'][:]
-        self.lonVertex = grid.variables['lonVertex'][:]
+        self.latCell = xp.asarray(grid.variables['latCell'][:])
+        self.lonCell = xp.asarray(grid.variables['lonCell'][:])
+        self.latEdge = xp.asarray(grid.variables['latEdge'][:])
+        self.lonEdge = xp.asarray(grid.variables['lonEdge'][:])
+        self.latVertex = xp.asarray(grid.variables['latVertex'][:])
+        self.lonVertex = xp.asarray(grid.variables['lonVertex'][:])
 
         # Variables regularly used in a simulation run
-        self.areaCell = grid.variables['areaCell'][:]
-        self.areaTriangle = grid.variables['areaTriangle'][:]
-        self.fEdge = grid.variables['fEdge'][:]
-        self.fVertex = grid.variables['fVertex'][:]
-        self.fCell = 2 * 7.292e-5 * np.sin(self.latCell[:])
+        self.areaCell = xp.asarray(grid.variables['areaCell'][:])
+        self.areaTriangle = xp.asarray(grid.variables['areaTriangle'][:])
+        self.fEdge = xp.asarray(grid.variables['fEdge'][:])
+        self.fVertex = xp.asarray(grid.variables['fVertex'][:])
+        self.fCell = 2 * 7.292e-5 * xp.sin(self.latCell[:])
         #self.fCell = grid.variables['fCell'][:]
 
         # To decide whether the domain is on a sphere
@@ -124,8 +130,14 @@ class grid_data:
         out.variables['zVertex'][:] = zVertex[:]
         out.variables['dvEdge'][:] = self.dvEdge[:]
         out.variables['dcEdge'][:] = self.dcEdge[:]
-        out.variables['areaCell'][:] = self.areaCell[:]
-        out.variables['areaTriangle'][:] = self.areaTriangle[:]
+        if c.use_gpu:
+            temp = self.areaCell.get()
+            out.variables['areaCell'][:] = temp[:]
+            temp = self.areaTriangle.get()
+            out.variables['areaTriangle'][:] = temp[:]
+        else:        
+            out.variables['areaCell'][:] = self.areaCell[:]
+            out.variables['areaTriangle'][:] = self.areaTriangle[:]
         out.variables['kiteAreasOnVertex'][:] = self.kiteAreasOnVertex[:]
 
         out.close( )

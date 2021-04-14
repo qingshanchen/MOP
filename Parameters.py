@@ -2,9 +2,9 @@ import numpy as np
 
 ### Parameters essential
 test_case = 2
-use_gpu = False
+use_gpu = True
 use_gpu2 = True
-performing_test = False
+performing_test = True
 
 do_restart = False
 restart_file = 'restart.nc'
