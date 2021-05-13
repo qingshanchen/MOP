@@ -145,13 +145,14 @@ class VectorCalculus:
         A = coo_matrix((xp.asarray(valEntries[:nEntries]),  (xp.asarray(rows[:nEntries]), \
                                     xp.asarray(cols[:nEntries]))), shape=(g.nEdges, g.nCells))
         self.mGrad_n = A.tocsr( )
-
+        
         # ver 8.6.0 of cupyx does not have "tolil()" implemented; have to work around
         if c.use_gpu:
             A = A.get()
             
         A_n = A.tolil()   
         A_n[:,0] = 0.
+        #A[:,0] = 0. try this instead of constructing A_n; change next lines as well.
         self.mGrad_n_n = A_n.tocsr( )
         self.mGrad_n_n.eliminate_zeros()
 

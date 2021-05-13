@@ -1,7 +1,7 @@
 import numpy as np
 import cupy as cp
 import Parameters as c
-from scipy.sparse import coo_matrix, csc_matrix, csr_matrix, eye, diags, bmat
+#from scipy.sparse import coo_matrix, csc_matrix, csr_matrix, eye, diags, bmat
 from scipy.sparse.linalg import spsolve, splu, factorized
 from LinearAlgebra import cg
 from pyamg import rootnode_solver
@@ -127,6 +127,18 @@ class EllipticCPL:
 class EllipticCpl2:
     def __init__(self, vc, g, c):
 
+        # load appropriate module for working with objects on CPU / GPU
+        if c.use_gpu:
+            import cupy as xp
+            from cupyx.scipy.sparse import coo_matrix, csc_matrix, csr_matrix, eye, diags, bmat
+
+            areaCell_cpu = g.areaCell.get()
+        else:
+            import numpy as xp
+            from scipy.sparse import coo_matrix, csc_matrix, csr_matrix, eye, diags, bmat
+
+            areaCell_cpu = g.areaCell
+        
         # Construct matrix blocks of the coupled elliptic system
         # A diagonal matrix representing scaling by cell areas
         mAreaCell = diags(g.areaCell, 0, format='csr')
@@ -145,53 +157,33 @@ class EllipticCpl2:
         ## Construct the coefficient matrix for the coupled elliptic
         ## system for psi and phi, using the normal vector
         # Left, row 1
-        if vc.use_gpu:
-            self.AMC = mAreaCell_psi * vc.mVertex2cell.get() * vc.mCurl_t.get()
-        else:
-            self.AMC = mAreaCell_psi * vc.mVertex2cell * vc.mCurl_t
-        if vc.use_gpu:
-            self.AC = mAreaCell_psi * vc.mCurl_v.get()
-        else:
-            self.AC = mAreaCell_psi * vc.mCurl_v
+        self.AMC = mAreaCell_psi * vc.mVertex2cell * vc.mCurl_t
+        self.AC = mAreaCell_psi * vc.mCurl_v
         self.AMC.eliminate_zeros( )
         self.AMC.sort_indices( )
         self.AC.eliminate_zeros( )
         self.AC.sort_indices( )
         
         # Left, row 2
-        if vc.use_gpu:
-            self.AMD = mAreaCell_phi * vc.mVertex2cell.get() * vc.mDiv_t.get()
-        else:
-            self.AMD = mAreaCell_phi * vc.mVertex2cell * vc.mDiv_t
-        if vc.use_gpu:
-            self.AD = mAreaCell_phi * vc.mDiv_v.get()
-        else:
-            self.AD = mAreaCell_phi * vc.mDiv_v
+        self.AMD = mAreaCell_phi * vc.mVertex2cell * vc.mDiv_t
+        self.AD = mAreaCell_phi * vc.mDiv_v
         self.AMD.eliminate_zeros( )
         self.AMD.sort_indices( )
         self.AD.eliminate_zeros( )
         self.AD.sort_indices( )
         
         # Right, col 2
-        if vc.use_gpu:
-            temp_d = vc.mGrad_tn * vc.mCell2vertex_n
-            self.GN = temp_d.get()
-        else:
-            self.GN = vc.mGrad_tn * vc.mCell2vertex_n
+        self.GN = vc.mGrad_tn * vc.mCell2vertex_n
         self.GN.eliminate_zeros( )
         self.GN.sort_indices( )
         
         # Right, col 1
-        if vc.use_gpu:
-            temp_d = vc.mSkewgrad_nd * vc.mCell2vertex_psi
-            self.SN = temp_d.get()
-        else:
-            self.SN = vc.mSkewgrad_nd * vc.mCell2vertex_psi
+        self.SN = vc.mSkewgrad_nd * vc.mCell2vertex_psi
         self.SN.eliminate_zeros( )
         self.SN.sort_indices( )
 
         ## Construct an artificial thickness vector
-        thickness_edge = 100 * (10. + np.random.rand(g.nEdges))
+        thickness_edge = 100 * (10. + xp.random.rand(g.nEdges))
         self.thicknessInv = 1. / thickness_edge
 #        self.mThicknessInv = eye(g.nEdges)  
 #        self.mThicknessInv.data[0,:] = 1./thickness_edge
@@ -201,7 +193,7 @@ class EllipticCpl2:
         self.mSkewgrad_td = vc.mSkewgrad_td.copy( )
         self.mGrad_n_n = vc.mGrad_n_n.copy( )
         
-        if c.use_gpu2:
+        if c.use_gpu2 and not c.use_gpu: # TODO - remove when everything is on GPU
             import cupy as cp
             import cupyx 
             self.AMC = cupyx.scipy.sparse.csr_matrix(self.AMC)
@@ -219,7 +211,7 @@ class EllipticCpl2:
 
             pyamgx.initialize( )
 
-            err_tol = c.err_tol*1e-5*np.mean(g.areaCell)*np.sqrt(g.nCells)  # For vorticity
+            err_tol = c.err_tol*1e-5*np.mean(areaCell_cpu)*np.sqrt(g.nCells)  # For vorticity
             cfg1 = pyamgx.Config( ).create_from_dict({    
                 "config_version": 2, 
                 "determinism_flag": 0, 
@@ -262,7 +254,7 @@ class EllipticCpl2:
 
             # Smaller error tolerance for divergence because geophysical flows
             # are largely nondivergent
-            err_tol = c.err_tol*1e-6*np.mean(g.areaCell)*np.sqrt(g.nCells)
+            err_tol = c.err_tol*1e-6*np.mean(areaCell_cpu)*np.sqrt(g.nCells)
             cfg2 = pyamgx.Config( ).create_from_dict({    
                 "config_version": 2, 
                 "determinism_flag": 0, 

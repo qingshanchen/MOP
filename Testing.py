@@ -1729,5 +1729,5 @@ def run_tests(g, c, s, vc, poisson):
 
     if True: # misc GPU tests
         print(type(g.latCell))
-        print(type(np.asarray(g.latCell)))
+        print(type(g.latCell.get()))
     
