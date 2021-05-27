@@ -308,24 +308,14 @@ class VectorCalculus:
         '''
         No flux boundary conditions implied on the boundary.
         '''
-        if self.use_gpu:
-            vEdge_d = cp.asarray(vEdge)
-            result_d = self.mDiv_v.dot(vEdge_d)
-            return result_d.get()
-        else:
-            return self.mDiv_v.dot(vEdge)
+        return self.mDiv_v.dot(vEdge)
             
 
     def discrete_div_t(self, vEdge):
         '''
         No flux boundary conditions implied on the boundary.
         '''
-        if self.use_gpu:
-            vEdge_d = cp.asarray(vEdge)
-            result_d = self.mDiv_t.dot(vEdge_d)
-            return result_d.get()
-        else:
-            return self.mDiv_t.dot(vEdge)
+        return self.mDiv_t.dot(vEdge)
         
 
     def discrete_curl_v(self, vEdge):
@@ -333,94 +323,54 @@ class VectorCalculus:
         The discrete curl operator on the primal mesh.
         No-slip boundary conditions implied on the boundary.
         '''
-        if self.use_gpu:
-            vEdge_d = cp.asarray(vEdge)
-            result_d = self.mCurl_v.dot(vEdge_d)
-            return result_d.get()
-        else:
-            return self.mCurl_v.dot(vEdge)
+        return self.mCurl_v.dot(vEdge)
 
 
     def discrete_curl_t(self, vEdge):
         '''
         The discrete curl operator on the dual mesh.
         '''
-        if self.use_gpu:
-            vEdge_d = cp.asarray(vEdge)
-            result_d = self.mCurl_t.dot(vEdge_d)
-            return result_d.get()
-        else:
-            return self.mCurl_t.dot(vEdge)
+        return self.mCurl_t.dot(vEdge)
         
 
     def discrete_laplace_v(self, sCell):
         '''
         Homogeneous Neumann BC's implied on the boundary.
         '''
-        if self.use_gpu:
-            sCell_d = cp.asarray(sCell)
-            result_d = self.mLaplace_v.dot(sCell_d)
-            return result_d.get()
-        else:
-            return self.mLaplace_v.dot(sCell)
+        return self.mLaplace_v.dot(sCell)
 
 
     def discrete_laplace_t(self, sVertex):
         '''
         Homogeneous Neumann BC's implied on the boundary.
         '''
-        if self.use_gpu:
-            sVertex_d = cp.asarray(sVertex)
-            result_d = self.mLaplace_t.dot(sVertex_d)
-            return result_d.get()
-        else:
-            return self.mLaplace_t.dot(sVertex)
+        return self.mLaplace_t.dot(sVertex)
 
         
     # The discrete gradient operator along the normal direction
     def discrete_grad_n(self, sCell):
-        if self.use_gpu:
-            sCell_d = cp.asarray(sCell)
-            result_d = self.mGrad_n.dot(sCell_d)
-            return result_d.get()
-        else:
-            return self.mGrad_n.dot(sCell)
+        return self.mGrad_n.dot(sCell)
 
 
     # The discrete gradient operator along the tangential direction, assuming
     # homogeneous Dirichlet BC's
     def discrete_grad_td(self, sVertex):
         '''With implied Dirichlet BC's'''
-        if self.use_gpu:
-            sVertex_d = cp.asarray(sVertex)
-            result_d = self.mGrad_td.dot(sVertex_d)
-            return result_d.get()
-        else:
-            return self.mGrad_td.dot(sVertex)
+        return self.mGrad_td.dot(sVertex)
 
 
     # The discrete gradient operator along the tangential direction, assuming
     # homogeneous Neumann BC's
     def discrete_grad_tn(self, sVertex):
         '''With implied Neumann BC's'''
-        if self.use_gpu:
-            sVertex_d = cp.asarray(sVertex)
-            result_d = self.mGrad_tn.dot(sVertex_d)
-            return result_d.get()
-        else:
-            return self.mGrad_tn.dot(sVertex)
+        return self.mGrad_tn.dot(sVertex)
 
 
     # The discrete skew gradient operator along the normal direction, assuming
     # homogeneous Dirichlet BC's
     def discrete_skewgrad_nd(self, sVertex):
         '''With implied Dirichlet BC's'''
-        if self.use_gpu:
-            sVertex_d = cp.asarray(sVertex)
-            result_d = self.mSkewgrad_nd.dot(sVertex_d)
-            return result_d.get()
-        else:
-            return self.mSkewgrad_nd.dot(sVertex)
+        return self.mSkewgrad_nd.dot(sVertex)
 
 
     # The discrete skew gradient operator along the normal direction, assuming
@@ -432,55 +382,25 @@ class VectorCalculus:
            in the tangent direction, we re-use the coefficient matrix of the latter, 
            but add an negative sign. See (B.4) and (B.6) of CJT21.
         '''
-        if self.use_gpu:
-            sVertex_d = cp.asarray(sVertex)
-            result_d = -self.mGrad_tn.dot(sVertex_d)
-            return result_d.get()
-        else:
-            return -self.mGrad_tn.dot(sVertex)
+        return -self.mGrad_tn.dot(sVertex)
 
     
     # The discrete skew gradient operator along the tangential direction
     def discrete_skewgrad_t(self, sCell):
-        if self.use_gpu:
-            sCell_d = cp.asarray(sCell)
-            result_d = self.mSkewgrad_t.dot(sCell_d)
-            return result_d.get()
-        else:
-            return self.mSkewgrad_t.dot(sCell)
+        return self.mSkewgrad_t.dot(sCell)
         
 
     def cell2vertex(self, sCell):
-        if self.use_gpu:
-            sCell_d = cp.asarray(sCell)
-            result_d = self.mCell2vertex.dot(sCell_d)
-            return result_d.get()
-        else:
-            return self.mCell2vertex.dot(sCell)
+        return self.mCell2vertex.dot(sCell)
 
 
     def vertex2cell(self, sVertex):
-        if self.use_gpu:
-            sVertex_d = cp.asarray(sVertex)
-            result_d = self.mVertex2cell.dot(sVertex_d)
-            return result_d.get()
-        else:
-            return self.mVertex2cell.dot(sVertex)
+        return self.mVertex2cell.dot(sVertex)
 
     
     def cell2edge(self, sCell):
-        if self.use_gpu:
-            sCell_d = cp.asarray(sCell)
-            result_d = self.mCell2edge.dot(sCell_d)
-            return result_d.get()
-        else:
-            return self.mCell2edge.dot(sCell)
+        return self.mCell2edge.dot(sCell)
 
     
     def edge2cell(self, sEdge):
-        if self.use_gpu:
-            sEdge_d = cp.asarray(sEdge)
-            result_d = self.mEdge2cell.dot(sEdge_d)
-            return result_d.get()
-        else:
-            return self.mEdge2cell.dot(sEdge)
+        return self.mEdge2cell.dot(sEdge)

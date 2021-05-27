@@ -6,53 +6,59 @@ from copy import deepcopy as deepcopy
 class state_data:
     def __init__(self, vc, g, c):
 
+        # Load appropriate module for working with objects on CPU / GPU
+        if c.use_gpu:
+            import cupy as xp
+        else:
+            import numpy as xp
+            
         # Prognostic variables
-        self.thickness = np.zeros(g.nCells)
+        self.thickness = xp.zeros(g.nCells)
         self.vorticity = self.thickness.copy()
         self.divergence = self.thickness.copy()
 
         # Diagnostic variables
-        self.vorticity_vertex = np.zeros(g.nVertices)
-        self.divergence_vertex = np.zeros(g.nVertices)
-        self.circulation = np.zeros(g.nCells)
-        self.flux = np.zeros(g.nCells)
-        self.vortdiv = np.zeros(2*g.nCells)
+        self.vorticity_vertex = xp.zeros(g.nVertices)
+        self.divergence_vertex = xp.zeros(g.nVertices)
+        self.circulation = xp.zeros(g.nCells)
+        self.flux = xp.zeros(g.nCells)
+        self.vortdiv = xp.zeros(2*g.nCells)
 
-        self.psi_cell = np.zeros(g.nCells)
-        self.psi_vertex = np.zeros(g.nVertices)
-        self.psi_vertex_pred = np.zeros(g.nVertices)
-        self.phi_cell = np.zeros(g.nCells)
-        self.phi_vertex = np.zeros(g.nVertices)
-        self.psiphi = np.zeros(2*g.nCells)
+        self.psi_cell = xp.zeros(g.nCells)
+        self.psi_vertex = xp.zeros(g.nVertices)
+        self.psi_vertex_pred = xp.zeros(g.nVertices)
+        self.phi_cell = xp.zeros(g.nCells)
+        self.phi_vertex = xp.zeros(g.nVertices)
+        self.psiphi = xp.zeros(2*g.nCells)
         
-        self.nVelocity = np.zeros(g.nEdges)
-        self.tVelocity = np.zeros(g.nEdges)
-        self.pv_cell = np.zeros(g.nCells)
-        self.pv_edge = np.zeros(g.nEdges)
-        self.thickness_edge = np.zeros(g.nEdges)
-        self.eta_cell = np.zeros(g.nCells)
-        self.eta_edge = np.zeros(g.nEdges)
-        self.kenergy_edge = np.zeros(g.nEdges)
-        self.kenergy = np.zeros(g.nCells)
-        self.geoPot = np.zeros(g.nCells)
+        self.nVelocity = xp.zeros(g.nEdges)
+        self.tVelocity = xp.zeros(g.nEdges)
+        self.pv_cell = xp.zeros(g.nCells)
+        self.pv_edge = xp.zeros(g.nEdges)
+        self.thickness_edge = xp.zeros(g.nEdges)
+        self.eta_cell = xp.zeros(g.nCells)
+        self.eta_edge = xp.zeros(g.nEdges)
+        self.kenergy_edge = xp.zeros(g.nEdges)
+        self.kenergy = xp.zeros(g.nCells)
+        self.geoPot = xp.zeros(g.nCells)
 
         self.SS0 = 0.     # Sea Surface at rest
         self.kinetic_energy = 0.
         self.pot_energy = 0.
         self.pot_enstrophy = 0.
         
-        self.tend_thickness = np.zeros(g.nCells)
-        self.tend_vorticity = np.zeros(g.nCells)
-        self.tend_divergence = np.zeros(g.nCells)
+        self.tend_thickness = xp.zeros(g.nCells)
+        self.tend_vorticity = xp.zeros(g.nCells)
+        self.tend_divergence = xp.zeros(g.nCells)
 
         # Forcing
-        self.curlWind_cell = np.zeros(g.nCells)
-        self.divWind_cell = np.zeros(g.nCells)
+        self.curlWind_cell = xp.zeros(g.nCells)
+        self.divWind_cell = xp.zeros(g.nCells)
 
         # Some generic temporary vectors
-        self.vEdge = np.zeros(g.nEdges)
-        self.vCell = np.zeros(g.nCells)
-        self.vVertex = np.zeros(g.nVertices)
+        self.vEdge = xp.zeros(g.nEdges)
+        self.vCell = xp.zeros(g.nCells)
+        self.vVertex = xp.zeros(g.nVertices)
         
         # Time keeper
         self.time = 0.0
@@ -515,10 +521,10 @@ class state_data:
             self.divergence[:] = 0.
 
         self.thickness_edge[:] = vc.cell2edge(self.thickness)
-
+        
 #        self.compute_psi_phi(vc, g, c)
         self.compute_psi_phi_cpl2(poisson, vc, g, c)
-
+        
         self.psi_vertex[:] = vc.cell2vertex(self.psi_cell)
         self.phi_vertex[:] = vc.cell2vertex(self.phi_cell)
 
@@ -611,19 +617,35 @@ class state_data:
         out = nc.Dataset(c.output_file, 'a', format='NETCDF3_64BIT')
         
         out.variables['xtime'][k] = self.time
-        out.variables['thickness'][k,:,0] = self.thickness[:]
-        out.variables['vorticity_cell'][k,:,0] = self.vorticity[:]
-        out.variables['divergence'][k,:,0] = self.divergence[:]
-        out.variables['psi_cell'][k,:,0] = self.psi_cell[:]
-        out.variables['phi_cell'][k,:,0] = self.phi_cell[:]
-        out.variables['nVelocity'][k,:,0] = self.nVelocity[:]
-        out.variables['tVelocity'][k,:,0] = self.tVelocity[:]
-        out.variables['kenergy'][k,:,0] = self.kenergy[:]
+        if c.use_gpu:
+            out.variables['thickness'][k,:,0] = self.thickness.get()
+            out.variables['vorticity_cell'][k,:,0] = self.vorticity.get()
+            out.variables['divergence'][k,:,0] = self.divergence.get()
+            out.variables['psi_cell'][k,:,0] = self.psi_cell.get()
+            out.variables['phi_cell'][k,:,0] = self.phi_cell.get()
+            out.variables['nVelocity'][k,:,0] = self.nVelocity.get()
+            out.variables['tVelocity'][k,:,0] = self.tVelocity.get()
+            out.variables['kenergy'][k,:,0] = self.kenergy.get()
 
+        else:    
+            out.variables['thickness'][k,:,0] = self.thickness[:]
+            out.variables['vorticity_cell'][k,:,0] = self.vorticity[:]
+            out.variables['divergence'][k,:,0] = self.divergence[:]
+            out.variables['psi_cell'][k,:,0] = self.psi_cell[:]
+            out.variables['phi_cell'][k,:,0] = self.phi_cell[:]
+            out.variables['nVelocity'][k,:,0] = self.nVelocity[:]
+            out.variables['tVelocity'][k,:,0] = self.tVelocity[:]
+            out.variables['kenergy'][k,:,0] = self.kenergy[:]
+
+            
         if k==0:
-            out.variables['curlWind_cell'][:] = self.curlWind_cell[:]
-            out.variables['bottomTopographyCell'][:] = g.bottomTopographyCell[:]
-        
+            if c.use_gpu:
+                out.variables['curlWind_cell'][:] = self.curlWind_cell.get()
+                out.variables['bottomTopographyCell'][:] = g.bottomTopographyCell.get()
+            else:
+                out.variables['curlWind_cell'][:] = self.curlWind_cell[:]
+                out.variables['bottomTopographyCell'][:] = g.bottomTopographyCell[:]
+                
         out.close( )
 
     def compute_tc2_errors(self, iStep, s_init, error1, error2, errorInf, g):

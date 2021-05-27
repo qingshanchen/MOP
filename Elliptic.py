@@ -446,10 +446,13 @@ class EllipticCpl2:
                     self.d_x.download(x)
                     self.d_y.download(y)
 
-            if c.use_gpu2:   # Unnecessary when everything is on GPU
+            if c.use_gpu2 and not c.use_gpu:   # TODO - remove  when everything is on GPU
                 x[:] = cp.asnumpy(x_cp)
                 y[:] = cp.asnumpy(y_cp)
-                    
+            elif c.use_gpu:
+                x[:] = x_cp
+                y[:] = y_cp
+                
 
         elif c.linear_solver is 'amg':
             x_res = []; y_res = []

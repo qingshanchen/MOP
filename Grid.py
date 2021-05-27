@@ -108,9 +108,9 @@ class grid_data:
             raise ValueError("Unknown domain raius.")
             
         # Create new grid_data variables
-        self.bottomTopographyCell = np.zeros(self.nCells)
-        self.bottomTopographyVertex = np.zeros(self.nVertices)
-        self.areaEdge = self.dvEdge * self.dcEdge / 2.
+        self.bottomTopographyCell = xp.zeros(self.nCells)
+        self.bottomTopographyVertex = xp.zeros(self.nVertices)
+        self.areaEdge = xp.asarray(self.dvEdge * self.dcEdge / 2.)
 
         grid.close()
 
@@ -131,10 +131,8 @@ class grid_data:
         out.variables['dvEdge'][:] = self.dvEdge[:]
         out.variables['dcEdge'][:] = self.dcEdge[:]
         if c.use_gpu:
-            temp = self.areaCell.get()
-            out.variables['areaCell'][:] = temp[:]
-            temp = self.areaTriangle.get()
-            out.variables['areaTriangle'][:] = temp[:]
+            out.variables['areaCell'][:] = self.areaCell.get()
+            out.variables['areaTriangle'][:] = self.areaTriangle.get()
         else:        
             out.variables['areaCell'][:] = self.areaCell[:]
             out.variables['areaTriangle'][:] = self.areaTriangle[:]
