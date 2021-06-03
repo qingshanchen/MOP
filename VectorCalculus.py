@@ -39,7 +39,7 @@ class VectorCalculus:
 
             areaCell_cpu = g.areaCell
             areaTriangle_cpu = g.areaTriangle
-
+        print("checkpoint 1")
         #
         # Mesh element indices; These should be in the grid object(?)
         #
@@ -62,7 +62,7 @@ class VectorCalculus:
 
         else:
             self.cellBoundary = np.array([], dtype='int')
-
+        print("checkpoint 2")
         #
         # Divergence on primal
         #
@@ -74,7 +74,7 @@ class VectorCalculus:
                                     xp.asarray(cols[:nEntries]))), shape=(g.nCells, g.nEdges))
         self.mDiv_v = A.tocsr( )
 
-        
+        print("checkpoint 3")
         #
         # Divergence on dual (triangle)
         #
@@ -84,7 +84,7 @@ class VectorCalculus:
         A = coo_matrix((xp.asarray(valEntries[:nEntries]),  (xp.asarray(rows[:nEntries]), \
                                     xp.asarray(cols[:nEntries]))), shape=(g.nVertices, g.nEdges))
         self.mDiv_t = A.tocsr( )
-        
+        print("checkpoint 4")
 
         #
         # Curl on primal
@@ -96,7 +96,7 @@ class VectorCalculus:
         A = coo_matrix((xp.asarray(valEntries[:nEntries]),  (xp.asarray(rows[:nEntries]), \
                                     xp.asarray(cols[:nEntries]))), shape=(g.nCells, g.nEdges))
         self.mCurl_v = A.tocsr( )
-
+        print("checkpoint 5")
 
         #
         # Curl on dual
@@ -107,7 +107,7 @@ class VectorCalculus:
         A = coo_matrix((xp.asarray(valEntries[:nEntries]),  (xp.asarray(rows[:nEntries]), \
                                     xp.asarray(cols[:nEntries]))), shape=(g.nVertices, g.nEdges))
         self.mCurl_t = A.tocsr( )
-
+        print("checkpoint 6")
 
         #
         # Laplace on primal (voronoi)
@@ -120,7 +120,7 @@ class VectorCalculus:
         A = coo_matrix((xp.asarray(valEntries[:nEntries]),  (xp.asarray(rows[:nEntries]), \
                                     xp.asarray(cols[:nEntries]))), shape=(g.nCells, g.nCells))
         self.mLaplace_v = A.tocsr( )
-
+        print("checkpoint 7")
 
         #
         # Laplace on dual (triangle)
@@ -134,7 +134,7 @@ class VectorCalculus:
         A = coo_matrix((xp.asarray(valEntries[:nEntries]),  (xp.asarray(rows[:nEntries]), \
                                 xp.asarray(cols[:nEntries]))), shape=(g.nVertices, g.nVertices))
         self.mLaplace_t = A.tocsr( )
-
+        print("checkpoint 8")
 
         #
         # Gradient normal
@@ -145,7 +145,7 @@ class VectorCalculus:
         A = coo_matrix((xp.asarray(valEntries[:nEntries]),  (xp.asarray(rows[:nEntries]), \
                                     xp.asarray(cols[:nEntries]))), shape=(g.nEdges, g.nCells))
         self.mGrad_n = A.tocsr( )
-        
+        print("checkpoint 9")
         # ver 8.6.0 of cupyx does not have "tolil()" implemented; have to work around
         if c.use_gpu:
             A = A.get()
@@ -158,7 +158,7 @@ class VectorCalculus:
 
         if c.use_gpu:
             self.mGrad_n_n = csr_matrix(self.mGrad_n_n)
-
+        print("checkpoint 10")
 
         #
         # Gradient tangential(?) with Dirichlet
@@ -170,7 +170,7 @@ class VectorCalculus:
         A = coo_matrix((xp.asarray(valEntries[:nEntries]),  (xp.asarray(rows[:nEntries]), \
                                 xp.asarray(cols[:nEntries]))), shape=(g.nEdges, g.nVertices))
         self.mGrad_td = A.tocsr( )
-
+        print("checkpoint 11")
 
         #
         # Gradient tangential(?) with Neumann
@@ -182,7 +182,7 @@ class VectorCalculus:
         A = coo_matrix((xp.asarray(valEntries[:nEntries]),  (xp.asarray(rows[:nEntries]), \
                                 xp.asarray(cols[:nEntries]))), shape=(g.nEdges, g.nVertices))
         self.mGrad_tn = A.tocsr( )
-
+        print("checkpoint 12")
 
         #
         # Skew gradient tangential
@@ -194,7 +194,7 @@ class VectorCalculus:
         A = coo_matrix((xp.asarray(valEntries[:nEntries]),  (xp.asarray(rows[:nEntries]), \
                                     xp.asarray(cols[:nEntries]))), shape=(g.nEdges, g.nCells))
         self.mSkewgrad_t = A.tocsr( )
-
+        print("checkpoint 13")
 
         #
         # Skew gradient tangential w. Dirichlet
@@ -206,8 +206,8 @@ class VectorCalculus:
         A = coo_matrix((xp.asarray(valEntries[:nEntries]),  (xp.asarray(rows[:nEntries]), \
                                     xp.asarray(cols[:nEntries]))), shape=(g.nEdges, g.nCells))
         self.mSkewgrad_td = A.tocsr( )
-        self.mSkewgrad_td.eliminate_zeros( )
-        
+        self.mSkewgrad_td.eliminate_zeros( ) # <--- AFS: eliminate_zeros() causing problems for large grids on GPU.
+        print("checkpoint 14")
 
         #
         # Skew gradient normal w. Dirichlet
@@ -220,7 +220,7 @@ class VectorCalculus:
         A = coo_matrix((xp.asarray(valEntries[:nEntries]),  (xp.asarray(rows[:nEntries]), \
                                     xp.asarray(cols[:nEntries]))), shape=(g.nEdges, g.nVertices))
         self.mSkewgrad_nd = A.tocsr( )
-
+        print("checkpoint 15")
 
         #
         # Map from cell to vertex
@@ -232,7 +232,7 @@ class VectorCalculus:
         A = coo_matrix((xp.asarray(valEntries[:nEntries]),  (xp.asarray(rows[:nEntries]), \
                                     xp.asarray(cols[:nEntries]))), shape=(g.nVertices, g.nCells))
         self.mCell2vertex = A.tocsr( )
-
+        print("checkpoint 16")
 
         # ver 8.6.0 of cupyx does not have "tolil()" implemented; have to work around
         if c.use_gpu:
@@ -245,7 +245,7 @@ class VectorCalculus:
 
         if c.use_gpu:
             self.mCell2vertex_n = csr_matrix(self.mCell2vertex_n)
-        
+        print("checkpoint 17")
         #
         # Map cell to vertex w. Dirichlet
         #
@@ -258,7 +258,7 @@ class VectorCalculus:
         A = coo_matrix((xp.asarray(valEntries[:nEntries]),  (xp.asarray(rows[:nEntries]), \
                                xp.asarray(cols[:nEntries]))), shape=(g.nVertices, g.nCells))
         self.mCell2vertex_psi = A.tocsr( )
-
+        print("checkpoint 18")
 
         #
         # Map vertex to cell
@@ -270,7 +270,7 @@ class VectorCalculus:
         A = coo_matrix((xp.asarray(valEntries[:nEntries]),  (xp.asarray(rows[:nEntries]), \
                                     xp.asarray(cols[:nEntries]))), shape=(g.nCells, g.nVertices))
         self.mVertex2cell = A.tocsr( )
-
+        print("checkpoint 19")
 
         #
         # Map cell to edge
@@ -281,7 +281,7 @@ class VectorCalculus:
         A = coo_matrix((xp.asarray(valEntries[:nEntries]),  (xp.asarray(rows[:nEntries]), \
                                     xp.asarray(cols[:nEntries]))), shape=(g.nEdges, g.nCells))
         self.mCell2edge = A.tocsr( )
-
+        print("checkpoint 20")
 
         #
         # Map edge to cell
@@ -292,7 +292,7 @@ class VectorCalculus:
         A = coo_matrix((xp.asarray(valEntries[:nEntries]),  (xp.asarray(rows[:nEntries]), \
                                     xp.asarray(cols[:nEntries]))), shape=(g.nCells, g.nEdges))
         self.mEdge2cell = A.tocsr( )
-
+        print("checkpoint 21")
         
         ## Some temporary variables as place holders
         self.scalar_cell = np.zeros(g.nCells)
