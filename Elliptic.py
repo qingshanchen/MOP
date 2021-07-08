@@ -144,7 +144,7 @@ class EllipticCpl2:
         mAreaCell = diags(g.areaCell, 0, format='csr')
         mAreaCell_phi = mAreaCell.copy( )
         mAreaCell_phi[0,0] = 0.
-        mAreaCell_phi.eliminate_zeros( )
+        #mAreaCell_phi.eliminate_zeros( )
 
         if c.on_a_global_sphere:
             mAreaCell_psi = mAreaCell_phi.copy( )
@@ -152,34 +152,34 @@ class EllipticCpl2:
             areaCell_psi = g.areaCell.copy( )
             areaCell_psi[g.cellBoundary - 1] = 0.
             mAreaCell_psi = diags(areaCell_psi, 0, format='csr')
-            mAreaCell_psi.eliminate_zeros( )
+            #mAreaCell_psi.eliminate_zeros( )
             
         ## Construct the coefficient matrix for the coupled elliptic
         ## system for psi and phi, using the normal vector
         # Left, row 1
         self.AMC = mAreaCell_psi * vc.mVertex2cell * vc.mCurl_t
         self.AC = mAreaCell_psi * vc.mCurl_v
-        self.AMC.eliminate_zeros( )
+        #self.AMC.eliminate_zeros( )
         self.AMC.sort_indices( )
-        self.AC.eliminate_zeros( )
+        #self.AC.eliminate_zeros( )
         self.AC.sort_indices( )
         
         # Left, row 2
         self.AMD = mAreaCell_phi * vc.mVertex2cell * vc.mDiv_t
         self.AD = mAreaCell_phi * vc.mDiv_v
-        self.AMD.eliminate_zeros( )
+        #self.AMD.eliminate_zeros( )
         self.AMD.sort_indices( )
-        self.AD.eliminate_zeros( )
+        #self.AD.eliminate_zeros( )
         self.AD.sort_indices( )
         
         # Right, col 2
         self.GN = vc.mGrad_tn * vc.mCell2vertex_n
-        self.GN.eliminate_zeros( )
+        #self.GN.eliminate_zeros( )
         self.GN.sort_indices( )
         
         # Right, col 1
         self.SN = vc.mSkewgrad_nd * vc.mCell2vertex_psi
-        self.SN.eliminate_zeros( )
+        #self.SN.eliminate_zeros( )
         self.SN.sort_indices( )
 
         ## Construct an artificial thickness vector
