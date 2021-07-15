@@ -17,7 +17,12 @@ max_int = np.iinfo('int32').max
 
 def main( ):
 
-
+    # load appropriate module for interacting with arrays on GPU / CPU
+    if c.use_gpu:
+        import cupy as xp
+    else:
+        import numpy as xp
+    
     # -----------------------------------------------------------
     # Create a grid_data object, a state_data object, and a parameter object.
     # -----------------------------------------------------------
@@ -64,11 +69,11 @@ def main( ):
     kinetic_energy[0] = s.kinetic_energy
     pot_energy[0] = s.pot_energy
     total_energy[0] = kinetic_energy[0] + pot_energy[0]
-    mass[0] = np.sum(s.thickness[:] * g.areaCell[:])
+    mass[0] = xp.sum(s.thickness[:] * g.areaCell[:])
     pot_enstrophy[0] = s.pot_enstrophy
-    total_vorticity[0] = np.sum(s.pv_cell * s.thickness * g.areaCell)
-    pv_max[0] = np.max(s.pv_cell)
-    pv_min[0] = np.min(s.pv_cell)
+    total_vorticity[0] = xp.sum(s.pv_cell * s.thickness * g.areaCell)
+    pv_max[0] = xp.max(s.pv_cell)
+    pv_min[0] = xp.min(s.pv_cell)
 
     print(("Running test case \#%d" % c.test_case))
     print(("K-energy, p-energy, t-energy, p-enstrophy, mass: %.15e, %.15e, %.15e, %.15e, %.15e" % (kinetic_energy[0], pot_energy[0], total_energy[0], pot_enstrophy[0], mass[0])))
@@ -111,15 +116,15 @@ def main( ):
         kinetic_energy[iStep+1] = s.kinetic_energy
         pot_energy[iStep+1] = s.pot_energy
         total_energy[iStep+1] = kinetic_energy[iStep+1] + pot_energy[iStep+1]
-        mass[iStep+1] = np.sum(s.thickness[:] * g.areaCell[:])
+        mass[iStep+1] = xp.sum(s.thickness[:] * g.areaCell[:])
         pot_enstrophy[iStep+1] = s.pot_enstrophy
-        total_vorticity[iStep+1] = np.sum(s.pv_cell * s.thickness * g.areaCell)
-        pv_max[iStep+1] = np.max(s.pv_cell)
-        pv_min[iStep+1] = np.min(s.pv_cell)
+        total_vorticity[iStep+1] = xp.sum(s.pv_cell * s.thickness * g.areaCell)
+        pv_max[iStep+1] = xp.max(s.pv_cell)
+        pv_min[iStep+1] = xp.min(s.pv_cell)
         
         print(("K-energy, p-energy, t-energy, p-enstrophy, mass: %.15e, %.15e, %.15e, %.15e, %.15e" % \
               (kinetic_energy[iStep+1], pot_energy[iStep+1], total_energy[iStep+1], pot_enstrophy[iStep+1], mass[iStep+1])))
-        print("min thickness: %f" % np.min(s.thickness))
+        print("min thickness: %f" % xp.min(s.thickness))
 
         if kinetic_energy[iStep+1] != kinetic_energy[iStep+1]:
             raise ValueError("Exceptions detected in energy. Stop now")

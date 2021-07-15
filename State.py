@@ -3,14 +3,20 @@ import netCDF4 as nc
 from swe_comp import swe_comp as cmp
 from copy import deepcopy as deepcopy
 
+from Parameters import use_gpu
+if use_gpu:
+    import cupy as xp
+else:
+    import numpy as xp
+
 class state_data:
     def __init__(self, vc, g, c):
 
         # Load appropriate module for working with objects on CPU / GPU
-        if c.use_gpu:
-            import cupy as xp
-        else:
-            import numpy as xp
+        #if c.use_gpu:
+        #    import cupy as xp
+        #else:
+        #    import numpy as xp
             
         # Prognostic variables
         self.thickness = xp.zeros(g.nCells)
@@ -66,8 +72,8 @@ class state_data:
             
     def start_from_function(self, vc, g, c):
 
-        latmin = np.min(g.latCell[:]); latmax = np.max(g.latCell[:])
-        lonmin = np.min(g.lonCell[:]); lonmax = np.max(g.lonCell[:])
+        latmin = xp.min(g.latCell[:]); latmax = xp.max(g.latCell[:])
+        lonmin = xp.min(g.lonCell[:]); lonmax = xp.max(g.lonCell[:])
 
         latmid = 0.5*(latmin+latmax)
         latwidth = latmax - latmin
@@ -85,15 +91,15 @@ class state_data:
             h0 = 1000.
             lon_c = .5*np.pi
             lat_c = 0.
-            r = a*np.arccos(np.sin(lat_c)*np.sin(g.latCell[:]) + \
-                np.cos(lat_c)*np.cos(g.latCell[:])*np.cos(g.lonCell[:]-lon_c))
-            self.thickness[:] = np.where(r<=R, 0.25*h0*(1+np.cos(np.pi*r/R)), 0.) + h0
+            r = a*xp.arccos(xp.sin(lat_c)*xp.sin(g.latCell[:]) + \
+                xp.cos(lat_c)*xp.cos(g.latCell[:])*xp.cos(g.lonCell[:]-lon_c))
+            self.thickness[:] = xp.where(r<=R, 0.25*h0*(1+xp.cos(np.pi*r/R)), 0.) + h0
 
             self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
             self.divergence[:] = 0.
             #self.compute_diagnostics(g, c)
 
-            self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
+            self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / xp.sum(g.areaCell)
             
 
         elif c.test_case == 2:
@@ -101,20 +107,20 @@ class state_data:
             a = c.sphere_radius
             u0 = 2*np.pi*a / (12*86400)
             gh0 = 2.94e4
-            gh = np.sin(g.latCell[:])**2
+            gh = xp.sin(g.latCell[:])**2
             gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
             self.thickness[:] = gh / c.gravity
             h0 = gh0 / c.gravity
 
-            self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
+            self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
             self.divergence[:] = 0.
             
-            self.psi_cell[:] = -a * h0 * u0 * np.sin(g.latCell[:]) 
-            self.psi_cell[:] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (np.sin(g.latCell[:]))**3 / 3.
+            self.psi_cell[:] = -a * h0 * u0 * xp.sin(g.latCell[:]) 
+            self.psi_cell[:] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (xp.sin(g.latCell[:]))**3 / 3.
             self.psi_cell -= self.psi_cell[0]
             self.phi_cell[:] = 0.
 
-            self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
+            self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / xp.sum(g.areaCell)
 
 
             ## For debugging ##
@@ -128,7 +134,7 @@ class state_data:
                 vorticity1 = vc.vertex2cell(vc.discrete_curl_t(nVelocity))
                 err = vorticity1 - self.vorticity
                 print("vorticity computed using normal vel.")
-                print("relative error = %e" % (np.sqrt(np.sum(err**2*g.areaCell)/np.sum(self.vorticity**2*g.areaCell))))
+                print("relative error = %e" % (xp.sqrt(xp.sum(err**2*g.areaCell)/xp.sum(self.vorticity**2*g.areaCell))))
 
                 self.phi_vertex[:] = vc.cell2vertex(self.phi_cell)
                 tVelocity = vc.discrete_grad_n(self.psi_cell)
@@ -137,11 +143,11 @@ class state_data:
                 vorticity2 = vc.discrete_curl_v(tVelocity)
                 err = vorticity2 - self.vorticity
                 print("vorticity computed using tang vel.")
-                print("relative error = %e" % (np.sqrt(np.sum(err**2*g.areaCell)/np.sum(self.vorticity**2*g.areaCell))))
+                print("relative error = %e" % (xp.sqrt(xp.sum(err**2*g.areaCell)/xp.sum(self.vorticity**2*g.areaCell))))
 
                 err = 0.5*(vorticity1 + vorticity2) - self.vorticity
                 print("vorticity computed using both normal and tang vel.")
-                print("relative error = %e" % (np.sqrt(np.sum(err**2*g.areaCell)/np.sum(self.vorticity**2*g.areaCell))))
+                print("relative error = %e" % (xp.sqrt(xp.sum(err**2*g.areaCell)/xp.sum(self.vorticity**2*g.areaCell))))
                 raise ValueError("Testing the consistency between streamfunction and vorticity.")
                 ## End of debugging ##
             
@@ -152,7 +158,7 @@ class state_data:
             u0 = 20.
 
             h0 = 5960.
-            gh = c.gravity*h0 - np.sin(g.latCell[:])**2 * (a*c.Omega0*u0 + 0.5*u0*u0) 
+            gh = c.gravity*h0 - xp.sin(g.latCell[:])**2 * (a*c.Omega0*u0 + 0.5*u0*u0) 
             h = gh / c.gravity
 
             # Define the mountain topography
@@ -160,14 +166,14 @@ class state_data:
             R = np.pi / 9
             lat_c = np.pi / 6.
             lon_c = -.5*np.pi
-            r = np.sqrt((g.latCell[:]-lat_c)**2 + (g.lonCell[:]-lon_c)**2)
-            r = np.where(r < R, r, R)
+            r = xp.sqrt((g.latCell[:]-lat_c)**2 + (g.lonCell[:]-lon_c)**2)
+            r = xp.where(r < R, r, R)
             g.bottomTopographyCell[:] = h_s0 * ( 1 - r/R)
             self.thickness[:] = h[:] - g.bottomTopographyCell[:]
-            self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
+            self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
             self.divergence[:] = 0.
             
-            self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
+            self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / xp.sum(g.areaCell)
 
             self.curlWind_cell[:] = 0.
             self.divWind_cell[:] = 0.
@@ -186,7 +192,7 @@ class state_data:
             K = 7.848e-6
             R = 4
 
-            cos_lat = np.cos(g.latCell)
+            cos_lat = xp.cos(g.latCell)
             A = 0.5*w*(2*c.Omega0 + w)*cos_lat**2 + \
                 0.25*K**2*cos_lat**(2*R) * ( \
                 (R+1)*cos_lat**2 + \
@@ -199,17 +205,17 @@ class state_data:
 
             # The thickness field
             self.thickness[:] = c.gravity * h0 + a**2*A + \
-                                a**2*B*np.cos(R*g.lonCell) + \
-                                a**2*C*np.cos(2*R*g.lonCell)
+                                a**2*B*xp.cos(R*g.lonCell) + \
+                                a**2*C*xp.cos(2*R*g.lonCell)
             self.thickness[:] /= c.gravity
 
             # Vorticity and divergence fields
-            self.vorticity[:] = 2*w*np.sin(g.latCell) - \
-                                K*np.sin(g.latCell)*cos_lat**R* \
-                                (R**2 + 3*R + 2)*np.cos(R*g.lonCell)
+            self.vorticity[:] = 2*w*xp.sin(g.latCell) - \
+                                K*xp.sin(g.latCell)*cos_lat**R* \
+                                (R**2 + 3*R + 2)*xp.cos(R*g.lonCell)
             self.divergence[:] = 0.
                                                      
-            self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
+            self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / xp.sum(g.areaCell)
 
 
         elif c.test_case == 7:
@@ -223,7 +229,7 @@ class state_data:
             self.vorticity[:] = ini_dat[:,3]
             self.divergence[:] = ini_dat[:,4]
 
-            self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
+            self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / xp.sum(g.areaCell)
 
         elif c.test_case == 8:
             # Setup shallow water test case 8: barotropic instability test case
@@ -232,45 +238,49 @@ class state_data:
             self.divergence[:] = 0.
 
             # Compute the vorticity field
-            self.vorticity[:] = cmp.compute_swtc8_vort(g.latCell)
+            if c.use_gpu:
+                temp = g.latCell.get()
+                self.vorticity[:] = cmp.compute_swtc8_vort(temp) # TODO - not working, not sure why
+            else:
+                self.vorticity[:] = cmp.compute_swtc8_vort(g.latCell)
 
             # Compute the thickness field, and shift it towards 10km average depth
             gh = cmp.compute_swtc8_gh(g.latCell)
-            gh += 10000.*c.gravity - np.sum(gh*g.areaCell)/np.sum(g.areaCell)
+            gh += 10000.*c.gravity - xp.sum(gh*g.areaCell)/xp.sum(g.areaCell)
             self.thickness[:] = gh / c.gravity
 
             # Add a small perturbation to the thickness field
-            pert = 120*np.cos(g.latCell)
-            if np.max(g.lonCell) > 1.1*np.pi:
+            pert = 120*xp.cos(g.latCell)
+            if xp.max(g.lonCell) > 1.1*np.pi:
                 print("Found the range of lonCell to be [0, 2pi]")
                 print("Shifting it to [-pi, pi]")
-                g.lonCell[:] = np.where(g.lonCell > np.pi, g.lonCell-2*np.pi, g.lonCell)
-                g.lonVertex[:] = np.where(g.lonVertex > np.pi, g.lonVertex-2*np.pi, g.lonVertex)
+                g.lonCell[:] = xp.where(g.lonCell > np.pi, g.lonCell-2*np.pi, g.lonCell)
+                g.lonVertex[:] = xp.where(g.lonVertex > np.pi, g.lonVertex-2*np.pi, g.lonVertex)
                 g.lonEdge[:] = np.where(g.lonEdge > np.pi, g.lonEdge-2*np.pi, g.lonEdge)
-            pert *= np.exp(-(g.lonCell*3)**2)
-            pert *= np.exp(-((g.latCell-np.pi/4)*15)**2)
+            pert *= xp.exp(-(g.lonCell*3)**2)
+            pert *= xp.exp(-((g.latCell-np.pi/4)*15)**2)
 #            self.thickness[:] += pert
 
-            self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
+            self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / xp.sum(g.areaCell)
             
         elif c.test_case == 12:
             # SWSTC #2, with a stationary analytic solution, modified for the northern hemisphere
             a = c.sphere_radius
             u0 = 2*np.pi*a / (12*86400)
             gh0 = 2.94e4
-            gh = np.sin(g.latCell[:])**2
+            gh = xp.sin(g.latCell[:])**2
             gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
             self.thickness[:] = gh / c.gravity
             h0 = gh0 / c.gravity
 
-            self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
+            self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
             self.divergence[:] = 0.
             
-            self.psi_cell[:] = -a * h0 * u0 * np.sin(g.latCell[:]) 
-            self.psi_cell[:] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (np.sin(g.latCell[:]))**3 / 3.
+            self.psi_cell[:] = -a * h0 * u0 * xp.sin(g.latCell[:]) 
+            self.psi_cell[:] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (xp.sin(g.latCell[:]))**3 / 3.
             self.phi_cell[:] = 0.
 
-            self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
+            self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / xp.sum(g.areaCell)
 
 
         elif c.test_case == 15:
@@ -281,7 +291,7 @@ class state_data:
             u0 = 20.
 
             h0 = 5960.
-            gh = c.gravity*h0 - np.sin(g.latCell[:])**2 * (a*c.Omega0*u0 + 0.5*u0*u0) 
+            gh = c.gravity*h0 - xp.sin(g.latCell[:])**2 * (a*c.Omega0*u0 + 0.5*u0*u0) 
             h = gh / c.gravity
 
             # Define the mountain topography
@@ -289,14 +299,14 @@ class state_data:
             R = np.pi / 9
             lat_c = np.pi / 6.
             lon_c = .5*np.pi
-            r = np.sqrt((g.latCell[:]-lat_c)**2 + (g.lonCell[:]-lon_c)**2)
-            r = np.where(r < R, r, R)
+            r = xp.sqrt((g.latCell[:]-lat_c)**2 + (g.lonCell[:]-lon_c)**2)
+            r = xp.where(r < R, r, R)
             g.bottomTopographyCell[:] = h_s0 * ( 1 - r/R)
             self.thickness[:] = h[:] - g.bottomTopographyCell[:]
-            self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
+            self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
             self.divergence[:] = 0.
             
-            self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
+            self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / xp.sum(g.areaCell)
 
             self.curlWind_cell[:] = 0.
             self.divWind_cell[:] = 0.
@@ -306,8 +316,8 @@ class state_data:
             # A wind-driven gyre at mid-latitude in the northern hemisphere
             tau0 = 1.e-4
             
-            latmin = np.min(g.latCell[:]); latmax = np.max(g.latCell[:])
-            lonmin = np.min(g.lonCell[:]); lonmax = np.max(g.lonCell[:])
+            latmin = xp.min(g.latCell[:]); latmax = xp.max(g.latCell[:])
+            lonmin = xp.min(g.lonCell[:]); lonmax = xp.max(g.lonCell[:])
 
             latmid = 0.5*(latmin+latmax)
             latwidth = latmax - latmin
@@ -326,17 +336,17 @@ class state_data:
             
             # Initialize wind
             self.curlWind_cell[:] = -tau0 * np.pi/(latwidth*r) * \
-                                    np.sin(np.pi*(g.latCell[:]-latmin) / latwidth)
+                                    xp.sin(np.pi*(g.latCell[:]-latmin) / latwidth)
             self.divWind_cell[:] = 0.
             
-            self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
+            self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / xp.sum(g.areaCell)
 
         elif c.test_case == 22:
             # One gyre with no forcing, for a bounded domain over NA
-            d = np.sqrt(32*(g.latCell[:] - latmid)**2/latwidth**2 + 4*(g.lonCell[:]-(-1.1))**2/.3**2)
-            f0 = np.mean(g.fCell)
+            d = xp.sqrt(32*(g.latCell[:] - latmid)**2/latwidth**2 + 4*(g.lonCell[:]-(-1.1))**2/.3**2)
+            f0 = xp.mean(g.fCell)
             self.thickness[:] = 4000.
-            self.psi_cell[:] = 2*np.exp(-d**2) * 0.5*(1-np.tanh(20*(d-1.5)))
+            self.psi_cell[:] = 2*xp.exp(-d**2) * 0.5*(1-xp.tanh(20*(d-1.5)))
 #            self.psi_cell[:] -= np.sum(self.psi_cell * g.areaCell) / np.sum(g.areaCell)
             self.psi_cell *= c.gravity / f0 * self.thickness
             self.phi_cell[:] = 0.
@@ -355,7 +365,7 @@ class state_data:
             #c.delVisc = 0.
             #c.del2Visc = 0.
             
-            self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
+            self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / xp.sum(g.areaCell)
             
         else:
             raise ValueError("Invaid choice for the test case.")
@@ -517,7 +527,7 @@ class state_data:
             #For shallow water test case #1, reset the vorticity and divergence to the initial states
             a = c.sphere_radius
             u0 = 2*np.pi*a / (12*86400)
-            self.vorticity[:] = 2*u0/a * np.sin(g.latCell[:])
+            self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
             self.divergence[:] = 0.
 
         self.thickness_edge[:] = vc.cell2edge(self.thickness)
@@ -555,10 +565,10 @@ class state_data:
         self.geoPot[:] += self.kenergy
 
         # Compute kinetic energy, total energy, and potential enstrophy
-        self.kinetic_energy = np.sum(self.kenergy_edge * self.thickness_edge * g.areaEdge)
+        self.kinetic_energy = xp.sum(self.kenergy_edge * self.thickness_edge * g.areaEdge)
         
-        self.pot_energy = 0.5 * c.gravity * np.sum((self.thickness[:] + g.bottomTopographyCell - self.SS0)**2 * g.areaCell[:])
-        self.pot_enstrophy = 0.5 * np.sum(g.areaCell[:] * self.thickness * self.pv_cell[:]**2)
+        self.pot_energy = 0.5 * c.gravity * xp.sum((self.thickness[:] + g.bottomTopographyCell - self.SS0)**2 * g.areaCell[:])
+        self.pot_enstrophy = 0.5 * xp.sum(g.areaCell[:] * self.thickness * self.pv_cell[:]**2)
 
 
     def compute_psi_phi(self, vc, g, c):
@@ -650,20 +660,20 @@ class state_data:
 
     def compute_tc2_errors(self, iStep, s_init, error1, error2, errorInf, g):
         # For test case #2, compute the errors
-        error1[iStep+1, 0] = np.sum(np.abs(self.thickness[:] - s_init.thickness[:])*g.areaCell[:]) / np.sum(np.abs(s_init.thickness[:])*g.areaCell[:])
-        error1[iStep+1, 1] = np.sum(np.abs(self.vorticity[:] - s_init.vorticity[:])*g.areaCell[:]) / np.sum(np.abs(s_init.vorticity[:])*g.areaCell[:])
-        error1[iStep+1, 2] = np.max(np.abs(self.divergence[:] - s_init.divergence[:])) 
+        error1[iStep+1, 0] = xp.sum(xp.abs(self.thickness[:] - s_init.thickness[:])*g.areaCell[:]) / xp.sum(xp.abs(s_init.thickness[:])*g.areaCell[:])
+        error1[iStep+1, 1] = xp.sum(xp.abs(self.vorticity[:] - s_init.vorticity[:])*g.areaCell[:]) / xp.sum(xp.abs(s_init.vorticity[:])*g.areaCell[:])
+        error1[iStep+1, 2] = xp.max(xp.abs(self.divergence[:] - s_init.divergence[:])) 
 
-        error2[iStep+1, 0] = np.sqrt(np.sum((self.thickness[:] - s_init.thickness[:])**2*g.areaCell[:]))
-        error2[iStep+1,0] /= np.sqrt(np.sum((s_init.thickness[:])**2*g.areaCell[:]))
-        error2[iStep+1, 1] = np.sqrt(np.sum((self.vorticity[:] - s_init.vorticity[:])**2*g.areaCell[:]))
-        error2[iStep+1,1] /= np.sqrt(np.sum((s_init.vorticity[:])**2*g.areaCell[:]))
-        error2[iStep+1, 2] = np.sqrt(np.sum((self.divergence[:] - s_init.divergence[:])**2*g.areaCell[:]))
-        error2[iStep+1, 2] /= np.sqrt(np.sum(g.areaCell[:]))
+        error2[iStep+1, 0] = xp.sqrt(xp.sum((self.thickness[:] - s_init.thickness[:])**2*g.areaCell[:]))
+        error2[iStep+1,0] /= xp.sqrt(xp.sum((s_init.thickness[:])**2*g.areaCell[:]))
+        error2[iStep+1, 1] = xp.sqrt(xp.sum((self.vorticity[:] - s_init.vorticity[:])**2*g.areaCell[:]))
+        error2[iStep+1,1] /= xp.sqrt(xp.sum((s_init.vorticity[:])**2*g.areaCell[:]))
+        error2[iStep+1, 2] = xp.sqrt(xp.sum((self.divergence[:] - s_init.divergence[:])**2*g.areaCell[:]))
+        error2[iStep+1, 2] /= xp.sqrt(xp.sum(g.areaCell[:]))
 
-        errorInf[iStep+1, 0] = np.max(np.abs(self.thickness[:] - s_init.thickness[:])) / np.max(np.abs(s_init.thickness[:]))
-        errorInf[iStep+1, 1] = np.max(np.abs(self.vorticity[:] - s_init.vorticity[:])) / np.max(np.abs(s_init.vorticity[:]))
-        errorInf[iStep+1, 2] = np.max(np.abs(self.divergence[:] - s_init.divergence[:]))
+        errorInf[iStep+1, 0] = xp.max(xp.abs(self.thickness[:] - s_init.thickness[:])) / xp.max(xp.abs(s_init.thickness[:]))
+        errorInf[iStep+1, 1] = xp.max(xp.abs(self.vorticity[:] - s_init.vorticity[:])) / xp.max(xp.abs(s_init.vorticity[:]))
+        errorInf[iStep+1, 2] = xp.max(xp.abs(self.divergence[:] - s_init.divergence[:]))
 
     def compute_kenergy_edge(self, vc, g, c):
         # Compute the kinetic energy
