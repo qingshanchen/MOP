@@ -23,6 +23,12 @@ Builing and execution procedure:
 5. Python packages: numpy, scipy, matplotlib, netcdf4-python, f2py, pyamg
 6. (CUDA) CUPY compatible with cudatoolkit
 7. (CUDA) [AMGX](https://github.com/NVIDIA/AMGX)
+  ```bash
+mkdir build
+cd build
+cmake ../ -DCMAKE_NO_MPI=True
+make -j8 all
+```
 8. (CUDA) [pyamgx](https://github.com/shwina/pyamgx)
 
 Steps marked by CUDA are only necessary if the model is to run on Nvidia graphics cards using CUDA.
