@@ -129,11 +129,17 @@ class EllipticCpl2:
 
         # load appropriate module for working with objects on CPU / GPU
         if c.use_gpu:
+            if not c.linear_solver is 'amgx':
+                raise ValueError("Invalid solver choice.")
+            
             import cupy as xp
             from cupyx.scipy.sparse import coo_matrix, csc_matrix, csr_matrix, eye, diags, bmat
 
             areaCell_cpu = g.areaCell.get()
         else:
+            if c.linear_solver is 'amgx':
+                raise ValueError("Invalid solver choice.")
+
             import numpy as xp
             from scipy.sparse import coo_matrix, csc_matrix, csr_matrix, eye, diags, bmat
 
@@ -193,18 +199,6 @@ class EllipticCpl2:
         self.mSkewgrad_td = vc.mSkewgrad_td.copy( )
         self.mGrad_n_n = vc.mGrad_n_n.copy( )
         
-        if c.use_gpu2 and not c.use_gpu: # TODO - remove when everything is on GPU
-            import cupy as cp
-            import cupyx 
-            self.AMC = cupyx.scipy.sparse.csr_matrix(self.AMC)
-            self.AC = cupyx.scipy.sparse.csr_matrix(self.AC)
-            self.AMD = cupyx.scipy.sparse.csr_matrix(self.AMD)
-            self.AD= cupyx.scipy.sparse.csr_matrix(self.AD)
-            self.GN = cupyx.scipy.sparse.csr_matrix(self.GN)
-            self.SN = cupyx.scipy.sparse.csr_matrix(self.SN)
-            self.mSkewgrad_td = cupyx.scipy.sparse.csr_matrix(self.mSkewgrad_td)
-            self.mGrad_n_n = cupyx.scipy.sparse.csr_matrix(self.mGrad_n_n)
-            self.thicknessInv = cp.array(self.thicknessInv)
         
         if c.linear_solver is 'amgx':
             import pyamgx
@@ -321,11 +315,9 @@ class EllipticCpl2:
             raise ValueError("Invalid solver choice.")
 
     def update(self, thickness_edge, vc, c, g):
-        if c.use_gpu2:
-            self.thicknessInv[:] = cp.array(1./thickness_edge)
-        else:
-            self.thicknessInv[:] = 1./thickness_edge
-
+        
+        self.thicknessInv[:] = 1./thickness_edge
+        
         ## Construct the blocks
         self.A11 = self.AC.multiply(self.thicknessInv)
         self.A11 *= self.mSkewgrad_td
@@ -417,41 +409,28 @@ class EllipticCpl2:
                 y[:] = A22_lu.solve(b2_new)
 
         elif c.linear_solver is 'amgx':
-            if c.use_gpu2:
-                b1 = cp.array(b1)
-                b2 = cp.array(b2)
-                x_cp = cp.array(x)
-                y_cp = cp.array(y)
+            b1 = cp.array(b1)
+            b2 = cp.array(b2)
+            x_cp = cp.array(x)
+            y_cp = cp.array(y)
 
             b1_new = b1.copy(); b2_new = b2.copy( )
             self.d_x.upload(x)
             self.d_y.upload(y)
             for k in np.arange(nIter):
-                if c.use_gpu2:
-                    b1_new[:] = b1 - self.A12.dot(y_cp)
-                    b2_new[:] = b2 - self.A21.dot(x_cp)
-                else:
-                    b1_new[:] = b1 - self.A12.dot(y)
-                    b2_new[:] = b2 - self.A21.dot(x)
-                    
+                b1_new[:] = b1 - self.A12.dot(y_cp)
+                b2_new[:] = b2 - self.A21.dot(x_cp)
+                
                 self.d_b1.upload(b1_new)
                 self.d_b2.upload(b2_new)
                 self.slv11.solve(self.d_b1, self.d_x)
                 self.slv22.solve(self.d_b2, self.d_y)
 
-                if c.use_gpu2:
-                    self.d_x.download_raw(x_cp.data)
-                    self.d_y.download_raw(y_cp.data)
-                else:
-                    self.d_x.download(x)
-                    self.d_y.download(y)
-
-            if c.use_gpu2 and not c.use_gpu:   # TODO - remove  when everything is on GPU
-                x[:] = cp.asnumpy(x_cp)
-                y[:] = cp.asnumpy(y_cp)
-            elif c.use_gpu:
-                x[:] = x_cp
-                y[:] = y_cp
+                self.d_x.download_raw(x_cp.data)
+                self.d_y.download_raw(y_cp.data)
+                
+            x[:] = x_cp
+            y[:] = y_cp
                 
 
         elif c.linear_solver is 'amg':

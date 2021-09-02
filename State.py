@@ -3,6 +3,8 @@ import netCDF4 as nc
 from swe_comp import swe_comp as cmp
 from copy import deepcopy as deepcopy
 
+# Load appropriate module for working with objects on CPU / GPU
+# (import here so xp is available in all methods below)
 from Parameters import use_gpu
 if use_gpu:
     import cupy as xp
@@ -11,12 +13,6 @@ else:
 
 class state_data:
     def __init__(self, vc, g, c):
-
-        # Load appropriate module for working with objects on CPU / GPU
-        #if c.use_gpu:
-        #    import cupy as xp
-        #else:
-        #    import numpy as xp
             
         # Prognostic variables
         self.thickness = xp.zeros(g.nCells)

@@ -22,7 +22,6 @@ class VectorCalculus:
         self.linear_solver = c.linear_solver
         self.max_iters = c.max_iters
         self.err_tol = c.err_tol
-        self.use_gpu = c.use_gpu # TODO - don't think we will need this
 
         # load appropriate module for defining objects on CPU or GPU
         if c.use_gpu:
