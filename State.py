@@ -235,13 +235,16 @@ class state_data:
 
             # Compute the vorticity field
             if c.use_gpu:
-                temp = g.latCell.get()
-                self.vorticity[:] = cmp.compute_swtc8_vort(temp) # TODO - not working, not sure why
+                self.vorticity[:] = xp.asarray(cmp.compute_swtc8_vort(g.latCell.get()))
             else:
                 self.vorticity[:] = cmp.compute_swtc8_vort(g.latCell)
 
             # Compute the thickness field, and shift it towards 10km average depth
-            gh = cmp.compute_swtc8_gh(g.latCell)
+            if c.use_gpu:
+                gh = xp.asarray(cmp.compute_swtc8_gh(g.latCell.get()))
+            else:
+                gh = cmp.compute_swtc8_gh(g.latCell)
+                
             gh += 10000.*c.gravity - xp.sum(gh*g.areaCell)/xp.sum(g.areaCell)
             self.thickness[:] = gh / c.gravity
 
@@ -374,15 +377,15 @@ class state_data:
 
         start_ind = len(rdata.dimensions['Time']) - 1
 
-        self.thickness[:] = rdata.variables['thickness'][start_ind,:,0]
-        self.vorticity[:] = rdata.variables['vorticity_cell'][start_ind,:,0]
-        self.divergence[:] = rdata.variables['divergence'][start_ind,:,0]
-        self.psi_cell[:] = rdata.variables['psi_cell'][start_ind,:,0]
-        self.phi_cell[:] = rdata.variables['phi_cell'][start_ind,:,0]
+        self.thickness[:] = xp.asarray(rdata.variables['thickness'][start_ind,:,0])
+        self.vorticity[:] = xp.asarray(rdata.variables['vorticity_cell'][start_ind,:,0])
+        self.divergence[:] = xp.asarray(rdata.variables['divergence'][start_ind,:,0])
+        self.psi_cell[:] = xp.asarray(rdata.variables['psi_cell'][start_ind,:,0])
+        self.phi_cell[:] = xp.asarray(rdata.variables['phi_cell'][start_ind,:,0])
         self.time = rdata.variables['xtime'][start_ind]
 
-        g.bottomTopographyCell[:] = rdata.variables['bottomTopographyCell'][:]
-        self.SS0 = np.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / np.sum(g.areaCell)
+        g.bottomTopographyCell[:] = xp.asarray(rdata.variables['bottomTopographyCell'][:])
+        self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / xp.sum(g.areaCell)
         
         # Read simulation parameters
         c.test_case = int(rdata.test_case)
