@@ -57,15 +57,15 @@ class grid_data:
         self.boundaryCellMark = grid.variables['boundaryCellMark'][:]
 
         # Variables that are lightly used in a simulation run
-        self.latCell = xp.asarray(grid.variables['latCell'][:])
-        self.lonCell = xp.asarray(grid.variables['lonCell'][:])
+        self.latCell = xp.array(grid.variables['latCell'][:], ndmin=2).T
+        self.lonCell = xp.array(grid.variables['lonCell'][:], ndmin=2).T
         self.latEdge = xp.asarray(grid.variables['latEdge'][:])
         self.lonEdge = xp.asarray(grid.variables['lonEdge'][:])
         self.latVertex = xp.asarray(grid.variables['latVertex'][:])
         self.lonVertex = xp.asarray(grid.variables['lonVertex'][:])
 
         # Variables regularly used in a simulation run
-        self.areaCell = xp.asarray(grid.variables['areaCell'][:])
+        self.areaCell = xp.array(grid.variables['areaCell'][:], ndmin=2).T
         self.areaTriangle = xp.asarray(grid.variables['areaTriangle'][:])
         self.fEdge = xp.asarray(grid.variables['fEdge'][:])
         self.fVertex = xp.asarray(grid.variables['fVertex'][:])
@@ -108,9 +108,9 @@ class grid_data:
             raise ValueError("Unknown domain raius.")
             
         # Create new grid_data variables
-        self.bottomTopographyCell = xp.zeros(self.nCells)
+        self.bottomTopographyCell = xp.zeros( (self.nCells,1) )
         self.bottomTopographyVertex = xp.zeros(self.nVertices)
-        self.areaEdge = xp.asarray(self.dvEdge * self.dcEdge / 2.)
+        self.areaEdge = xp.array(self.dvEdge * self.dcEdge / 2., ndmin=2).T
 
         grid.close()
 

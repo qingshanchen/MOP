@@ -147,7 +147,7 @@ class EllipticCpl2:
         
         # Construct matrix blocks of the coupled elliptic system
         # A diagonal matrix representing scaling by cell areas
-        mAreaCell = diags(g.areaCell, 0, format='csr')
+        mAreaCell = diags(g.areaCell[:,0], 0, format='csr')
         mAreaCell_phi = mAreaCell.copy( )
         mAreaCell_phi[0,0] = 0.
         #mAreaCell_phi.eliminate_zeros( )

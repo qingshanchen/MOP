@@ -15,7 +15,8 @@ class state_data:
     def __init__(self, vc, g, c):
             
         # Prognostic variables
-        self.thickness = xp.zeros(g.nCells)
+        # TODO - modify names of matrix parameters for clarity? e.g. thickness_mat
+        self.thickness = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
         self.vorticity = self.thickness.copy()
         self.divergence = self.thickness.copy()
 
@@ -26,41 +27,41 @@ class state_data:
         self.flux = xp.zeros(g.nCells)
         self.vortdiv = xp.zeros(2*g.nCells)
 
-        self.psi_cell = xp.zeros(g.nCells)
-        self.psi_vertex = xp.zeros(g.nVertices)
+        self.psi_cell = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
+        self.psi_vertex = xp.zeros( (g.nVertices,c.nLayers), order=c.vector_order )
         self.psi_vertex_pred = xp.zeros(g.nVertices)
-        self.phi_cell = xp.zeros(g.nCells)
-        self.phi_vertex = xp.zeros(g.nVertices)
+        self.phi_cell = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
+        self.phi_vertex = xp.zeros( (g.nVertices,c.nLayers), order=c.vector_order )
         self.psiphi = xp.zeros(2*g.nCells)
         
         self.nVelocity = xp.zeros(g.nEdges)
         self.tVelocity = xp.zeros(g.nEdges)
-        self.pv_cell = xp.zeros(g.nCells)
-        self.pv_edge = xp.zeros(g.nEdges)
-        self.thickness_edge = xp.zeros(g.nEdges)
-        self.eta_cell = xp.zeros(g.nCells)
+        self.pv_cell = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
+        self.pv_edge = xp.zeros( (g.nEdges,c.nLayers), order=c.vector_order )
+        self.thickness_edge = xp.zeros( (g.nEdges,c.nLayers), order=c.vector_order )
+        self.eta_cell = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
         self.eta_edge = xp.zeros(g.nEdges)
-        self.kenergy_edge = xp.zeros(g.nEdges)
-        self.kenergy = xp.zeros(g.nCells)
-        self.geoPot = xp.zeros(g.nCells)
+        self.kenergy_edge = xp.zeros( (g.nEdges,c.nLayers), order=c.vector_order )
+        self.kenergy = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
+        self.geoPot = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
 
-        self.SS0 = 0.     # Sea Surface at rest
-        self.kinetic_energy = 0.
-        self.pot_energy = 0.
-        self.pot_enstrophy = 0.
+        self.SS0 = xp.zeros(c.nLayers)     # Sea Surface at rest
+        self.kinetic_energy = xp.zeros(c.nLayers)
+        self.pot_energy = xp.zeros(c.nLayers)
+        self.pot_enstrophy = xp.zeros(c.nLayers)
         
-        self.tend_thickness = xp.zeros(g.nCells)
-        self.tend_vorticity = xp.zeros(g.nCells)
-        self.tend_divergence = xp.zeros(g.nCells)
+        self.tend_thickness = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
+        self.tend_vorticity = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
+        self.tend_divergence = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
 
         # Forcing
         self.curlWind_cell = xp.zeros(g.nCells)
         self.divWind_cell = xp.zeros(g.nCells)
 
         # Some generic temporary vectors
-        self.vEdge = xp.zeros(g.nEdges)
-        self.vCell = xp.zeros(g.nCells)
-        self.vVertex = xp.zeros(g.nVertices)
+        self.vEdge = xp.zeros( (g.nEdges,c.nLayers), order=c.vector_order )
+        self.vCell = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
+        self.vVertex = xp.zeros( (g.nVertices,c.nLayers), order=c.vector_order )
         
         # Time keeper
         self.time = 0.0
@@ -116,7 +117,7 @@ class state_data:
             self.psi_cell -= self.psi_cell[0]
             self.phi_cell[:] = 0.
 
-            self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / xp.sum(g.areaCell)
+            self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell, axis=0) / xp.sum(g.areaCell)
 
 
             ## For debugging ##
@@ -406,7 +407,7 @@ class state_data:
         # Compute diagnostic variables
         self.compute_diagnostics(poisson, g, vc, c)
             
-        # Open the output file and create new state variables
+        # Open the output file and create new state variables - TODO: need to make any changes for multi-layer?
         out = nc.Dataset(c.output_file, 'a', format='NETCDF3_64BIT')
         out.createVariable('xtime', 'f8', ('Time',))
         out.createVariable('thickness', 'f8', ('Time', 'nCells', 'nVertLevels'))
@@ -443,7 +444,7 @@ class state_data:
         out.free_slip_BC = "%s" % (c.free_slip_BC)
         
         out.close( )
-
+        
 
     def compute_tendencies(self, g, c, vc):
 
@@ -532,7 +533,8 @@ class state_data:
         self.thickness_edge[:] = vc.cell2edge(self.thickness)
         
 #        self.compute_psi_phi(vc, g, c)
-        self.compute_psi_phi_cpl2(poisson, vc, g, c)
+        for layer in range(c.nLayers):
+            self.compute_psi_phi_cpl2(poisson, vc, g, c, layer)
         
         self.psi_vertex[:] = vc.cell2vertex(self.psi_cell)
         self.phi_vertex[:] = vc.cell2vertex(self.phi_cell)
@@ -564,11 +566,11 @@ class state_data:
         self.geoPot[:] += self.kenergy
 
         # Compute kinetic energy, total energy, and potential enstrophy
-        self.kinetic_energy = xp.sum(self.kenergy_edge * self.thickness_edge * g.areaEdge)
+        self.kinetic_energy = xp.sum(self.kenergy_edge * self.thickness_edge * g.areaEdge, axis=0)
         
-        self.pot_energy = 0.5 * c.gravity * xp.sum((self.thickness[:] + g.bottomTopographyCell - self.SS0)**2 * g.areaCell[:])
-        self.pot_enstrophy = 0.5 * xp.sum(g.areaCell[:] * self.thickness * self.pv_cell[:]**2)
-
+        self.pot_energy = 0.5 * c.gravity * xp.sum((self.thickness[:] + g.bottomTopographyCell - self.SS0)**2 * g.areaCell[:], axis=0)
+        self.pot_enstrophy = 0.5 * xp.sum(g.areaCell[:] * self.thickness * self.pv_cell[:]**2, axis=0)
+        
 
     def compute_psi_phi(self, vc, g, c):
         # To compute the psi_cell and phi_cell, requires EllipticCpl object
@@ -598,15 +600,15 @@ class state_data:
         self.phi_cell[:] = self.psiphi[g.nCells:]
 
 
-    def compute_psi_phi_cpl2(self, poisson, vc, g, c):
+    def compute_psi_phi_cpl2(self, poisson, vc, g, c, layer):
         # To compute psi_cell and phi_cell, requires the EllipticCpl2 object (that is, poisson)
-
+        
         # Update the coefficient matrix for the coupled system
-        poisson.update(self.thickness_edge, vc, c, g)
+        poisson.update(self.thickness_edge[:,layer], vc, c, g)
         
         # Prepare the right-hand side and initial solution
-        self.circulation[:] = self.vorticity * g.areaCell
-        self.flux[:] = self.divergence * g.areaCell
+        self.circulation[:] = self.vorticity[:,layer] * g.areaCell[:,0]
+        self.flux[:] = self.divergence[:,layer] * g.areaCell[:,0]
         
         if c.on_a_global_sphere:
             # A global domain with no boundary
@@ -618,8 +620,9 @@ class state_data:
             # homogeneous Neumann for phi
             self.circulation[vc.cellBoundary-1] = 0.   # Set boundary elements to zeor to make psi_cell zero there
             self.flux[0] = 0.                   # Set first element to zeor to make phi_cell[0] zero
+        
+        poisson.solve(self.circulation, self.flux, self.psi_cell[:,layer], self.phi_cell[:,layer])
 
-        poisson.solve(self.circulation, self.flux, self.psi_cell, self.phi_cell)
         
     def save(self, c, g, k):
         # Open the output file to save current data data
