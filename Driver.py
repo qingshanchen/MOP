@@ -55,28 +55,38 @@ def main( ):
 
     print("========== Declaring variables for holding statistics ============")
     # Compute energy and enstrophy
-    kinetic_energy = np.zeros(c.nTimeSteps+1)
-    pot_energy = np.zeros(c.nTimeSteps+1)
-    total_energy = np.zeros(c.nTimeSteps+1)
-    mass = np.zeros(c.nTimeSteps+1)
-    pot_enstrophy = np.zeros(c.nTimeSteps+1)
-    total_vorticity = np.zeros(c.nTimeSteps+1)
-    pv_max = np.zeros(c.nTimeSteps+1)
-    pv_min = np.zeros(c.nTimeSteps+1)
-    avg_divergence = np.zeros(c.nTimeSteps+1)
+    kinetic_energy = np.zeros( (c.nTimeSteps+1,c.nLayers) )
+    pot_energy = np.zeros( (c.nTimeSteps+1,c.nLayers) )
+    total_energy = np.zeros( (c.nTimeSteps+1,c.nLayers) )
+    mass = np.zeros( (c.nTimeSteps+1,c.nLayers) )
+    pot_enstrophy = np.zeros( (c.nTimeSteps+1,c.nLayers) )
+    total_vorticity = np.zeros( (c.nTimeSteps+1,c.nLayers) )
+    pv_max = np.zeros( (c.nTimeSteps+1,c.nLayers) )
+    pv_min = np.zeros( (c.nTimeSteps+1,c.nLayers) )
+    avg_divergence = np.zeros( (c.nTimeSteps+1,c.nLayers) )
 
     print("========== Computing some initial statistics =====================")
-    kinetic_energy[0] = s.kinetic_energy
-    pot_energy[0] = s.pot_energy
-    total_energy[0] = kinetic_energy[0] + pot_energy[0]
-    mass[0] = xp.sum(s.thickness[:] * g.areaCell[:])
-    pot_enstrophy[0] = s.pot_enstrophy
-    total_vorticity[0] = xp.sum(s.pv_cell * s.thickness * g.areaCell)
-    pv_max[0] = xp.max(s.pv_cell)
-    pv_min[0] = xp.min(s.pv_cell)
+    if c.use_gpu:
+        kinetic_energy[0,:] = s.kinetic_energy.get()[:]
+        pot_energy[0,:] = s.pot_energy.get()[:]
+        total_energy[0,:] = kinetic_energy[0,:] + pot_energy[0,:]
+        mass[0,:] = xp.sum(s.thickness * g.areaCell, axis=0).get()
+        pot_enstrophy[0,:] = s.pot_enstrophy.get()[:]
+        total_vorticity[0,:] = xp.sum(s.pv_cell * s.thickness * g.areaCell, axis=0).get()
+        pv_max[0,:] = xp.max(s.pv_cell, axis=0).get()
+        pv_min[0,:] = xp.min(s.pv_cell, axis=0).get()
+    else:
+        kinetic_energy[0,:] = s.kinetic_energy[:]
+        pot_energy[0,:] = s.pot_energy[:]
+        total_energy[0,:] = kinetic_energy[0,:] + pot_energy[0,:]
+        mass[0,:] = xp.sum(s.thickness * g.areaCell, axis=0)
+        pot_enstrophy[0,:] = s.pot_enstrophy[:]
+        total_vorticity[0,:] = xp.sum(s.pv_cell * s.thickness * g.areaCell, axis=0)
+        pv_max[0,:] = xp.max(s.pv_cell, axis=0)
+        pv_min[0,:] = xp.min(s.pv_cell, axis=0)
 
     print(("Running test case \#%d" % c.test_case))
-    print(("K-energy, p-energy, t-energy, p-enstrophy, mass: %.15e, %.15e, %.15e, %.15e, %.15e" % (kinetic_energy[0], pot_energy[0], total_energy[0], pot_enstrophy[0], mass[0])))
+    print(("K-energy, p-energy, t-energy, p-enstrophy, mass: %.15e, %.15e, %.15e, %.15e, %.15e" % (kinetic_energy[0,0], pot_energy[0,0], total_energy[0,0], pot_enstrophy[0,0], mass[0,0])))
 
     if c.test_case == 2 or c.test_case == 12:
         error1 = np.zeros((c.nTimeSteps+1, 3)); error1[0,:] = 0.
@@ -87,7 +97,7 @@ def main( ):
     # or when starting from file and told to save the inital state
     if not c.do_restart:
         nc_num = 0
-        s.save(c, g, nc_num)
+        # s.save(c, g, nc_num) #TODO multilayer - uncomment when saving fixed
     elif c.do_restart and c.save_restart_init:
         nc_num = 0
         s.save(c, g, nc_num)
@@ -113,21 +123,32 @@ def main( ):
             raise ValueError("Invalid choice for time stepping")
 
         # Compute energy and enstrophy
-        kinetic_energy[iStep+1] = s.kinetic_energy
-        pot_energy[iStep+1] = s.pot_energy
-        total_energy[iStep+1] = kinetic_energy[iStep+1] + pot_energy[iStep+1]
-        mass[iStep+1] = xp.sum(s.thickness[:] * g.areaCell[:])
-        pot_enstrophy[iStep+1] = s.pot_enstrophy
-        total_vorticity[iStep+1] = xp.sum(s.pv_cell * s.thickness * g.areaCell)
-        pv_max[iStep+1] = xp.max(s.pv_cell)
-        pv_min[iStep+1] = xp.min(s.pv_cell)
-        
-        print(("K-energy, p-energy, t-energy, p-enstrophy, mass: %.15e, %.15e, %.15e, %.15e, %.15e" % \
-              (kinetic_energy[iStep+1], pot_energy[iStep+1], total_energy[iStep+1], pot_enstrophy[iStep+1], mass[iStep+1])))
-        print("min thickness: %f" % xp.min(s.thickness))
+        if c.use_gpu:
+            kinetic_energy[iStep+1,:] = s.kinetic_energy.get()[:]
+            pot_energy[iStep+1,:] = s.pot_energy.get()[:]
+            total_energy[iStep+1,:] = kinetic_energy[0,:] + pot_energy[0,:]
+            mass[iStep+1,:] = xp.sum(s.thickness * g.areaCell, axis=0).get()
+            pot_enstrophy[iStep+1,:] = s.pot_enstrophy.get()[:]
+            total_vorticity[iStep+1,:] = xp.sum(s.pv_cell * s.thickness * g.areaCell, axis=0).get()
+            pv_max[iStep+1,:] = xp.max(s.pv_cell, axis=0).get()
+            pv_min[iStep+1,:] = xp.min(s.pv_cell, axis=0).get()
+        else:
+            kinetic_energy[iStep+1,:] = s.kinetic_energy[:]
+            pot_energy[iStep+1,:] = s.pot_energy[:]
+            total_energy[iStep+1,:] = kinetic_energy[iStep+1,:] + pot_energy[iStep+1,:]
+            mass[iStep+1,:] = xp.sum(s.thickness * g.areaCell, axis=0)
+            pot_enstrophy[iStep+1,:] = s.pot_enstrophy[:]
+            total_vorticity[iStep+1,:] = xp.sum(s.pv_cell * s.thickness * g.areaCell, axis=0)
+            pv_max[iStep+1,:] = xp.max(s.pv_cell, axis=0)
+            pv_min[iStep+1,:] = xp.min(s.pv_cell, axis=0)
 
-        if kinetic_energy[iStep+1] != kinetic_energy[iStep+1]:
-            raise ValueError("Exceptions detected in energy. Stop now")
+        for iLayer in range(c.nLayers):
+            print(("K-energy, p-energy, t-energy, p-enstrophy, mass: %.15e, %.15e, %.15e, %.15e, %.15e" % \
+                   (kinetic_energy[iStep+1,iLayer], pot_energy[iStep+1,iLayer], total_energy[iStep+1,iLayer], pot_enstrophy[iStep+1,iLayer], mass[iStep+1,iLayer])))
+            print("min thickness: %f" % xp.min(s.thickness[:,iLayer]))
+
+        #if kinetic_energy[iStep+1] != kinetic_energy[iStep+1]:
+        #    raise ValueError("Exceptions detected in energy. Stop now")
         
         if np.mod(iStep+1, c.save_interval) == 0:
             nc_num += 1

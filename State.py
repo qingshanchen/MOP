@@ -55,8 +55,8 @@ class state_data:
         self.tend_divergence = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
 
         # Forcing
-        self.curlWind_cell = xp.zeros(g.nCells)
-        self.divWind_cell = xp.zeros(g.nCells)
+        self.curlWind_cell = xp.zeros ( (g.nCells,1) )
+        self.divWind_cell = xp.zeros( (g.nCells,1) )
 
         # Some generic temporary vectors
         self.vEdge = xp.zeros( (g.nEdges,c.nLayers), order=c.vector_order )
