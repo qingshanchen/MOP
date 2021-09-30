@@ -23,8 +23,6 @@ class grid_data:
         self.nEdges = len(grid.dimensions['nEdges'])
         self.nVertices = len(grid.dimensions['nVertices'])
         self.vertexDegree = len(grid.dimensions['vertexDegree'])
-        self.nVertLevels = len(grid.dimensions['nVertLevels'])
-        
 
         #
         # Read grid informaton

@@ -408,6 +408,8 @@ class state_data:
             
         # Open the output file and create new state variables
         out = nc.Dataset(c.output_file, 'a', format='NETCDF3_64BIT')
+        out.createDimension('nVertLevels', 1)
+        out.createDimension('Time', None)
         out.createVariable('xtime', 'f8', ('Time',))
         out.createVariable('thickness', 'f8', ('Time', 'nCells', 'nVertLevels'))
         out.createVariable('vorticity_cell', 'f8', ('Time', 'nCells', 'nVertLevels'))
