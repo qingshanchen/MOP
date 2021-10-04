@@ -166,6 +166,11 @@ def main( ):
     days = c.dt * np.arange(c.nTimeSteps+1) / 86400.
     t1 = time.process_time( )
     t1a = time.time( )
+    # TODO - inserted for now
+    print(('CPU time used: %f seconds' % (t1-t0)))
+    print(('Walltime used: %f seconds' % (t1a-t0a)))
+    raise ValueError("end sim")
+    # 
     plt.close('all')
 
     plt.figure(0)

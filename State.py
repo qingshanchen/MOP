@@ -15,7 +15,6 @@ class state_data:
     def __init__(self, vc, g, c):
             
         # Prognostic variables
-        # TODO - modify names of matrix parameters for clarity? e.g. thickness_mat
         self.thickness = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
         self.vorticity = self.thickness.copy()
         self.divergence = self.thickness.copy()
@@ -55,8 +54,8 @@ class state_data:
         self.tend_divergence = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
 
         # Forcing
-        self.curlWind_cell = xp.zeros ( (g.nCells,1) )
-        self.divWind_cell = xp.zeros( (g.nCells,1) )
+        self.curlWind_cell = xp.zeros(g.nCells)
+        self.divWind_cell = xp.zeros(g.nCells)
 
         # Some generic temporary vectors
         self.vEdge = xp.zeros( (g.nEdges,c.nLayers), order=c.vector_order )
@@ -482,9 +481,9 @@ class state_data:
                 
         self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.phi_cell)
         self.tend_vorticity[:] -= vc.discrete_div_v(self.vEdge)
-        
-        self.tend_vorticity[:] += self.curlWind_cell / self.thickness[:]
-        self.tend_vorticity[:] -= c.bottomDrag * self.vorticity[:]
+
+        self.tend_vorticity[:,0] += self.curlWind_cell / xp.sum(self.thickness, axis=1) # TODO - divide by top-to-bottom thickness?
+        self.tend_vorticity[:,-1] -= c.bottomDrag * self.vorticity[:,-1]
         self.tend_vorticity[:] += c.delVisc * vc.discrete_laplace_v(self.vorticity)
 
         # Tendency for divergence
@@ -518,6 +517,8 @@ class state_data:
                     (pv_phi_diff_edge[:-1] + pv_phi_diff_edge[1:])
 
         self.tend_divergence[:] -= vc.discrete_laplace_v(self.geoPot)
+
+        # TODO - we assume divergence of bottom drag and wind is 0?
 
         self.tend_divergence[:] += c.delVisc * vc.discrete_laplace_v(self.divergence)
         
@@ -553,7 +554,7 @@ class state_data:
         self.eta_cell = self.vorticity + g.fCell
 
         # Compute the potential vorticity
-        self.pv_cell = self.eta_cell / self.thickness
+        self.pv_cell = self.eta_cell / self.thickness #TODO: divide by self.thickness or geopotential?
         
         # Map from cell to edge
         self.pv_edge[:] = vc.cell2edge(self.pv_cell)
@@ -562,8 +563,14 @@ class state_data:
         self.compute_kenergy_edge(vc, g, c)
         self.kenergy[:] = vc.edge2cell(self.kenergy_edge)
 
-        self.geoPot[:] = c.gravity * (self.thickness[:] + g.bottomTopographyCell[:])
-        self.geoPot[:] += self.kenergy
+        #self.geoPot[:] = c.gravity * (self.thickness[:] + g.bottomTopographyCell[:])
+        self.geoPot = c.rho_vec * g.bottomTopographyCell
+        for i in range(c.nLayers):
+            self.geoPot[:,i] += xp.sum(c.rho_vec[:i] * self.thickness[:,:i], axis = 1)
+            self.geoPot[:,i] += c.rho_vec[i] * xp.sum(self.thickness[:,i:], axis = 1)
+        
+        self.geoPot *= c.gravity / c.rho0
+        self.geoPot += self.kenergy
 
         # Compute kinetic energy, total energy, and potential enstrophy
         self.kinetic_energy = xp.sum(self.kenergy_edge * self.thickness_edge * g.areaEdge, axis=0)
