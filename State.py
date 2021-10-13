@@ -33,8 +33,8 @@ class state_data:
         self.phi_vertex = xp.zeros( (g.nVertices,c.nLayers), order=c.vector_order )
         self.psiphi = xp.zeros(2*g.nCells)
         
-        self.nVelocity = xp.zeros(g.nEdges)
-        self.tVelocity = xp.zeros(g.nEdges)
+        self.nVelocity = xp.zeros( (g.nEdges,c.nLayers), order=c.vector_order )
+        self.tVelocity = xp.zeros( (g.nEdges,c.nLayers), order=c.vector_order )
         self.pv_cell = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
         self.pv_edge = xp.zeros( (g.nEdges,c.nLayers), order=c.vector_order )
         self.thickness_edge = xp.zeros( (g.nEdges,c.nLayers), order=c.vector_order )
@@ -406,9 +406,9 @@ class state_data:
         # Compute diagnostic variables
         self.compute_diagnostics(poisson, g, vc, c)
             
-        # Open the output file and create new state variables - TODO: need to make any changes for multi-layer?
+        # Open the output file and create new state variables
         out = nc.Dataset(c.output_file, 'a', format='NETCDF3_64BIT')
-        out.createDimension('nVertLevels', 1)
+        out.createDimension('nVertLevels', c.nLayers)
         out.createDimension('Time', None)
         out.createVariable('xtime', 'f8', ('Time',))
         out.createVariable('thickness', 'f8', ('Time', 'nCells', 'nVertLevels'))
@@ -484,7 +484,7 @@ class state_data:
         self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.phi_cell)
         self.tend_vorticity[:] -= vc.discrete_div_v(self.vEdge)
 
-        self.tend_vorticity[:,0] += self.curlWind_cell / xp.sum(self.thickness, axis=1) # TODO - divide by top-to-bottom thickness?
+        self.tend_vorticity[:,0] += self.curlWind_cell / self.thickness[:,0]
         self.tend_vorticity[:,-1] -= c.bottomDrag * self.vorticity[:,-1]
         self.tend_vorticity[:] += c.delVisc * vc.discrete_laplace_v(self.vorticity)
 
@@ -556,7 +556,7 @@ class state_data:
         self.eta_cell = self.vorticity + g.fCell
 
         # Compute the potential vorticity
-        self.pv_cell = self.eta_cell / self.thickness #TODO: divide by self.thickness or geopotential?
+        self.pv_cell = self.eta_cell / self.thickness
         
         # Map from cell to edge
         self.pv_edge[:] = vc.cell2edge(self.pv_cell)
@@ -629,9 +629,12 @@ class state_data:
             # homogeneous Neumann for phi
             self.circulation[vc.cellBoundary-1] = 0.   # Set boundary elements to zeor to make psi_cell zero there
             self.flux[0] = 0.                   # Set first element to zeor to make phi_cell[0] zero
-        
-        poisson.solve(self.circulation, self.flux, self.psi_cell[:,layer], self.phi_cell[:,layer])
 
+        layer_psi_cell = self.psi_cell[:,layer].copy()
+        layer_phi_cell = self.phi_cell[:,layer].copy()
+        poisson.solve(self.circulation, self.flux, layer_psi_cell, layer_phi_cell)
+        self.psi_cell[:,layer] = layer_psi_cell
+        self.phi_cell[:,layer] = layer_phi_cell
         
     def save(self, c, g, k):
         # Open the output file to save current data data
@@ -639,24 +642,24 @@ class state_data:
         
         out.variables['xtime'][k] = self.time
         if c.use_gpu:
-            out.variables['thickness'][k,:,0] = self.thickness.get()
-            out.variables['vorticity_cell'][k,:,0] = self.vorticity.get()
-            out.variables['divergence'][k,:,0] = self.divergence.get()
-            out.variables['psi_cell'][k,:,0] = self.psi_cell.get()
-            out.variables['phi_cell'][k,:,0] = self.phi_cell.get()
-            out.variables['nVelocity'][k,:,0] = self.nVelocity.get()
-            out.variables['tVelocity'][k,:,0] = self.tVelocity.get()
-            out.variables['kenergy'][k,:,0] = self.kenergy.get()
+            out.variables['thickness'][k,:,:] = self.thickness.get()
+            out.variables['vorticity_cell'][k,:,:] = self.vorticity.get()
+            out.variables['divergence'][k,:,:] = self.divergence.get()
+            out.variables['psi_cell'][k,:,:] = self.psi_cell.get()
+            out.variables['phi_cell'][k,:,:] = self.phi_cell.get()
+            out.variables['nVelocity'][k,:,:] = self.nVelocity.get()
+            out.variables['tVelocity'][k,:,:] = self.tVelocity.get()
+            out.variables['kenergy'][k,:,:] = self.kenergy.get()
 
         else:    
-            out.variables['thickness'][k,:,0] = self.thickness[:]
-            out.variables['vorticity_cell'][k,:,0] = self.vorticity[:]
-            out.variables['divergence'][k,:,0] = self.divergence[:]
-            out.variables['psi_cell'][k,:,0] = self.psi_cell[:]
-            out.variables['phi_cell'][k,:,0] = self.phi_cell[:]
-            out.variables['nVelocity'][k,:,0] = self.nVelocity[:]
-            out.variables['tVelocity'][k,:,0] = self.tVelocity[:]
-            out.variables['kenergy'][k,:,0] = self.kenergy[:]
+            out.variables['thickness'][k,:,:] = self.thickness
+            out.variables['vorticity_cell'][k,:,:] = self.vorticity
+            out.variables['divergence'][k,:,:] = self.divergence
+            out.variables['psi_cell'][k,:,:] = self.psi_cell
+            out.variables['phi_cell'][k,:,:] = self.phi_cell
+            out.variables['nVelocity'][k,:,:] = self.nVelocity
+            out.variables['tVelocity'][k,:,:] = self.tVelocity
+            out.variables['kenergy'][k,:,:] = self.kenergy
 
             
         if k==0:

@@ -97,7 +97,7 @@ def main( ):
     # or when starting from file and told to save the inital state
     if not c.do_restart:
         nc_num = 0
-        # s.save(c, g, nc_num) #TODO multilayer - uncomment when saving fixed
+        s.save(c, g, nc_num)
     elif c.do_restart and c.save_restart_init:
         nc_num = 0
         s.save(c, g, nc_num)
