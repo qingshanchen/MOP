@@ -377,15 +377,15 @@ class state_data:
 
         start_ind = len(rdata.dimensions['Time']) - 1
 
-        self.thickness[:] = xp.asarray(rdata.variables['thickness'][start_ind,:,0])
-        self.vorticity[:] = xp.asarray(rdata.variables['vorticity_cell'][start_ind,:,0])
-        self.divergence[:] = xp.asarray(rdata.variables['divergence'][start_ind,:,0])
-        self.psi_cell[:] = xp.asarray(rdata.variables['psi_cell'][start_ind,:,0])
-        self.phi_cell[:] = xp.asarray(rdata.variables['phi_cell'][start_ind,:,0])
+        self.thickness[:] = xp.asarray(rdata.variables['thickness'][start_ind,:,:])
+        self.vorticity[:] = xp.asarray(rdata.variables['vorticity_cell'][start_ind,:,:])
+        self.divergence[:] = xp.asarray(rdata.variables['divergence'][start_ind,:,:])
+        self.psi_cell[:] = xp.asarray(rdata.variables['psi_cell'][start_ind,:,:])
+        self.phi_cell[:] = xp.asarray(rdata.variables['phi_cell'][start_ind,:,:])
         self.time = rdata.variables['xtime'][start_ind]
 
-        g.bottomTopographyCell[:] = xp.asarray(rdata.variables['bottomTopographyCell'][:])
-        self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / xp.sum(g.areaCell)
+        g.bottomTopographyCell[:,0] = xp.asarray(rdata.variables['bottomTopographyCell'][:])
+        self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell, axis=0) / xp.sum(g.areaCell)
         
         # Read simulation parameters
         c.test_case = int(rdata.test_case)

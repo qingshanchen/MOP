@@ -126,7 +126,7 @@ def main( ):
         if c.use_gpu:
             kinetic_energy[iStep+1,:] = s.kinetic_energy.get()[:]
             pot_energy[iStep+1,:] = s.pot_energy.get()[:]
-            total_energy[iStep+1,:] = kinetic_energy[0,:] + pot_energy[0,:]
+            total_energy[iStep+1,:] = kinetic_energy[iStep+1,:] + pot_energy[iStep+1,:]
             mass[iStep+1,:] = xp.sum(s.thickness * g.areaCell, axis=0).get()
             pot_enstrophy[iStep+1,:] = s.pot_enstrophy.get()[:]
             total_vorticity[iStep+1,:] = xp.sum(s.pv_cell * s.thickness * g.areaCell, axis=0).get()
