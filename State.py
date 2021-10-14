@@ -99,6 +99,34 @@ class state_data:
             
 
         elif c.test_case == 2:
+            if not c.nLayers == 3:
+                raise ValueError("only 3 layer case considered so far")
+            # SWSTC #2, with a stationary analytic solution 
+            a = c.sphere_radius
+            u0 = 2*np.pi*a / (12*86400)
+            gh0 = 2.94e4
+            gh = xp.sin(g.latCell[:])**2
+            gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
+            #self.thickness[:] = gh / c.gravity
+            total_thickness = gh / c.gravity
+            self.thickness[:,0] = 400
+            self.thickness[:,1] = 400
+            print(total_thickness.shape)
+            self.thickness[:,2] = total_thickness[:,0] - 800
+            h0 = gh0 / c.gravity
+
+            self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
+            self.divergence[:] = 0.
+            
+            self.psi_cell[:] = -a * h0 * u0 * xp.sin(g.latCell[:]) 
+            self.psi_cell[:] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (xp.sin(g.latCell[:]))**3 / 3.
+            self.psi_cell -= self.psi_cell[0]
+            self.phi_cell[:] = 0.
+
+            self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell, axis=0) / xp.sum(g.areaCell)
+
+            
+        elif c.test_case == 2 and False:
             # SWSTC #2, with a stationary analytic solution 
             a = c.sphere_radius
             u0 = 2*np.pi*a / (12*86400)
@@ -674,20 +702,20 @@ class state_data:
 
     def compute_tc2_errors(self, iStep, s_init, error1, error2, errorInf, g):
         # For test case #2, compute the errors
-        error1[iStep+1, 0] = xp.sum(xp.abs(self.thickness[:] - s_init.thickness[:])*g.areaCell[:]) / xp.sum(xp.abs(s_init.thickness[:])*g.areaCell[:])
-        error1[iStep+1, 1] = xp.sum(xp.abs(self.vorticity[:] - s_init.vorticity[:])*g.areaCell[:]) / xp.sum(xp.abs(s_init.vorticity[:])*g.areaCell[:])
-        error1[iStep+1, 2] = xp.max(xp.abs(self.divergence[:] - s_init.divergence[:])) 
+        error1[iStep+1, 0, :] = xp.sum(xp.abs(self.thickness[:] - s_init.thickness[:])*g.areaCell[:], axis=0) / xp.sum(xp.abs(s_init.thickness[:])*g.areaCell[:], axis=0)
+        error1[iStep+1, 1, :] = xp.sum(xp.abs(self.vorticity[:] - s_init.vorticity[:])*g.areaCell[:], axis=0) / xp.sum(xp.abs(s_init.vorticity[:])*g.areaCell[:], axis=0)
+        error1[iStep+1, 2, :] = xp.max(xp.abs(self.divergence[:] - s_init.divergence[:]), axis=0) 
 
-        error2[iStep+1, 0] = xp.sqrt(xp.sum((self.thickness[:] - s_init.thickness[:])**2*g.areaCell[:]))
-        error2[iStep+1,0] /= xp.sqrt(xp.sum((s_init.thickness[:])**2*g.areaCell[:]))
-        error2[iStep+1, 1] = xp.sqrt(xp.sum((self.vorticity[:] - s_init.vorticity[:])**2*g.areaCell[:]))
-        error2[iStep+1,1] /= xp.sqrt(xp.sum((s_init.vorticity[:])**2*g.areaCell[:]))
-        error2[iStep+1, 2] = xp.sqrt(xp.sum((self.divergence[:] - s_init.divergence[:])**2*g.areaCell[:]))
-        error2[iStep+1, 2] /= xp.sqrt(xp.sum(g.areaCell[:]))
+        error2[iStep+1, 0, :] = xp.sqrt(xp.sum((self.thickness[:] - s_init.thickness[:])**2*g.areaCell[:], axis=0))
+        error2[iStep+1, 0, :] /= xp.sqrt(xp.sum((s_init.thickness[:])**2*g.areaCell[:], axis=0))
+        error2[iStep+1, 1, :] = xp.sqrt(xp.sum((self.vorticity[:] - s_init.vorticity[:])**2*g.areaCell[:], axis=0))
+        error2[iStep+1, 1, :] /= xp.sqrt(xp.sum((s_init.vorticity[:])**2*g.areaCell[:], axis=0))
+        error2[iStep+1, 2, :] = xp.sqrt(xp.sum((self.divergence[:] - s_init.divergence[:])**2*g.areaCell[:], axis=0))
+        error2[iStep+1, 2, :] /= xp.sqrt(xp.sum(g.areaCell[:], axis=0))
 
-        errorInf[iStep+1, 0] = xp.max(xp.abs(self.thickness[:] - s_init.thickness[:])) / xp.max(xp.abs(s_init.thickness[:]))
-        errorInf[iStep+1, 1] = xp.max(xp.abs(self.vorticity[:] - s_init.vorticity[:])) / xp.max(xp.abs(s_init.vorticity[:]))
-        errorInf[iStep+1, 2] = xp.max(xp.abs(self.divergence[:] - s_init.divergence[:]))
+        errorInf[iStep+1, 0, :] = xp.max(xp.abs(self.thickness[:] - s_init.thickness[:]), axis=0) / xp.max(xp.abs(s_init.thickness[:]), axis=0)
+        errorInf[iStep+1, 1, :] = xp.max(xp.abs(self.vorticity[:] - s_init.vorticity[:]), axis=0) / xp.max(xp.abs(s_init.vorticity[:]), axis=0)
+        errorInf[iStep+1, 2, :] = xp.max(xp.abs(self.divergence[:] - s_init.divergence[:]), axis=0)
 
     def compute_kenergy_edge(self, vc, g, c):
         # Compute the kinetic energy

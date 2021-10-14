@@ -89,9 +89,9 @@ def main( ):
     print(("K-energy, p-energy, t-energy, p-enstrophy, mass: %.15e, %.15e, %.15e, %.15e, %.15e" % (kinetic_energy[0,0], pot_energy[0,0], total_energy[0,0], pot_enstrophy[0,0], mass[0,0])))
 
     if c.test_case == 2 or c.test_case == 12:
-        error1 = np.zeros((c.nTimeSteps+1, 3)); error1[0,:] = 0.
-        error2 = np.zeros((c.nTimeSteps+1, 3)); error2[0,:] = 0.
-        errorInf = np.zeros((c.nTimeSteps+1, 3)); errorInf[0,:] = 0.
+        error1 = xp.zeros((c.nTimeSteps+1, 3, c.nLayers)); error1[0,:,:] = 0.
+        error2 = xp.zeros((c.nTimeSteps+1, 3, c.nLayers)); error2[0,:,:] = 0.
+        errorInf = xp.zeros((c.nTimeSteps+1, 3, c.nLayers)); errorInf[0,:,:] = 0.
 
     # Save the initial state when starting from function
     # or when starting from file and told to save the inital state
@@ -166,107 +166,108 @@ def main( ):
     days = c.dt * np.arange(c.nTimeSteps+1) / 86400.
     t1 = time.process_time( )
     t1a = time.time( )
-    # TODO - inserted for now
-    print(('CPU time used: %f seconds' % (t1-t0)))
-    print(('Walltime used: %f seconds' % (t1a-t0a)))
-    raise ValueError("end sim")
-    # 
-    plt.close('all')
 
-    plt.figure(0)
-    plt.plot(days, (total_energy-total_energy[0])/total_energy[0], '--')
-    plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
-    plt.xlabel('Time (days)')
-    plt.ylabel('Normalized changes in total energy')
-    #plt.ylim(2.5e17, 2.6e17)
-    plt.savefig('total_energy_change.png', format='PNG')
-    print(("Change in total energy = %e " % (np.abs(total_energy[-1] - total_energy[0])/total_energy[0])))
+    if False: # plotting functionality not updated for multilayer
+        plt.close('all')
 
-    plt.figure(6)
-    plt.plot(days, kinetic_energy, '--', label="Kinetic energy")
-    plt.plot(days, pot_energy, '-.', label="Potential energy")
-#    plt.plot(days, total_energy, '-', label="Total energy")
-    plt.xlabel('Time (days)')
-    plt.ylabel('Energy')
-    #plt.ylim(8.0e20,8.15e20)
-    plt.legend(loc=1)
-    plt.savefig('energys.png', format='PNG')
-     
-    plt.figure(1)
-    plt.plot(days, (pot_enstrophy - pot_enstrophy[0])/pot_enstrophy[0])
-    plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
-    plt.xlabel('Time (days)')
-    plt.ylabel('Normalized changes in potential enstrophy')
-    #plt.ylim(0.74, 0.78)
-    plt.savefig('enstrophy.png', format='PNG')
-    print(("Change in potential enstrophy = %e " % (np.abs(pot_enstrophy[-1] - pot_enstrophy[0])/pot_enstrophy[0])))
-
-    plt.figure(5)
-    plt.plot(days, (mass-mass[0])/mass[0])
-    plt.xlabel('Time (days)')
-    plt.ylabel('Normalized changes in mass')
-    #plt.ylim(1.175e18, 1.225e18)
-    plt.savefig('mass.png', format='PNG')
-    print(("Change in mass = %e " % (np.abs(mass[-1] - mass[0])/mass[0])))
-
-    plt.figure(7)
-    plt.plot(days, pv_max, '-.', label='PV max')
-    plt.plot(days, pv_min, '--', label='PV min')
-    plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
-#    plt.ylim([-0.0001, 0.0001])
-    plt.xlabel('Days')
-    plt.ylabel('Max/Min potential vorticity')
-    plt.legend(loc=1)
-    plt.savefig('pv_max_min.png', format='PNG')
-
-    plt.figure(8)
-    plt.plot(days, total_vorticity)
-    plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
-    #plt.ylim([-0.0001, 0.0001])
-    plt.xlabel('Days')
-    plt.ylabel('Total absolute vorticity')
-    plt.savefig('aVort_total.png', format='PNG')
-    if np.abs(total_vorticity[0]) > 1e-10: 
-        print(("Change in total vorticity = %e " % (np.abs(total_vorticity[-1] - total_vorticity[0])/total_vorticity[0])))
-    print("Initial and final total vorticity:%.15e, %.15e" % (total_vorticity[0], total_vorticity[-1]))
-
-    if c.test_case == 2 or c.test_case == 12:
-        plt.figure(2); 
-        plt.plot(days, error1[:,0], '--', label=r'$L^1$ norm')
-        plt.plot(days, error2[:,0], '-', label=r'$L^2$ norm')
-        plt.plot(days, errorInf[:,0], '-.', label=r'$L^\infty$ norm')
+        plt.figure(0)
+        plt.plot(days, (total_energy-total_energy[0])/total_energy[0], '--')
         plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
-        plt.legend(loc=1)
         plt.xlabel('Time (days)')
-        plt.ylabel('Relative error in thickness')
-        plt.savefig('error-h.png', format='PNG')
+        plt.ylabel('Normalized changes in total energy')
+        #plt.ylim(2.5e17, 2.6e17)
+        plt.savefig('total_energy_change.png', format='PNG')
+        print(("Change in total energy = %e " % (np.abs(total_energy[-1] - total_energy[0])/total_energy[0])))
 
-        plt.figure(3); 
-        plt.plot(days, error1[:,1], '--', label=r'$L^1$ norm')
-        plt.plot(days, error2[:,1], '-', label=r'$L^2$ norm')
-        plt.plot(days, errorInf[:,1], '-.', label=r'$L^\infty$ norm')
+        plt.figure(6)
+        plt.plot(days, kinetic_energy, '--', label="Kinetic energy")
+        plt.plot(days, pot_energy, '-.', label="Potential energy")
+        #plt.plot(days, total_energy, '-', label="Total energy")
+        plt.xlabel('Time (days)')
+        plt.ylabel('Energy')
+        #plt.ylim(8.0e20,8.15e20)
+        plt.legend(loc=1)
+        plt.savefig('energys.png', format='PNG')
+
+        plt.figure(1)
+        plt.plot(days, (pot_enstrophy - pot_enstrophy[0])/pot_enstrophy[0])
         plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
-        plt.legend(loc=1)
         plt.xlabel('Time (days)')
-        plt.ylabel('Relative error in vorticity')
-        plt.savefig('error-vorticity.png', format='PNG')
+        plt.ylabel('Normalized changes in potential enstrophy')
+        #plt.ylim(0.74, 0.78)
+        plt.savefig('enstrophy.png', format='PNG')
+        print(("Change in potential enstrophy = %e " % (np.abs(pot_enstrophy[-1] - pot_enstrophy[0])/pot_enstrophy[0])))
 
-        plt.figure(4); 
-        plt.plot(days, error1[:,2], '--', label=r'$L^1$ norm')
-        plt.plot(days, error2[:,2], '-', label=r'$L^2$ norm')
-        plt.plot(days, errorInf[:,2], '-.', label=r'$L^\infty$ norm')
+        plt.figure(5)
+        plt.plot(days, (mass-mass[0])/mass[0])
+        plt.xlabel('Time (days)')
+        plt.ylabel('Normalized changes in mass')
+        #plt.ylim(1.175e18, 1.225e18)
+        plt.savefig('mass.png', format='PNG')
+        print(("Change in mass = %e " % (np.abs(mass[-1] - mass[0])/mass[0])))
+
+        plt.figure(7)
+        plt.plot(days, pv_max, '-.', label='PV max')
+        plt.plot(days, pv_min, '--', label='PV min')
         plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
+        #plt.ylim([-0.0001, 0.0001])
+        plt.xlabel('Days')
+        plt.ylabel('Max/Min potential vorticity')
         plt.legend(loc=1)
-        plt.xlabel('Time (days)')
-        plt.ylabel('Absolute error in divergence')
-        plt.savefig('error-divergence.png', format='PNG')
+        plt.savefig('pv_max_min.png', format='PNG')
 
-        print("Final l2 errors for thickness, vorticity, and divergence:")
-        print(("                    %e,        %e,     %e" % (error2[-1,0], error2[-1,1], error2[-1,2])))
+        plt.figure(8)
+        plt.plot(days, total_vorticity)
+        plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
+        #plt.ylim([-0.0001, 0.0001])
+        plt.xlabel('Days')
+        plt.ylabel('Total absolute vorticity')
+        plt.savefig('aVort_total.png', format='PNG')
+        if np.abs(total_vorticity[0]) > 1e-10: 
+            print(("Change in total vorticity = %e " % (np.abs(total_vorticity[-1] - total_vorticity[0])/total_vorticity[0])))
+        print("Initial and final total vorticity:%.15e, %.15e" % (total_vorticity[0], total_vorticity[-1]))
 
-        print("Final l8 errors for thickness, vorticity, and divergence:")
-        print(("                    %e,        %e,     %e" % (errorInf[-1,0], errorInf[-1,1], errorInf[-1,2])))
-        
+        if c.test_case == 2 or c.test_case == 12:
+            plt.figure(2); 
+            plt.plot(days, error1[:,0], '--', label=r'$L^1$ norm')
+            plt.plot(days, error2[:,0], '-', label=r'$L^2$ norm')
+            plt.plot(days, errorInf[:,0], '-.', label=r'$L^\infty$ norm')
+            plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
+            plt.legend(loc=1)
+            plt.xlabel('Time (days)')
+            plt.ylabel('Relative error in thickness')
+            plt.savefig('error-h.png', format='PNG')
+
+            plt.figure(3); 
+            plt.plot(days, error1[:,1], '--', label=r'$L^1$ norm')
+            plt.plot(days, error2[:,1], '-', label=r'$L^2$ norm')
+            plt.plot(days, errorInf[:,1], '-.', label=r'$L^\infty$ norm')
+            plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
+            plt.legend(loc=1)
+            plt.xlabel('Time (days)')
+            plt.ylabel('Relative error in vorticity')
+            plt.savefig('error-vorticity.png', format='PNG')
+
+            plt.figure(4); 
+            plt.plot(days, error1[:,2], '--', label=r'$L^1$ norm')
+            plt.plot(days, error2[:,2], '-', label=r'$L^2$ norm')
+            plt.plot(days, errorInf[:,2], '-.', label=r'$L^\infty$ norm')
+            plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
+            plt.legend(loc=1)
+            plt.xlabel('Time (days)')
+            plt.ylabel('Absolute error in divergence')
+            plt.savefig('error-divergence.png', format='PNG')
+
+
+    if c.test_case == 2:
+        for iLayer in range(c.nLayers):
+            print("\nlayer %d:" % iLayer)
+            print("Final l2 errors for thickness, vorticity, and divergence:")
+            print(("                    %e,        %e,     %e" % (error2[-1,0,iLayer], error2[-1,1,iLayer], error2[-1,2,iLayer])))
+
+            print("Final l8 errors for thickness, vorticity, and divergence:")
+            print(("                    %e,        %e,     %e" % (errorInf[-1,0,iLayer], errorInf[-1,1,iLayer], errorInf[-1,2,iLayer])))
+
 
     print(('CPU time used: %f seconds' % (t1-t0)))
     print(('Walltime used: %f seconds' % (t1a-t0a)))

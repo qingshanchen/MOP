@@ -5,14 +5,14 @@ test_case = 2
 use_gpu = False
 performing_test = False
 
-nLayers = 2
+nLayers = 3
 vector_order = 'F'
-rho0 = 1.0
+rho0 = 1.027
 if use_gpu:
     import cupy as xp
 else:
     import numpy as xp
-rho_vec = xp.ones(nLayers) # index 0 = top layer
+rho_vec = xp.array([1.026,1.027,1.028]) # index 0 = top layer
 
 do_restart = False
 restart_file = 'restart.nc'
