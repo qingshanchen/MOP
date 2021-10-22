@@ -2,17 +2,17 @@ import numpy as np
 
 ### Parameters essential
 test_case = 2
-use_gpu = False
+use_gpu = True
 performing_test = False
 
 nLayers = 3
 vector_order = 'F'
-rho0 = 1.027
 if use_gpu:
     import cupy as xp
 else:
     import numpy as xp
-rho_vec = xp.array([1.026,1.027,1.028]) # index 0 = top layer
+#rho_vec = xp.array([1.026,1.027,1.028]) # index 0 = top layer
+rho_vec = xp.array([1.026,1.026,1.026]) # index 0 = top layer
 
 do_restart = False
 restart_file = 'restart.nc'
@@ -26,7 +26,7 @@ timestepping = 'RK4'
 conserve_enstrophy = True     # False for energy-conserving only; True for both energy and enstrophy conserving 
 
 # Duration, time stepping size, saving interval
-dt = 1440.   #1440 for 480km
+dt = 360.   #1440 for 480km
 #dt = 90.   #360 for NA818
 nYears = 1./360
 save_inter_days = 1.
@@ -39,7 +39,7 @@ no_slip_BC = False
 free_slip_BC = False
 
 # Solver config
-linear_solver = 'lu'      # lu, cg, cudaCG, cudaPCG, amg, amgx
+linear_solver = 'amgx'      # lu, cg, cudaCG, cudaPCG, amg, amgx
 err_tol = 5e-8
 max_iters = 1000
 print_stats = 0             # 1 for True, 0 for False

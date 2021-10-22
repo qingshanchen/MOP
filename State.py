@@ -107,24 +107,27 @@ class state_data:
             gh0 = 2.94e4
             gh = xp.sin(g.latCell[:])**2
             gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
-            #self.thickness[:] = gh / c.gravity
+
             total_thickness = gh / c.gravity
-            self.thickness[:,0] = 400
-            self.thickness[:,1] = 400
-            print(total_thickness.shape)
-            self.thickness[:,2] = total_thickness[:,0] - 800
+            constant_layer_thickness = 400.
+            
+            self.thickness[:,1:] = constant_layer_thickness
+            self.thickness[:,0] = total_thickness[:,0] - (c.nLayers-1) * constant_layer_thickness
             h0 = gh0 / c.gravity
 
             self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
             self.divergence[:] = 0.
+
+            self.psi_cell[:,1:] = -a * u0 * constant_layer_thickness * xp.sin(g.latCell[:])
+            self.psi_cell[:,0] = -a * h0 * u0 * xp.sin(g.latCell[:,0]) 
+            self.psi_cell[:,0] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (xp.sin(g.latCell[:,0]))**3 / 3.
+            self.psi_cell[:,0] += a*u0*(c.nLayers-1)*constant_layer_thickness * xp.sin(g.latCell[:,0])
+            self.psi_cell -= self.psi_cell[0,:]
             
-            self.psi_cell[:] = -a * h0 * u0 * xp.sin(g.latCell[:]) 
-            self.psi_cell[:] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (xp.sin(g.latCell[:]))**3 / 3.
-            self.psi_cell -= self.psi_cell[0]
             self.phi_cell[:] = 0.
 
             self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell, axis=0) / xp.sum(g.areaCell)
-
+            
             
         elif c.test_case == 2 and False:
             # SWSTC #2, with a stationary analytic solution 
@@ -562,11 +565,10 @@ class state_data:
             self.divergence[:] = 0.
 
         self.thickness_edge[:] = vc.cell2edge(self.thickness)
-        
 #        self.compute_psi_phi(vc, g, c)
         for layer in range(c.nLayers):
             self.compute_psi_phi_cpl2(poisson, vc, g, c, layer)
-        
+
         self.psi_vertex[:] = vc.cell2vertex(self.psi_cell)
         self.phi_vertex[:] = vc.cell2vertex(self.phi_cell)
 
@@ -592,20 +594,21 @@ class state_data:
         # Compute kinetic energy on the edge
         self.compute_kenergy_edge(vc, g, c)
         self.kenergy[:] = vc.edge2cell(self.kenergy_edge)
-
+    
         #self.geoPot[:] = c.gravity * (self.thickness[:] + g.bottomTopographyCell[:])
+
         self.geoPot = c.rho_vec * g.bottomTopographyCell
         for i in range(c.nLayers):
             self.geoPot[:,i] += xp.sum(c.rho_vec[:i] * self.thickness[:,:i], axis = 1)
             self.geoPot[:,i] += c.rho_vec[i] * xp.sum(self.thickness[:,i:], axis = 1)
         
-        self.geoPot *= c.gravity / c.rho0
+        self.geoPot *= c.gravity / c.rho_vec[0]
         self.geoPot += self.kenergy
 
         # Compute kinetic energy, total energy, and potential enstrophy
         self.kinetic_energy = xp.sum(self.kenergy_edge * self.thickness_edge * g.areaEdge, axis=0)
         
-        self.pot_energy = 0.5 * c.gravity * xp.sum((self.thickness[:] + g.bottomTopographyCell - self.SS0)**2 * g.areaCell[:], axis=0)
+        self.pot_energy = 0.5 * c.gravity * xp.sum((self.thickness[:] + g.bottomTopographyCell - self.SS0)**2 * g.areaCell[:], axis=0) #TODO - is this still right?
         self.pot_enstrophy = 0.5 * xp.sum(g.areaCell[:] * self.thickness * self.pv_cell[:]**2, axis=0)
         
 
