@@ -99,8 +99,6 @@ class state_data:
             
 
         elif c.test_case == 2:
-            if not c.nLayers == 3:
-                raise ValueError("only 3 layer case considered so far")
             # SWSTC #2, with a stationary analytic solution 
             a = c.sphere_radius
             u0 = 2*np.pi*a / (12*86400)
@@ -127,9 +125,13 @@ class state_data:
             self.phi_cell[:] = 0.
 
             self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell, axis=0) / xp.sum(g.areaCell)
+
+            for iLayer in range(c.nLayers):
+            	self.SS0[iLayer] = xp.sum((xp.sum(self.thickness[:,:iLayer+1], axis = 1, keepdims=True) + \
+            		g.bottomTopographyCell) * g.areaCell, axis=0) / xp.sum(g.areaCell)
             
             
-        elif c.test_case == 2 and False:
+        elif c.test_case == 2 and False: # original single-layer initialization
             # SWSTC #2, with a stationary analytic solution 
             a = c.sphere_radius
             u0 = 2*np.pi*a / (12*86400)
@@ -550,9 +552,6 @@ class state_data:
                     (pv_phi_diff_edge[:-1] + pv_phi_diff_edge[1:])
 
         self.tend_divergence[:] -= vc.discrete_laplace_v(self.geoPot)
-
-        # TODO - we assume divergence of bottom drag and wind is 0?
-
         self.tend_divergence[:] += c.delVisc * vc.discrete_laplace_v(self.divergence)
         
     def compute_diagnostics(self, poisson, g, vc, c):
@@ -594,8 +593,6 @@ class state_data:
         # Compute kinetic energy on the edge
         self.compute_kenergy_edge(vc, g, c)
         self.kenergy[:] = vc.edge2cell(self.kenergy_edge)
-    
-        #self.geoPot[:] = c.gravity * (self.thickness[:] + g.bottomTopographyCell[:])
 
         self.geoPot = c.rho_vec * g.bottomTopographyCell
         for i in range(c.nLayers):
@@ -608,7 +605,13 @@ class state_data:
         # Compute kinetic energy, total energy, and potential enstrophy
         self.kinetic_energy = xp.sum(self.kenergy_edge * self.thickness_edge * g.areaEdge, axis=0)
         
-        self.pot_energy = 0.5 * c.gravity * xp.sum((self.thickness[:] + g.bottomTopographyCell - self.SS0)**2 * g.areaCell[:], axis=0) #TODO - is this still right?
+        self.pot_energy[0] = 0.5 * c.gravity * c.rho_vec[0] * xp.sum((self.thickness[:,[0]] + \
+        	g.bottomTopographyCell - self.SS0[0])**2 * g.areaCell[:], axis=0)
+        for iLayer in range(1,c.nLayers):
+        	self.pot_energy[iLayer] += 0.5 * c.gravity * (c.rho_vec[iLayer] - c.rho_vec[iLayer-1]) * \
+        		xp.sum( (xp.sum(self.thickness[:,:iLayer+1], axis=1, keepdims=True) + \
+        			g.bottomTopographyCell - self.SS0[iLayer])**2 * g.areaCell[:], axis=0)
+
         self.pot_enstrophy = 0.5 * xp.sum(g.areaCell[:] * self.thickness * self.pv_cell[:]**2, axis=0)
         
 
