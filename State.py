@@ -98,7 +98,7 @@ class state_data:
             self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / xp.sum(g.areaCell)
             
 
-        elif c.test_case == 2:
+        elif c.test_case == 2 and False:
             # SWSTC #2, with a stationary analytic solution 
             a = c.sphere_radius
             u0 = 2*np.pi*a / (12*86400)
@@ -131,7 +131,7 @@ class state_data:
             		g.bottomTopographyCell) * g.areaCell, axis=0) / xp.sum(g.areaCell)
             
             
-        elif c.test_case == 2 and False: # original single-layer initialization
+        elif c.test_case == 2 and True: # original single-layer initialization
             # SWSTC #2, with a stationary analytic solution 
             a = c.sphere_radius
             u0 = 2*np.pi*a / (12*86400)
@@ -594,14 +594,19 @@ class state_data:
         self.compute_kenergy_edge(vc, g, c)
         self.kenergy[:] = vc.edge2cell(self.kenergy_edge)
 
-        self.geoPot = c.rho_vec * g.bottomTopographyCell
-        for i in range(c.nLayers):
-            self.geoPot[:,i] += xp.sum(c.rho_vec[:i] * self.thickness[:,:i], axis = 1)
-            self.geoPot[:,i] += c.rho_vec[i] * xp.sum(self.thickness[:,i:], axis = 1)
-        
+        ## Non-interactive layers
+        self.geoPot = c.rho_vec * (g.bottomTopographyCell + self.thickness)
         self.geoPot *= c.gravity / c.rho_vec[0]
         self.geoPot += self.kenergy
 
+        ## Interactive layers
+        #self.geoPot = c.rho_vec * g.bottomTopographyCell
+        #for i in range(c.nLayers):
+        #    self.geoPot[:,i] += xp.sum(c.rho_vec[:i] * self.thickness[:,:i], axis = 1)
+        #    self.geoPot[:,i] += c.rho_vec[i] * xp.sum(self.thickness[:,i:], axis = 1)
+        #self.geoPot *= c.gravity / c.rho_vec[0]
+        #self.geoPot += self.kenergy
+        
         # Compute kinetic energy, total energy, and potential enstrophy
         self.kinetic_energy = xp.sum(self.kenergy_edge * self.thickness_edge * g.areaEdge, axis=0)
         
