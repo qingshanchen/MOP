@@ -13,6 +13,7 @@ else:
     import numpy as xp
 #rho_vec = xp.array([1.026,1.027,1.028]) # index 0 = top layer
 rho_vec = xp.array([1026.,1026.,1026.]) # index 0 = top layer
+rho0 = xp.mean(rho_vec)
 
 do_restart = False
 restart_file = 'restart.nc'

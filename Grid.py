@@ -57,10 +57,10 @@ class grid_data:
         # Variables that are lightly used in a simulation run
         self.latCell = xp.array(grid.variables['latCell'][:], ndmin=2).T
         self.lonCell = xp.array(grid.variables['lonCell'][:], ndmin=2).T
-        self.latEdge = xp.asarray(grid.variables['latEdge'][:])
-        self.lonEdge = xp.asarray(grid.variables['lonEdge'][:])
-        self.latVertex = xp.asarray(grid.variables['latVertex'][:])
-        self.lonVertex = xp.asarray(grid.variables['lonVertex'][:])
+        self.latEdge = xp.array(grid.variables['latEdge'][:], ndmin=2).T
+        self.lonEdge = xp.array(grid.variables['lonEdge'][:], ndmin=2).T
+        self.latVertex = xp.array(grid.variables['latVertex'][:], ndmin=2).T
+        self.lonVertex = xp.array(grid.variables['lonVertex'][:], ndmin=2).T
 
         # Variables regularly used in a simulation run
         self.areaCell = xp.array(grid.variables['areaCell'][:], ndmin=2).T

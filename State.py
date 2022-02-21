@@ -98,7 +98,7 @@ class state_data:
             self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / xp.sum(g.areaCell)
             
 
-        elif c.test_case == 2 and False:
+        elif c.test_case == 2 and True:
             # SWSTC #2, with a stationary analytic solution 
             a = c.sphere_radius
             u0 = 2*np.pi*a / (12*86400)
@@ -124,14 +124,36 @@ class state_data:
             
             self.phi_cell[:] = 0.
 
-            self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell, axis=0) / xp.sum(g.areaCell)
+            #self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell, axis=0) / xp.sum(g.areaCell)
 
-            for iLayer in range(c.nLayers):
-            	self.SS0[iLayer] = xp.sum((xp.sum(self.thickness[:,:iLayer+1], axis = 1, keepdims=True) + \
-            		g.bottomTopographyCell) * g.areaCell, axis=0) / xp.sum(g.areaCell)
-            
-            
-        elif c.test_case == 2 and True: # original single-layer initialization
+            #for iLayer in range(c.nLayers):
+           # 	self.SS0[iLayer] = xp.sum((xp.sum(self.thickness[:,:iLayer+1], axis = 1, keepdims=True) + \
+           # 		g.bottomTopographyCell) * g.areaCell, axis=0) / xp.sum(g.areaCell)
+
+            self.SS0[:] = xp.sum(self.thickness * g.areaCell, axis=0) / xp.sum(g.areaCell, axis=0)
+            topo_avg = xp.sum(g.bottomTopographyCell * g.areaCell, axis=0).item()/xp.sum(g.areaCell, axis=0).item()
+            for layer in range(c.nLayers):
+                self.SS0[layer] = xp.sum(self.SS0[layer:]) + topo_avg
+
+            print('Sea/layer sufrace average height:')
+            print(self.SS0)
+                                    
+            ## DEBUGGING
+#            print("kinetic energy stats right after initialization:")
+#            self.phi_vertex[:] = vc.cell2vertex(self.phi_cell)
+#            gh = xp.sin(g.latEdge[:])**2
+#            gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
+#            total_thickness = gh / c.gravity
+#            self.thickness_edge[:] = constant_layer_thickness
+#            self.thickness_edge[:,0] = total_thickness[:,0] - (c.nLayers-1) * constant_layer_thickness
+#            self.psi_vertex[:,1:] = -a * u0 * constant_layer_thickness * xp.sin(g.latVertex[:])
+#            self.psi_vertex[:,0] = -a * h0 * u0 * xp.sin(g.latVertex[:,0]) 
+#            self.psi_vertex[:,0] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (xp.sin(g.latVertex[:,0]))**3 / 3.
+#            self.psi_vertex[:,0] += a*u0*(c.nLayers-1)*constant_layer_thickness * xp.sin(g.latVertex[:,0])
+#            self.psi_vertex -= self.psi_vertex[0,:]
+#            self.compute_kenergy_edge(vc, g, c)
+                
+        elif c.test_case == 2 and False: # original single-layer initialization
             # SWSTC #2, with a stationary analytic solution 
             a = c.sphere_radius
             u0 = 2*np.pi*a / (12*86400)
@@ -436,6 +458,7 @@ class state_data:
         else:
             self.start_from_function(vc, g, c)
 
+
         # Compute diagnostic variables
         self.compute_diagnostics(poisson, g, vc, c)
             
@@ -484,8 +507,12 @@ class state_data:
 
         # Tendency for thicknetss
         self.tend_thickness[:] = -vc.discrete_laplace_v(self.phi_cell)
-        
         self.tend_thickness[:] += c.delVisc * vc.discrete_laplace_v(self.thickness)
+
+        ## DEBUGGING
+        #for layer in range(c.nLayers):
+        #    print('max and min of phi_cell: %f, %f' % (self.phi_cell[:,layer].max( ), self.phi_cell[:,layer].min()))
+        #    print('max and min of laplace(phi_cell): %f, %f' % (self.tend_thickness[:,layer].max( ), self.tend_thickness[:,layer].min()))
 
         # Tendency for vorticity
         if c.conserve_enstrophy:
@@ -594,30 +621,48 @@ class state_data:
         self.compute_kenergy_edge(vc, g, c)
         self.kenergy[:] = vc.edge2cell(self.kenergy_edge)
 
-        ## Non-interactive layers
-        self.geoPot = c.rho_vec * (g.bottomTopographyCell + self.thickness)
-        self.geoPot *= c.gravity / c.rho_vec[0]
-        self.geoPot += self.kenergy
-
-        ## Interactive layers
-        #self.geoPot = c.rho_vec * g.bottomTopographyCell
-        #for i in range(c.nLayers):
-        #    self.geoPot[:,i] += xp.sum(c.rho_vec[:i] * self.thickness[:,:i], axis = 1)
-        #    self.geoPot[:,i] += c.rho_vec[i] * xp.sum(self.thickness[:,i:], axis = 1)
+        ## Non-interactive layers, for completely decoupled SWE test case
+        #self.geoPot = c.rho_vec * (g.bottomTopographyCell + self.thickness)
         #self.geoPot *= c.gravity / c.rho_vec[0]
         #self.geoPot += self.kenergy
-        
-        # Compute kinetic energy, total energy, and potential enstrophy
-        self.kinetic_energy = xp.sum(self.kenergy_edge * self.thickness_edge * g.areaEdge, axis=0)
-        
-        self.pot_energy[0] = 0.5 * c.gravity * c.rho_vec[0] * xp.sum((self.thickness[:,[0]] + \
-        	g.bottomTopographyCell - self.SS0[0])**2 * g.areaCell[:], axis=0)
-        for iLayer in range(1,c.nLayers):
-        	self.pot_energy[iLayer] += 0.5 * c.gravity * (c.rho_vec[iLayer] - c.rho_vec[iLayer-1]) * \
-        		xp.sum( (xp.sum(self.thickness[:,:iLayer+1], axis=1, keepdims=True) + \
-        			g.bottomTopographyCell - self.SS0[iLayer])**2 * g.areaCell[:], axis=0)
 
-        self.pot_enstrophy = 0.5 * xp.sum(g.areaCell[:] * self.thickness * self.pv_cell[:]**2, axis=0)
+        ## Interactive layers
+#        self.geoPot = c.rho_vec * g.bottomTopographyCell
+#        for i in range(c.nLayers):
+#            self.geoPot[:,i] += xp.sum(c.rho_vec[:i] * self.thickness[:,:i], axis = 1)
+#            self.geoPot[:,i] += c.rho_vec[i] * xp.sum(self.thickness[:,i:], axis = 1)
+#        self.geoPot *= c.gravity / c.rho0
+#        self.geoPot += self.kenergy
+
+        ## DEBUGGING
+        # Overwrite geoPot for layer 2 & 3 with that of layer 1
+        #self.geoPot[:,1] = self.geoPot[:,0]
+        #self.geoPot[:,2] = self.geoPot[:,0]
+
+        ## DEBUGGING
+        # Compute layer 1 geopotential using layer 1 thickness only; overwrite other layers with
+        # layer 1 geopotential
+        self.geoPot[:,0] = c.gravity * (self.thickness[:,0] + g.bottomTopographyCell[:,0])
+        self.geoPot[:,0] += self.kenergy[:,0]
+        self.geoPot[:,1] = self.geoPot[:,0]
+        self.geoPot[:,2] = self.geoPot[:,0]
+
+        ## DEBUGGING ##
+        #for iLayer in range(c.nLayers):
+        #    print("min and max of kenergy: %f, %f" % (xp.min(self.kenergy[:,iLayer]), xp.max(self.kenergy[:,iLayer])))
+        #    print("min and max of geoPot: %f, %f" % (xp.min(self.geoPot[:,iLayer]), xp.max(self.geoPot[:,iLayer])))
+            
+        # Compute kinetic energy, total energy, and potential enstrophy
+        self.kinetic_energy = xp.sum(xp.sum(self.kenergy_edge * self.thickness_edge * g.areaEdge))
+        
+        self.pot_energy = 0.5 * c.gravity * c.rho_vec[0]/c.rho0 * xp.sum((xp.sum(self.thickness[:,0:], axis=1) + \
+        	g.bottomTopographyCell[:,0] - self.SS0[0])**2 * g.areaCell[:,0], axis=0).item( )
+        for iLayer in range(1,c.nLayers):
+        	self.pot_energy += 0.5 * c.gravity * (c.rho_vec[iLayer] - c.rho_vec[iLayer-1])/c.rho0 * \
+        		xp.sum( (xp.sum(self.thickness[:,iLayer:], axis=1) + \
+        			g.bottomTopographyCell[:,0] - self.SS0[iLayer])**2 * g.areaCell[:,0])
+
+        self.pot_enstrophy = 0.5 * xp.sum(xp.sum(g.areaCell[:] * self.thickness * self.pv_cell[:]**2))
         
 
     def compute_psi_phi(self, vc, g, c):
@@ -741,6 +786,9 @@ class state_data:
 
         self.kenergy_edge /= self.thickness_edge**2
         
+        ## DEBUGGING ##
+#        for iLayer in range(c.nLayers):
+#            print("min and max of kenergy_edge: %f, %f" % (xp.min(self.kenergy_edge[:,iLayer]), xp.max(self.kenergy_edge[:,iLayer])))
         
 def timestepping_rk4_z_hex(s, s_pre, s_old, poisson, g, vc, c):
 
