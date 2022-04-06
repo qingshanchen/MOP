@@ -5,15 +5,19 @@ test_case = 2
 use_gpu = False
 performing_test = False
 
-nLayers = 3
-vector_order = 'F'
 if use_gpu:
     import cupy as xp
 else:
     import numpy as xp
-#rho_vec = xp.array([1.026,1.027,1.028]) # index 0 = top layer
-rho_vec = xp.array([1026.,1026.,1026.]) # index 0 = top layer
-rho0 = xp.mean(rho_vec)
+vector_order = 'F'
+    
+nLayers = 2
+rho_vec = xp.array([1000., 1300.]) # index 0 = top layer
+rho0 = 1000.
+
+#nLayers = 2
+#rho_vec = xp.array([1014.,1026.]) # index 0 = top layer
+#rho0 = 1014.
 
 do_restart = False
 restart_file = 'restart.nc'
@@ -30,7 +34,7 @@ conserve_enstrophy = True     # False for energy-conserving only; True for both 
 dt = 1440.   #1440 for 480km
 #dt = 90.   #360 for NA818
 nYears = 5./360
-save_inter_days = 1.
+save_inter_days = .1
 
 # Model configuraitons, boundary conditions
 delVisc = 0.  # 80 for NA818

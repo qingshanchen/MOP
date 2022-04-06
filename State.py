@@ -16,6 +16,7 @@ class state_data:
             
         # Prognostic variables
         self.thickness = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
+        self.l1Thickness = xp.zeros(g.nCells)
         self.vorticity = self.thickness.copy()
         self.divergence = self.thickness.copy()
 
@@ -101,18 +102,31 @@ class state_data:
         elif c.test_case == 2 and True:
             # SWSTC #2, with a stationary analytic solution 
             a = c.sphere_radius
-            u0 = 2*np.pi*a / (12*86400)
+            u0 = 2*np.pi*a / (12*86400)   # Standard setup
             gh0 = 2.94e4
+#            u0 = 2*np.pi*a / (6*86400)     # Increased/reduced max vel
+#            gh0 = 50000.
             gh = xp.sin(g.latCell[:])**2
             gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
 
             total_thickness = gh / c.gravity
             constant_layer_thickness = 400.
-            
-            self.thickness[:,1:] = constant_layer_thickness
-            self.thickness[:,0] = total_thickness[:,0] - (c.nLayers-1) * constant_layer_thickness
-            h0 = gh0 / c.gravity
 
+            # Non-interactive case
+#            self.thickness[:] = total_thickness[:]
+
+            # Interactive case: top layer variable thickness, others constant thickness
+            self.thickness[:,1:] = constant_layer_thickness
+            self.thickness[:,0] = total_thickness[:,0] - xp.sum(self.thickness[:,1:], axis=1)
+#            self.l1Thickness[:] = self.thickness[:,0]
+
+            # Interactive case: bottom layer variable thickness, others constant thickness
+#            self.thickness[:,:-1] = constant_layer_thickness
+#            self.thickness[:,-1] = total_thickness[:,0] - xp.sum(self.thickness[:,:-1], axis=1)
+#            self.l1Thickness[:] = self.thickness[:,-1]
+            
+            h0 = gh0 / c.gravity
+            
             self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
             self.divergence[:] = 0.
 
@@ -220,14 +234,30 @@ class state_data:
             r = xp.sqrt((g.latCell[:]-lat_c)**2 + (g.lonCell[:]-lon_c)**2)
             r = xp.where(r < R, r, R)
             g.bottomTopographyCell[:] = h_s0 * ( 1 - r/R)
-            self.thickness[:] = h[:] - g.bottomTopographyCell[:]
-            self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
-            self.divergence[:] = 0.
-            
-            self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / xp.sum(g.areaCell)
 
+            if False:
+                raise ValueError("This case requires nLayers = 2.")
+            else:
+                ## Non-interactive case
+#                self.thickness[:] = h[:] - g.bottomTopographyCell[:]
+
+                ## Interactive case
+                self.thickness[:,0] = h[:,0] - 2500.
+                self.thickness[:,1] = 2500. - g.bottomTopographyCell[:,0]
+
+                self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
+                self.divergence[:] = 0.
+            
             self.curlWind_cell[:] = 0.
             self.divWind_cell[:] = 0.
+            
+            self.SS0[:] = xp.sum(self.thickness * g.areaCell, axis=0) / xp.sum(g.areaCell, axis=0)
+            topo_avg = xp.sum(g.bottomTopographyCell * g.areaCell, axis=0).item()/xp.sum(g.areaCell, axis=0).item()
+            for layer in range(c.nLayers):
+                self.SS0[layer] = xp.sum(self.SS0[layer:]) + topo_avg
+
+            print('Sea/layer sufrace average height:')
+            print(self.SS0)
 
             
         elif c.test_case == 6:
@@ -621,11 +651,39 @@ class state_data:
         self.compute_kenergy_edge(vc, g, c)
         self.kenergy[:] = vc.edge2cell(self.kenergy_edge)
 
-        ## Non-interactive layers, for completely decoupled SWE test case
-        #self.geoPot = c.rho_vec * (g.bottomTopographyCell + self.thickness)
-        #self.geoPot *= c.gravity / c.rho_vec[0]
-        #self.geoPot += self.kenergy
+        ## Completely decoupled non-interactive layers
+#        self.geoPot = c.rho_vec * (g.bottomTopographyCell + self.thickness)
+#        self.geoPot *= c.gravity / c.rho_vec
+#        self.geoPot += self.kenergy
 
+        ## Completely decoupled non-interactive layers; but second layer is forced
+#        self.geoPot = c.rho_vec * (g.bottomTopographyCell + self.thickness)
+#        self.geoPot[:,1] += c.rho_vec[1] * self.l1Thickness
+#        self.geoPot *= c.gravity / c.rho0
+#        self.geoPot += self.kenergy
+
+        ## One-directional interaction; layer 2 forced by layer 1.
+#        self.geoPot = c.rho_vec * (g.bottomTopographyCell + self.thickness)
+#        self.geoPot[:,1] += c.rho_vec[0] * self.thickness[:,0]
+#        self.geoPot *= c.gravity / c.rho0
+#        self.geoPot += self.kenergy
+
+        ## One-directional interaction; layer 1 forced by layer 2
+#        self.geoPot = c.rho_vec * (g.bottomTopographyCell + self.thickness)
+#        self.geoPot[:,0] += c.rho_vec[0] * self.thickness[:,1]
+#        self.geoPot *= c.gravity / c.rho0
+#        self.geoPot += self.kenergy
+        
+        ## 2-layer with bi-directional interaction
+        if c.nLayers != 2:
+            raise ValueError('Only 2-layer case is considered.')
+        else:
+            self.geoPot = c.rho_vec * (g.bottomTopographyCell + self.thickness)
+            self.geoPot[:,0] += c.rho_vec[0] * self.thickness[:,1]
+            self.geoPot[:,1] += c.rho_vec[0] * self.thickness[:,0]
+            self.geoPot *= c.gravity / c.rho0
+            self.geoPot += self.kenergy
+       
         ## Interactive layers
 #        self.geoPot = c.rho_vec * g.bottomTopographyCell
 #        for i in range(c.nLayers):
@@ -634,26 +692,12 @@ class state_data:
 #        self.geoPot *= c.gravity / c.rho0
 #        self.geoPot += self.kenergy
 
-        ## DEBUGGING
-        # Overwrite geoPot for layer 2 & 3 with that of layer 1
-        #self.geoPot[:,1] = self.geoPot[:,0]
-        #self.geoPot[:,2] = self.geoPot[:,0]
-
-        ## DEBUGGING
-        # Compute layer 1 geopotential using layer 1 thickness only; overwrite other layers with
-        # layer 1 geopotential
-        self.geoPot[:,0] = c.gravity * (self.thickness[:,0] + g.bottomTopographyCell[:,0])
-        self.geoPot[:,0] += self.kenergy[:,0]
-        self.geoPot[:,1] = self.geoPot[:,0]
-        self.geoPot[:,2] = self.geoPot[:,0]
-
-        ## DEBUGGING ##
-        #for iLayer in range(c.nLayers):
-        #    print("min and max of kenergy: %f, %f" % (xp.min(self.kenergy[:,iLayer]), xp.max(self.kenergy[:,iLayer])))
-        #    print("min and max of geoPot: %f, %f" % (xp.min(self.geoPot[:,iLayer]), xp.max(self.geoPot[:,iLayer])))
-            
         # Compute kinetic energy, total energy, and potential enstrophy
         self.kinetic_energy = xp.sum(xp.sum(self.kenergy_edge * self.thickness_edge * g.areaEdge))
+
+        ## DEBUG ##
+        if self.kinetic_energy < 0.:
+            raise ValueError('Negative energy!!')
         
         self.pot_energy = 0.5 * c.gravity * c.rho_vec[0]/c.rho0 * xp.sum((xp.sum(self.thickness[:,0:], axis=1) + \
         	g.bottomTopographyCell[:,0] - self.SS0[0])**2 * g.areaCell[:,0], axis=0).item( )
@@ -789,6 +833,8 @@ class state_data:
         ## DEBUGGING ##
 #        for iLayer in range(c.nLayers):
 #            print("min and max of kenergy_edge: %f, %f" % (xp.min(self.kenergy_edge[:,iLayer]), xp.max(self.kenergy_edge[:,iLayer])))
+#            if self.kenergy_edge[:,iLayer].min() < 0.:
+#                raise ValueError('kenergy_edge negative')
         
 def timestepping_rk4_z_hex(s, s_pre, s_old, poisson, g, vc, c):
 
