@@ -354,17 +354,38 @@ class state_data:
             gh0 = 2.94e4
             gh = xp.sin(g.latCell[:])**2
             gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
-            self.thickness[:] = gh / c.gravity
-            h0 = gh0 / c.gravity
 
+            total_thickness = gh / c.gravity
+            constant_layer_thickness = 250.
+            
+            # Non-interactive case
+#            self.thickness[:,:] = total_thickness[:,:]
+
+            # Interactive case: top layer variable thickness, others constant thickness
+            self.thickness[:,1:] = constant_layer_thickness
+            self.thickness[:,0] = total_thickness[:,0] - xp.sum(self.thickness[:,1:], axis=1)
+            if xp.any(self.thickness[:,0] < 0.):
+                raise ValueError('Negative layer thickness detected during the initialization phase. Aborting.')
+
+
+            h0 = gh0 / c.gravity
+            
             self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
             self.divergence[:] = 0.
-            
-            self.psi_cell[:] = -a * h0 * u0 * xp.sin(g.latCell[:]) 
-            self.psi_cell[:] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (xp.sin(g.latCell[:]))**3 / 3.
+
+            self.psi_cell[:,1:] = -a * u0 * constant_layer_thickness * xp.sin(g.latCell[:])
+            self.psi_cell[:,0] = -a * h0 * u0 * xp.sin(g.latCell[:,0]) 
+            self.psi_cell[:,0] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (xp.sin(g.latCell[:,0]))**3 / 3.
+            self.psi_cell[:,0] += a*u0*(c.nLayers-1)*constant_layer_thickness * xp.sin(g.latCell[:,0])
             self.phi_cell[:] = 0.
 
-            self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / xp.sum(g.areaCell)
+            self.SS0[:] = xp.sum(self.thickness * g.areaCell, axis=0) / xp.sum(g.areaCell, axis=0)
+            topo_avg = xp.sum(g.bottomTopographyCell * g.areaCell, axis=0).item()/xp.sum(g.areaCell, axis=0).item()
+            for layer in range(c.nLayers):
+                self.SS0[layer] = xp.sum(self.SS0[layer:]) + topo_avg
+
+            print('Sea/layer sufrace average height:')
+            print(self.SS0)
 
 
         elif c.test_case == 15:
@@ -651,6 +672,8 @@ class state_data:
         self.compute_kenergy_edge(vc, g, c)
         self.kenergy[:] = vc.edge2cell(self.kenergy_edge)
 
+        # Compute the Montgomery potential. Only one of the following should
+        # be active.
         ## Completely decoupled non-interactive layers
 #        self.geoPot = c.rho_vec * (g.bottomTopographyCell + self.thickness)
 #        self.geoPot *= c.gravity / c.rho_vec
@@ -675,21 +698,46 @@ class state_data:
 #        self.geoPot += self.kenergy
         
         ## 2-layer with bi-directional interaction
-        if c.nLayers != 2:
-            raise ValueError('Only 2-layer case is considered.')
-        else:
-            self.geoPot = c.rho_vec * (g.bottomTopographyCell + self.thickness)
-            self.geoPot[:,0] += c.rho_vec[0] * self.thickness[:,1]
-            self.geoPot[:,1] += c.rho_vec[0] * self.thickness[:,0]
-            self.geoPot *= c.gravity / c.rho0
-            self.geoPot += self.kenergy
+#        if c.nLayers != 2:
+#            raise ValueError('Only 2-layer case is considered.')
+#        else:
+#            self.geoPot = c.rho_vec * (g.bottomTopographyCell + self.thickness)
+#            self.geoPot[:,0] += c.rho_vec[0] * self.thickness[:,1]
+#            self.geoPot[:,1] += c.rho_vec[0] * self.thickness[:,0]
+#            self.geoPot *= c.gravity
+#            self.geoPot /= c.rho_vec
+#            self.geoPot += self.kenergy
        
-        ## Interactive layers
+        ## Interactive layers (Implementation #1, Boussinesq)
 #        self.geoPot = c.rho_vec * g.bottomTopographyCell
 #        for i in range(c.nLayers):
 #            self.geoPot[:,i] += xp.sum(c.rho_vec[:i] * self.thickness[:,:i], axis = 1)
 #            self.geoPot[:,i] += c.rho_vec[i] * xp.sum(self.thickness[:,i:], axis = 1)
 #        self.geoPot *= c.gravity / c.rho0
+#        self.geoPot += self.kenergy
+
+        ## Interactive layers (Implementation #2, Non-Boussinesq)
+#        self.geoPot = c.rho_vec * g.bottomTopographyCell
+#        for i in range(c.nLayers):
+#            self.geoPot[:,i] += xp.sum(c.rho_vec[:i] * self.thickness[:,:i], axis = 1)
+#            self.geoPot[:,i] += c.rho_vec[i] * xp.sum(self.thickness[:,i:], axis = 1)
+#        self.geoPot *= c.gravity / c.rho_vec
+#        self.geoPot += self.kenergy
+        
+        ## Interactive layers (Implementation #3, Boussinesq)
+        self.geoPot[:,0]  = c.rho_vec[0] * (xp.sum(self.thickness, axis=1) + g.bottomTopographyCell[:,0])
+        for k in range(1,c.nLayers):
+            self.geoPot[:,k] = self.geoPot[:,k-1] + (c.rho_vec[k]-c.rho_vec[k-1]) *  \
+                (xp.sum(self.thickness[:,k:], axis = 1) + g.bottomTopographyCell[:,0])
+        self.geoPot *= c.gravity / c.rho0
+        self.geoPot += self.kenergy
+
+        ## Interactive layers (Implementation #4, Non-Boussinesq)
+#        self.geoPot[:,0]  = c.rho_vec[0] * (xp.sum(self.thickness, axis=1) + g.bottomTopographyCell[:,0])
+#        for k in range(1,c.nLayers):
+#            self.geoPot[:,k] = self.geoPot[:,k-1] + (c.rho_vec[k]-c.rho_vec[k-1]) *  \
+#                (xp.sum(self.thickness[:,k:], axis = 1) + g.bottomTopographyCell[:,0])
+#        self.geoPot *= c.gravity / c.rho_vec
 #        self.geoPot += self.kenergy
 
         # Compute kinetic energy, total energy, and potential enstrophy

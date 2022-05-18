@@ -155,7 +155,7 @@ class EllipticCpl2:
         if c.on_a_global_sphere:
             mAreaCell_psi = mAreaCell_phi.copy( )
         else:
-            areaCell_psi = g.areaCell.copy( )
+            areaCell_psi = g.areaCell[:,0].copy( )
             areaCell_psi[g.cellBoundary - 1] = 0.
             mAreaCell_psi = diags(areaCell_psi, 0, format='csr')
             #mAreaCell_psi.eliminate_zeros( )
