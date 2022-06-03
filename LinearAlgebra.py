@@ -3,7 +3,7 @@ import numpy as np
 class MaxItersError(Exception):
     pass
 
-def cg(env, A, b, x, max_iter=1000, relres=1e-5):
+def cg(A, b, x, max_iter=1000, relres=1e-5):
 
     r = b - A.dot(x)
     p = r.copy()

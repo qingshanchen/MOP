@@ -3,7 +3,7 @@ import Parameters as c
 from Grid import grid_data
 from State import state_data, timestepping_rk4_z_hex
 from VectorCalculus import VectorCalculus
-from Elliptic import EllipticCpl2
+from Elliptic import EllipticCpl2, Poisson
 from matplotlib import use
 use('Agg')
 import matplotlib.pyplot as plt
@@ -34,7 +34,8 @@ def main( ):
     vc = VectorCalculus(g, c)
 
     print("===========Initializing the Poisson object ================")
-    poisson = EllipticCpl2(vc, g, c)
+    #poisson = EllipticCpl2(vc, g, c)
+    poisson = Poisson(vc, g, c)
 
     print("========== Initializing the State object =========================")
     s = state_data(vc, g, c)
@@ -271,6 +272,8 @@ def main( ):
 
             print("Final l8 errors for thickness, vorticity, and divergence:")
             print(("                    %e,        %e,     %e" % (errorInf[-1,0,iLayer], errorInf[-1,1,iLayer], errorInf[-1,2,iLayer])))
+
+#        raise ValueError('Check errors for thickness.')
 
 
     print(('CPU time used: %f seconds' % (t1-t0)))

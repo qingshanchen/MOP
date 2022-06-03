@@ -1,7 +1,7 @@
 import numpy as np
 
 ### Parameters essential
-test_case = 12
+test_case = 2
 use_gpu = True
 performing_test = False
 
@@ -11,8 +11,10 @@ else:
     import numpy as xp
 vector_order = 'F'
     
-nLayers = 2
-rho_vec = xp.array([1000., 1010.]) # index 0 = top layer
+nLayers = 1
+rho_vec = xp.array([1000.]) # index 0 = top layer
+#nLayers = 3
+#rho_vec = xp.array([1000., 1010., 1020.]) # index 0 = top layer
 rho0 = 1000.
 
 #nLayers = 2
@@ -28,13 +30,13 @@ save_restart_init = False
 timestepping = 'RK4'
 
 # Choose energy conserving or energy-enstrophy conserving schemes
-conserve_enstrophy = True     # False for energy-conserving only; True for both energy and enstrophy conserving 
+conserve_enstrophy = False     # False for energy-conserving only; True for both energy and enstrophy conserving 
 
 # Duration, time stepping size, saving interval
-dt = 360.   #1440 for 480km
+dt = 90.   #1440 for 480km
 #dt = 90.   #360 for NA818
 nYears = 5./360
-save_inter_days = .01
+save_inter_days = 1.
 
 # Model configuraitons, boundary conditions
 delVisc = 0.  # 80 for NA818
@@ -45,7 +47,7 @@ free_slip_BC = False
 
 # Solver config
 linear_solver = 'amgx'      # lu, cg, cudaCG, cudaPCG, amg, amgx
-err_tol = 5e-8
+err_tol = 5e-9
 max_iters = 1000
 print_stats = 0             # 1 for True, 0 for False
 

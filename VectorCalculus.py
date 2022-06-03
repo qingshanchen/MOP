@@ -44,6 +44,8 @@ class VectorCalculus:
         # Mesh element indices; These should be in the grid object(?)
         #
         if not c.on_a_global_sphere:
+            raise ValueError("Bounded domains are not supported as of now.")
+        
             # Collect non-boundary (interior) cells and put into a vector,
             # and boundary cells into a separate vector
             nCellsBoundary = np.sum(g.boundaryCellMark[:]>0)
@@ -120,6 +122,9 @@ class VectorCalculus:
         A = coo_matrix((xp.asarray(valEntries[:nEntries]),  (xp.asarray(rows[:nEntries]), \
                                     xp.asarray(cols[:nEntries]))), shape=(g.nCells, g.nCells))
         self.mLaplace_v = A.tocsr( )
+#        print('mLaplace, valEntries[:10], valEntries[-10:]')
+#        print(valEntries[:10])
+#        print(valEntries[nEntries-10:nEntries])
 
         
         #
@@ -299,9 +304,6 @@ class VectorCalculus:
         self.scalar_vertex = np.zeros(g.nVertices)
         if not c.on_a_global_sphere:
             self.scalar_cell_interior = np.zeros(nCellsInterior)
-
-
-            
 
             
     def discrete_div_v(self, vEdge):

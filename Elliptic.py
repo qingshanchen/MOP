@@ -11,10 +11,10 @@ class EllipticCPL:
     def __init__(self, A, linear_solver, env):
 
 
-        if linear_solver is 'lu':
+        if linear_solver == 'lu':
             self.A = A.tocsc( )
             
-        elif linear_solver is 'amgx':
+        elif linear_solver == 'amgx':
             import pyamgx
 
             pyamgx.initialize( )
@@ -91,7 +91,7 @@ class EllipticCPL:
 
             #pyamgx.finalize()
 
-        elif linear_solver is 'cg' or 'amg':
+        elif linear_solver == 'cg' or linear_solver == 'amg':
             pass
         
         else:
@@ -99,10 +99,10 @@ class EllipticCPL:
 
     def solve(self, A, b, x, env=None, linear_solver='lu'):
         
-        if linear_solver is 'lu':
+        if linear_solver == 'lu':
             x[:] = spsolve(A, b)
 
-        elif linear_solver is 'amgx':
+        elif linear_solver == 'amgx':
             self.d_b.upload(b)
             self.d_x.upload(x)
             #self.d_A.replace_coefficients(A.data)
@@ -111,7 +111,7 @@ class EllipticCPL:
             self.amgx.solve(self.d_b, self.d_x)
             self.d_x.download(x)
 
-        elif linear_solver is 'cg':
+        elif linear_solver == 'cg':
             t0 = time.clock()
             t0a = time.time( )
             err, counter = cg(env, A, b, x, max_iter = c.max_iters, relres = c.err_tol)
@@ -129,7 +129,7 @@ class EllipticCpl2:
 
         # load appropriate module for working with objects on CPU / GPU
         if c.use_gpu:
-            if not c.linear_solver is 'amgx':
+            if not c.linear_solver == 'amgx':
                 raise ValueError("Invalid solver choice.")
             
             import cupy as xp
@@ -137,7 +137,7 @@ class EllipticCpl2:
 
             areaCell_cpu = g.areaCell.get()
         else:
-            if c.linear_solver is 'amgx':
+            if c.linear_solver == 'amgx':
                 raise ValueError("Invalid solver choice.")
 
             import numpy as xp
@@ -200,7 +200,7 @@ class EllipticCpl2:
         self.mGrad_n_n = vc.mGrad_n_n.copy( )
         
         
-        if c.linear_solver is 'amgx':
+        if c.linear_solver == 'amgx':
             import pyamgx
 
             pyamgx.initialize( )
@@ -305,10 +305,10 @@ class EllipticCpl2:
             self.d_y = pyamgx.Vector().create(rsc2, mode)
             self.d_b2 = pyamgx.Vector().create(rsc2, mode)
             
-        elif c.linear_solver is 'amg':
+        elif c.linear_solver == 'amg':
             from pyamg import rootnode_solver
         
-        elif c.linear_solver is 'lu':
+        elif c.linear_solver == 'lu':
             pass
         
         else:
@@ -346,12 +346,12 @@ class EllipticCpl2:
         #self.A11 = self.A11.tocsr( )
         #self.A22 = self.A22.tocsr( )
         
-        if c.linear_solver is 'lu':
+        if c.linear_solver == 'lu':
             # Convert the matrices to CSC for better performance
             self.A11 = self.A11.tocsc( )
             self.A22 = self.A22.tocsc( )
             
-        elif c.linear_solver is 'amg':
+        elif c.linear_solver == 'amg':
             self.A11 *= -1
             self.A12 *= -1
             self.A21 *= -1
@@ -385,7 +385,7 @@ class EllipticCpl2:
                 max_coarse=300,
                 coarse_solver="pinv")
             
-        elif c.linear_solver is 'amgx':
+        elif c.linear_solver == 'amgx':
             self.d_A11.upload_CSR(self.A11)
             self.d_A22.upload_CSR(self.A22)
             self.slv11.setup(self.d_A11)
@@ -397,7 +397,7 @@ class EllipticCpl2:
 
     def solve(self, b1, b2, x, y, env=None, nIter = 10):
         
-        if c.linear_solver is 'lu':
+        if c.linear_solver == 'lu':
             A11_lu = splu(self.A11)
             A22_lu = splu(self.A22)
             b1_new = b1.copy(); b2_new = b2.copy( )
@@ -408,32 +408,24 @@ class EllipticCpl2:
                 x[:] = A11_lu.solve(b1_new)
                 y[:] = A22_lu.solve(b2_new)
 
-        elif c.linear_solver is 'amgx':
-            b1 = cp.array(b1)
-            b2 = cp.array(b2)
-            x_cp = cp.array(x)
-            y_cp = cp.array(y)
+        elif c.linear_solver == 'amgx':
 
             b1_new = b1.copy(); b2_new = b2.copy( )
-            self.d_x.upload(x)
-            self.d_y.upload(y)
             for k in np.arange(nIter):
-                b1_new[:] = b1 - self.A12.dot(y_cp)
-                b2_new[:] = b2 - self.A21.dot(x_cp)
+                b1_new[:] = b1 - self.A12.dot(y)
+                b2_new[:] = b2 - self.A21.dot(x)
                 
                 self.d_b1.upload(b1_new)
                 self.d_b2.upload(b2_new)
+                self.d_x.upload(x)
+                self.d_y.upload(y)
                 self.slv11.solve(self.d_b1, self.d_x)
                 self.slv22.solve(self.d_b2, self.d_y)
-
-                self.d_x.download_raw(x_cp.data)
-                self.d_y.download_raw(y_cp.data)
-                
-            x[:] = x_cp
-            y[:] = y_cp
+                self.d_x.download_raw(x.data)
+                self.d_y.download_raw(y.data)
                 
 
-        elif c.linear_solver is 'amg':
+        elif c.linear_solver == 'amg':
             x_res = []; y_res = []
             for k in np.arange(nIter):
                 b11 = b1 - self.A12.dot(y)
@@ -452,70 +444,77 @@ class EllipticCpl2:
         
 
 class Poisson:
-    def __init__(self, A, linear_solver, env):
+    def __init__(self, vc, g, c):
 
-        if linear_solver is 'lu':
-            self.A = A.tocsc( )
-            self.lu = splu(self.A)
-        elif linear_solver is 'cg':
-            self.A = A.tocsr( )
-        elif linear_solver in ['cudaCG']:
-            self.A = A.tocsr( )
-            self.dData = env.cuda.to_device(self.A.data)
-            self.dPtr = env.cuda.to_device(self.A.indptr)
-            self.dInd = env.cuda.to_device(self.A.indices)
-            self.cuSparseDescr = env.cuSparse.matdescr( )
-        elif linear_solver in ['cudaPCG']:
-            self.A = A.tocsr( )
-            self.Adescr = env.cuSparse.matdescr( )
-            self.Adata = env.cuda.to_device(self.A.data)
-            self.Aptr = env.cuda.to_device(self.A.indptr)
-            self.Aind = env.cuda.to_device(self.A.indices)
-
-            A_t = self.A.copy( )
-            A_t = -A_t    # Make it positive definite
-            A_t.data = np.where(A_t.nonzero()[0] >= A_t.nonzero()[1], A_t.data, 0.)
-            A_t.eliminate_zeros( )
-            A_t_descr = env.cuSparse.matdescr(matrixtype='S', fillmode='L')
-            info = env.cuSparse.csrsv_analysis(trans='N', m=A_t.shape[0], nnz=A_t.nnz, \
-                                       descr=A_t_descr, csrVal=A_t.data, \
-                                       csrRowPtr=A_t.indptr, csrColInd=A_t.indices)
-            env.cuSparse.csric0(trans='N', m=A_t.shape[0], \
-                        descr=A_t_descr, csrValM=A_t.data, csrRowPtrA=A_t.indptr,\
-                        csrColIndA=A_t.indices, info=info)
-
-            self.L = A_t
-            self.Lmv_descr = env.cuSparse.matdescr( )
-    #        self.Lsv_descr = cuSparse.matdescr(matrixtype='T', fillmode='L')
-            self.Lsv_descr = env.cuSparse.matdescr(matrixtype='T')
-            self.Ldata = env.cuda.to_device(self.L.data)
-            self.Lptr = env.cuda.to_device(self.L.indptr)
-            self.Lind = env.cuda.to_device(self.L.indices)
-            self.Lsv_info = env.cuSparse.csrsv_analysis(trans='N', m=self.L.shape[0], \
-                    nnz=self.L.nnz,  descr=self.Lsv_descr, csrVal=self.Ldata, \
-                    csrRowPtr=self.Lptr, csrColInd=self.Lind)        
-
-
-            self.LT = self.L.transpose( )
-            self.LT.tocsr( )
-            self.LTmv_descr = env.cuSparse.matdescr( )
-#            self.LTsv_descr = env.cuSparse.matdescr(matrixtype='T', fillmode='U')
-            self.LTsv_descr = env.cuSparse.matdescr()
-            self.LTdata = env.cuda.to_device(self.LT.data)
-            self.LTptr = env.cuda.to_device(self.LT.indptr)
-            self.LTind = env.cuda.to_device(self.LT.indices)
-            self.LTsv_info = env.cuSparse.csrsv_analysis(trans='T', m=self.L.shape[0], \
-                    nnz=self.L.nnz,  descr=self.Lsv_descr, csrVal=self.Ldata, \
-                    csrRowPtr=self.Lptr, csrColInd=self.Lind)        
-
-        elif linear_solver is 'pcg':
-            self.A = A.tocsr( )
-            A_t = -self.D2s
-
+        # load appropriate module for working with objects on CPU / GPU
+        if c.use_gpu:
+            if not c.linear_solver == 'amgx':
+                raise ValueError("Invalid solver choice.")
             
-        elif linear_solver is 'amg':
+            import cupy as xp
+            from cupyx.scipy.sparse import coo_matrix, csc_matrix, csr_matrix, eye, diags, bmat
 
-            self.A = A.tocsr( )
+            areaCell_cpu = g.areaCell.get()
+        else:
+            if c.linear_solver == 'amgx':
+                raise ValueError("Invalid solver choice.")
+
+            import numpy as xp
+            from scipy.sparse import coo_matrix, csc_matrix, csr_matrix, eye, diags, bmat
+
+            areaCell_cpu = g.areaCell
+
+        #
+        # Laplace on primal (voronoi)
+        #
+        ## Construct the matrix representing the discrete Laplace operator the primal
+        ## mesh (Voronoi mesh). Homogeneous Neuman BC's are assumed.
+        from swe_comp import swe_comp as cmp
+        nEntries, rows, cols, valEntries = \
+            cmp.construct_discrete_laplace_neumann(g.cellsOnEdge, g.dvEdge, g.dcEdge, \
+                                                  areaCell_cpu)
+        A = coo_matrix((xp.asarray(valEntries[:nEntries]),  (xp.asarray(rows[:nEntries]), \
+                                    xp.asarray(cols[:nEntries]))), shape=(g.nCells, g.nCells))
+        self.A = A.tocsr( )
+
+        ### DEBUGGING
+#        print('valEntries[:10], valEntries[nEntries-10:nEntries]')
+#        print(valEntries[:10])
+#        print(valEntries[nEntries-10:nEntries])
+#        print('A.data')
+#        print(self.A.data)
+        # END DEBUGGING
+
+        if c.on_a_global_sphere:
+            mAreaCell = diags(g.areaCell[:,0], 0, format='csr')
+#            mAreaCell[0,0] = 0.
+        else:
+            raise ValueError('Bounded domains are not supported at this time.')
+
+
+#        raise ValueError('For some checking')
+    
+        # Scale matrix A to make it symmetric, and set A[0,0] to a non-zero
+        self.A = mAreaCell * self.A
+
+        # DEBUGGING
+#        print('A.data after scaling')
+#        print(self.A.data)
+        # END DEBUGGING
+        
+        if c.linear_solver == 'lu':
+            A = self.A.tocsc( )
+            self.lu = splu(A)
+            
+        elif c.linear_solver == 'cg':
+            # Nothing to do
+            pass
+            
+        elif c.linear_solver == 'pcg':
+            A_t = -self.D2s
+            
+        elif c.linear_solver == 'amg':
+
             self.A_spd = self.A.copy( )
             self.A_spd = -self.A_spd
             self.B = np.ones((self.A_spd.shape[0],1), dtype=self.A_spd.dtype); self.BH = self.B.copy()
@@ -576,24 +575,56 @@ class Poisson:
                     max_coarse=300,
                     coarse_solver="pinv")
 
-        elif linear_solver is 'amgx':
+        elif c.linear_solver == 'amgx':
             import pyamgx
 
             pyamgx.initialize( )
 
-            hA = A.tocsr( )
-            if hA.nnz * 1. / hA.shape[0] > 5.5:           # Primary mesh
-                AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS_JACOBI.json'
-            if hA.nnz * 1. / hA.shape[0] < 5.5:           # Dual mesh
-                AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS.json'
-            else:
-                print('Error: cannot determine primary or dual mesh, not sure which config to use.')
+            err_tol = c.err_tol*1e-5*np.mean(areaCell_cpu)*np.sqrt(g.nCells)  # For vorticity
+            #err_tol = c.err_tol
+            cfg = pyamgx.Config( ).create_from_dict({    
+                "config_version": 2, 
+                "determinism_flag": 0, 
+                "solver": {
+                    "preconditioner": {
+                        "print_grid_stats": c.print_stats, 
+                        "algorithm": "AGGREGATION", 
+                        "print_vis_data": 0, 
+                        "solver": "AMG", 
+                        "smoother": {
+                            "relaxation_factor": 0.8, 
+                            "scope": "jacobi", 
+                            "solver": "BLOCK_JACOBI", 
+                            "monitor_residual": 0, 
+                            "print_solve_stats": 0
+                        }, 
+                        "print_solve_stats": 0, 
+                        "presweeps": 2, 
+                        "selector": "SIZE_2", 
+                        "coarse_solver": "NOSOLVER", 
+                        "max_iters": 2, 
+                        "monitor_residual": 0, 
+                        "store_res_history": 0, 
+                        "scope": "amg_solver", 
+                        "max_levels": 100, 
+                        "postsweeps": 2, 
+                        "cycle": "V"
+                    }, 
+                    "solver": "PCGF", 
+                    "print_solve_stats": c.print_stats, 
+                    "obtain_timings": c.print_stats, 
+                    "max_iters": c.max_iters, 
+                    "monitor_residual": 1, 
+                    "convergence": "ABSOLUTE", 
+                    "scope": "main", 
+                    "tolerance": err_tol,
+                    "norm": "L2"
+                }
+            })
 
-
-            cfg = pyamgx.Config( ).create_from_file(AMGX_CONFIG_FILE_NAME) 
             rsc = pyamgx.Resources().create_simple(cfg)
             mode = 'dDDI'
-
+            
             # Create solver:
             self.amgx = pyamgx.Solver().create(rsc, cfg, mode)
 
@@ -602,41 +633,26 @@ class Poisson:
             self.d_x = pyamgx.Vector().create(rsc, mode)
             self.d_b = pyamgx.Vector().create(rsc, mode)
 
-            d_A.upload(hA.indptr, hA.indices, hA.data)
+            d_A.upload_CSR(self.A)
 
             # Setup and solve system:
             self.amgx.setup(d_A)
 
-            ## Clean up:
-            #A.destroy()
-            #x.destroy()
-            #b.destroy()
-            #self.amgx.destroy()
-            #rsc.destroy()
-            #cfg.destroy()
-
-            #pyamgx.finalize()
         else:
             raise ValueError("Invalid solver choice.")
 
-    def solve(self, b, x, env=None, linear_solver='lu'):
+    def solve(self, b, x):
         
-        if linear_solver is 'lu':
+        if c.linear_solver == 'lu':
             x[:] = self.lu.solve(b)
-        elif linear_solver is 'cg':
+        elif c.linear_solver == 'cg':
             try:
-                info, nIter = cg(env, self.A, b, x, max_iter=c.max_iter, relres=c.err_tol)
+                info, nIter = cg(self.A, b, x, max_iter=1000, relres=1e-9)
                 print("CG, nIter = %d" % nIter)
             except KeyError:
                 raise KeyError
                 
-        elif linear_solver is 'cudaCG':
-            info, nIter = cudaCG(env, self, b, x, max_iter=c.max_iter, relres = c.err_tol)
-            print("cudaCG, nIter = %d" % nIter)
-        elif linear_solver is 'cudaPCG':
-            info, nIter = cudaPCG(env, self, b, x, max_iter=c.max_iter, relres = c.err_tol)
-            print("cudaPCG, nIter = %d" % nIter)
-        elif linear_solver is 'amg':
+        elif c.linear_solver == 'amg':
             
             res = []
             x0 = -x
@@ -647,11 +663,12 @@ class Poisson:
             
             print("AMG, nIter = %d" % (len(res),))
 
-        elif linear_solver is 'amgx':
+        elif c.linear_solver == 'amgx':
             self.d_b.upload(b)
             self.d_x.upload(x)
             self.amgx.solve(self.d_b, self.d_x)
-            self.d_x.download(x)
+            self.d_x.download_raw(x.data)
+            
         else:
             raise ValueError("Invalid solver choice.")
         

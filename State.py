@@ -40,7 +40,7 @@ class state_data:
         self.pv_edge = xp.zeros( (g.nEdges,c.nLayers), order=c.vector_order )
         self.thickness_edge = xp.zeros( (g.nEdges,c.nLayers), order=c.vector_order )
         self.eta_cell = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
-        self.eta_edge = xp.zeros(g.nEdges)
+        self.eta_edge = xp.zeros((g.nEdges, c.nLayers), order=c.vector_order)
         self.kenergy_edge = xp.zeros( (g.nEdges,c.nLayers), order=c.vector_order )
         self.kenergy = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
         self.geoPot = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
@@ -130,10 +130,7 @@ class state_data:
             self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
             self.divergence[:] = 0.
 
-            self.psi_cell[:,1:] = -a * u0 * constant_layer_thickness * xp.sin(g.latCell[:])
-            self.psi_cell[:,0] = -a * h0 * u0 * xp.sin(g.latCell[:,0]) 
-            self.psi_cell[:,0] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (xp.sin(g.latCell[:,0]))**3 / 3.
-            self.psi_cell[:,0] += a*u0*(c.nLayers-1)*constant_layer_thickness * xp.sin(g.latCell[:,0])
+            self.psi_cell[:,:] = -a * u0 * xp.sin(g.latCell[:,:])
             self.psi_cell -= self.psi_cell[0,:]
             
             self.phi_cell[:] = 0.
@@ -557,42 +554,25 @@ class state_data:
     def compute_tendencies(self, g, c, vc):
 
         # Tendency for thicknetss
-        self.tend_thickness[:] = -vc.discrete_laplace_v(self.phi_cell)
-        self.tend_thickness[:] += c.delVisc * vc.discrete_laplace_v(self.thickness)
+        self.vEdge[:] = self.thickness_edge * vc.discrete_skewgrad_t(self.psi_cell)
+        self.vVertex[:] = vc.discrete_div_t(self.vEdge)
+        self.tend_thickness[:] = -0.5 * vc.vertex2cell(self.vVertex)
 
-        ## DEBUGGING
-        #for layer in range(c.nLayers):
-        #    print('max and min of phi_cell: %f, %f' % (self.phi_cell[:,layer].max( ), self.phi_cell[:,layer].min()))
-        #    print('max and min of laplace(phi_cell): %f, %f' % (self.tend_thickness[:,layer].max( ), self.tend_thickness[:,layer].min()))
+        self.vEdge[:] = self.thickness_edge * vc.discrete_skewgrad_nd(self.psi_vertex)
+        self.tend_thickness[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
+                
+        self.vEdge[:] = self.thickness_edge * vc.discrete_grad_n(self.phi_cell)
+        self.tend_thickness[:] -= vc.discrete_div_v(self.vEdge)
 
         # Tendency for vorticity
-        if c.conserve_enstrophy:
-            pv_vertex = vc.cell2vertex(self.pv_cell)
-            psi_edge = vc.cell2edge(self.psi_cell)
+        self.vEdge[:] = self.eta_edge * vc.discrete_skewgrad_t(self.psi_cell)
+        self.vVertex[:] = vc.discrete_div_t(self.vEdge)
+        self.tend_vorticity[:] = -0.5 * vc.vertex2cell(self.vVertex)
 
-            self.vEdge[:] = vc.discrete_grad_n(self.psi_cell)
-            self.vEdge *= self.pv_edge
-            self.vEdge -= psi_edge * vc.discrete_grad_n(self.pv_cell)
-            self.vVertex[:] = vc.discrete_curl_t(self.vEdge)
-            self.tend_vorticity[:] = 1./6 * vc.vertex2cell(self.vVertex)
-
-            self.vEdge[:] = psi_edge * vc.discrete_skewgrad_nd(pv_vertex)  # valid on a globe
-            self.vEdge[:] -= self.pv_edge * vc.discrete_skewgrad_nd(self.psi_vertex)
-            self.tend_vorticity += 1./6 * vc.discrete_div_v(self.vEdge)
-
-            self.vEdge[:] = vc.discrete_skewgrad_nd(pv_vertex) * vc.discrete_grad_n(self.psi_cell)
-            self.vEdge -= vc.discrete_skewgrad_nd(self.psi_vertex) * vc.discrete_grad_n(self.pv_cell)
-            self.tend_vorticity += 1./3 * vc.edge2cell(self.vEdge)
-
-        else:
-            self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.psi_cell)
-            self.vVertex[:] = vc.discrete_curl_t(self.vEdge)
-            self.tend_vorticity[:] = 0.5 * vc.vertex2cell(self.vVertex)
-
-            self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_nd(self.psi_vertex)
-            self.tend_vorticity[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
+        self.vEdge[:] = self.eta_edge * vc.discrete_skewgrad_nd(self.psi_vertex)
+        self.tend_vorticity[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
                 
-        self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.phi_cell)
+        self.vEdge[:] = self.eta_edge * vc.discrete_grad_n(self.phi_cell)
         self.tend_vorticity[:] -= vc.discrete_div_v(self.vEdge)
 
         self.tend_vorticity[:,0] += self.curlWind_cell / self.thickness[:,0]
@@ -600,24 +580,24 @@ class state_data:
         self.tend_vorticity[:] += c.delVisc * vc.discrete_laplace_v(self.vorticity)
 
         # Tendency for divergence
-        self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.psi_cell)
-        self.tend_divergence[:] = vc.discrete_div_v(self.vEdge)
+        self.vEdge[:] = self.eta_edge * vc.discrete_skewgrad_t(self.psi_cell)
+        self.tend_divergence[:] = vc.discrete_curl_v(self.vEdge)
 
-        self.vEdge[:] = self.pv_edge * vc.discrete_grad_n(self.phi_cell)
+        self.vEdge[:] = self.eta_edge * vc.discrete_grad_n(self.phi_cell)
         self.vVertex[:] = vc.discrete_curl_t(self.vEdge)
         self.tend_divergence[:] += 0.5 * vc.vertex2cell(self.vVertex)
 
 #        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_nd(self.phi_vertex)
-        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_nn(self.phi_vertex)  # phi satisfies homog. Neumann
+        self.vEdge[:] = self.eta_edge * vc.discrete_grad_tn(self.phi_vertex)  # phi satisfies homog. Neumann
 
         # The following lines implement the natural BC's for skewgrad; natural BC's are needed to
         # strictly retain the symmetry of the Poisson bracket. However, phi_vertex satisfies the homogeneous Neumann
-        # BC's. In this case, the requirement for symmetry may be slightly relaxed, and the above skewgrad_nn be used
+        # BC's. In this case, the requirement for symmetry may be slightly relaxed, and the above skewgrad_nn can be used
         # instead, which is simpler.
 #        self.vEdge[:] = cmp.discrete_skewgrad_nnat(self.phi_vertex, self.phi_cell, g.verticesOnEdge, g.cellsOnEdge, \
 #                                                   g.dvEdge)
 #        self.vEdge *= self.pv_edge
-        self.tend_divergence[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
+        self.tend_divergence[:] += 0.5 * vc.discrete_curl_v(self.vEdge)
 
         ## The boundary terms
         if not c.on_a_global_sphere:
@@ -642,23 +622,13 @@ class state_data:
             self.divergence[:] = 0.
 
         self.thickness_edge[:] = vc.cell2edge(self.thickness)
-#        self.compute_psi_phi(vc, g, c)
-        for layer in range(c.nLayers):
-            self.compute_psi_phi_cpl2(poisson, vc, g, c, layer)
+        self.compute_psi_phi(g, c, poisson)
+#        for layer in range(c.nLayers):
+#            self.compute_psi_phi_cpl2(poisson, vc, g, c, layer)
 
         self.psi_vertex[:] = vc.cell2vertex(self.psi_cell)
         self.phi_vertex[:] = vc.cell2vertex(self.phi_cell)
 
-        if c.on_a_global_sphere:
-            pass
-            # Reset value of vorticity and divergence at cell 0
-            #self.vorticity[0] = -1 * np.sum(self.vorticity[1:]*g.areaCell[1:]) / g.areaCell[0]
-            #self.divergence[0] = -1 * np.sum(self.divergence[1:]*g.areaCell[1:]) / g.areaCell[0]
-            #print("Total vorticity = %e" % (np.sum(self.vorticity * g.areaCell)))
-            #print("Total divergence = %e" % (np.sum(self.divergence * g.areaCell)))
-        else:
-            pass
-        
         # Compute the absolute vorticity
         self.eta_cell = self.vorticity + g.fCell
 
@@ -667,6 +637,7 @@ class state_data:
         
         # Map from cell to edge
         self.pv_edge[:] = vc.cell2edge(self.pv_cell)
+        self.eta_edge[:] = vc.cell2edge(self.eta_cell)
 
         # Compute kinetic energy on the edge
         self.compute_kenergy_edge(vc, g, c)
@@ -757,85 +728,57 @@ class state_data:
         self.pot_enstrophy = 0.5 * xp.sum(xp.sum(g.areaCell[:] * self.thickness * self.pv_cell[:]**2))
         
 
-    def compute_psi_phi(self, vc, g, c):
-        # To compute the psi_cell and phi_cell, requires EllipticCpl object
+    def compute_psi_phi(self, g, c, poisson):
+        # To compute the psi_cell and phi_cell, requires Poisson object
 
-        # Update the coefficient matrix for the coupled system
-        vc.update_matrix_for_coupled_elliptic(self.thickness_edge, c, g)
+        for k in range(c.nLayers):
+            # Prepare the right-hand side and initial solution
+            vort = self.vorticity[:,k] * g.areaCell[:,0]
+            div = self.divergence[:,k] * g.areaCell[:,0]
 
-        # Prepare the right-hand side and initial solution
-        self.vortdiv[:g.nCells] = self.vorticity * g.areaCell
-        self.vortdiv[g.nCells:] = self.divergence * g.areaCell
-        self.psiphi[:g.nCells] = self.psi_cell[:]
-        self.psiphi[g.nCells:] = self.phi_cell[:]
-        
-        if c.on_a_global_sphere:
-            # A global domain with no boundary
-            self.vortdiv[0] = 0.   # Set first element to zeor to make psi_cell[0] zero
-            self.vortdiv[g.nCells] = 0.   # Set first element to zeor to make phi_cell[0] zero
+            if c.on_a_global_sphere:
+                # A global domain with no boundary
+                vort[0] = 0.   # Set first element to zeor to make psi_cell[0] zero
+                div[0] = 0.   # Set first element to zeor to make phi_cell[0] zero
+
+            else:
+                # A bounded domain with homogeneous Dirichlet for the psi and
+                # homogeneous Neumann for phi
+                raise ValueError('Bounded domains are not supported at this time.')
+
+            ## Important: array slicing is not safe with amgx solver
+            psi = self.psi_cell[:,k]
+            phi = self.phi_cell[:,k]
+            poisson.solve(vort, psi)
+            poisson.solve(div, phi)
+            self.psi_cell[:,k] = psi[:]
+            self.phi_cell[:,k] = phi[:]
+
             
-        else:
-            # A bounded domain with homogeneous Dirichlet for the psi and
-            # homogeneous Neumann for phi
-            self.vortdiv[vc.cellBoundary-1] = 0.   # Set boundary elements to zeor to make psi_cell zero there
-            self.vortdiv[g.nCells] = 0.            # Set first element to zeor to make phi_cell[0] zero
-
-        vc.POcpl.solve(vc.coefM, self.vortdiv, self.psiphi, linear_solver = c.linear_solver)
-        self.psi_cell[:] = self.psiphi[:g.nCells]
-        self.phi_cell[:] = self.psiphi[g.nCells:]
-
-
-    def compute_psi_phi_cpl2(self, poisson, vc, g, c, layer):
-        # To compute psi_cell and phi_cell, requires the EllipticCpl2 object (that is, poisson)
-        
-        # Update the coefficient matrix for the coupled system
-        poisson.update(self.thickness_edge[:,layer], vc, c, g)
-        
-        # Prepare the right-hand side and initial solution
-        self.circulation[:] = self.vorticity[:,layer] * g.areaCell[:,0]
-        self.flux[:] = self.divergence[:,layer] * g.areaCell[:,0]
-        
-        if c.on_a_global_sphere:
-            # A global domain with no boundary
-            self.circulation[0] = 0.   # Set first element to zeor to make psi_cell[0] zero
-            self.flux[0] = 0.   # Set first element to zeor to make phi_cell[0] zero
-            
-        else:
-            # A bounded domain with homogeneous Dirichlet for the psi and
-            # homogeneous Neumann for phi
-            self.circulation[vc.cellBoundary-1] = 0.   # Set boundary elements to zeor to make psi_cell zero there
-            self.flux[0] = 0.                   # Set first element to zeor to make phi_cell[0] zero
-
-        layer_psi_cell = self.psi_cell[:,layer].copy()
-        layer_phi_cell = self.phi_cell[:,layer].copy()
-        poisson.solve(self.circulation, self.flux, layer_psi_cell, layer_phi_cell)
-        self.psi_cell[:,layer] = layer_psi_cell
-        self.phi_cell[:,layer] = layer_phi_cell
-        
     def save(self, c, g, k):
         # Open the output file to save current data data
         out = nc.Dataset(c.output_file, 'a', format='NETCDF3_64BIT')
         
         out.variables['xtime'][k] = self.time
         if c.use_gpu:
-            out.variables['thickness'][k,:,:] = self.thickness.get()
-            out.variables['vorticity_cell'][k,:,:] = self.vorticity.get()
-            out.variables['divergence'][k,:,:] = self.divergence.get()
-            out.variables['psi_cell'][k,:,:] = self.psi_cell.get()
-            out.variables['phi_cell'][k,:,:] = self.phi_cell.get()
-            out.variables['nVelocity'][k,:,:] = self.nVelocity.get()
-            out.variables['tVelocity'][k,:,:] = self.tVelocity.get()
-            out.variables['kenergy'][k,:,:] = self.kenergy.get()
+            out.variables['thickness'][k,:,0] = self.thickness.get()
+            out.variables['vorticity_cell'][k,:,0] = self.vorticity.get()
+            out.variables['divergence'][k,:,0] = self.divergence.get()
+            out.variables['psi_cell'][k,:,0] = self.psi_cell.get()
+            out.variables['phi_cell'][k,:,0] = self.phi_cell.get()
+            out.variables['nVelocity'][k,:,0] = self.nVelocity.get()
+            out.variables['tVelocity'][k,:,0] = self.tVelocity.get()
+            out.variables['kenergy'][k,:,0] = self.kenergy.get()
 
         else:    
-            out.variables['thickness'][k,:,:] = self.thickness
-            out.variables['vorticity_cell'][k,:,:] = self.vorticity
-            out.variables['divergence'][k,:,:] = self.divergence
-            out.variables['psi_cell'][k,:,:] = self.psi_cell
-            out.variables['phi_cell'][k,:,:] = self.phi_cell
-            out.variables['nVelocity'][k,:,:] = self.nVelocity
-            out.variables['tVelocity'][k,:,:] = self.tVelocity
-            out.variables['kenergy'][k,:,:] = self.kenergy
+            out.variables['thickness'][k,:,0] = self.thickness[:]
+            out.variables['vorticity_cell'][k,:,0] = self.vorticity[:]
+            out.variables['divergence'][k,:,0] = self.divergence[:]
+            out.variables['psi_cell'][k,:,0] = self.psi_cell[:]
+            out.variables['phi_cell'][k,:,0] = self.phi_cell[:]
+            out.variables['nVelocity'][k,:,0] = self.nVelocity[:]
+            out.variables['tVelocity'][k,:,0] = self.tVelocity[:]
+            out.variables['kenergy'][k,:,0] = self.kenergy[:]
 
             
         if k==0:
@@ -848,6 +791,8 @@ class state_data:
                 
         out.close( )
 
+
+        
     def compute_tc2_errors(self, iStep, s_init, error1, error2, errorInf, g):
         # For test case #2, compute the errors
         error1[iStep+1, 0, :] = xp.sum(xp.abs(self.thickness[:] - s_init.thickness[:])*g.areaCell[:], axis=0) / xp.sum(xp.abs(s_init.thickness[:])*g.areaCell[:], axis=0)
@@ -865,6 +810,7 @@ class state_data:
         errorInf[iStep+1, 1, :] = xp.max(xp.abs(self.vorticity[:] - s_init.vorticity[:]), axis=0) / xp.max(xp.abs(s_init.vorticity[:]), axis=0)
         errorInf[iStep+1, 2, :] = xp.max(xp.abs(self.divergence[:] - s_init.divergence[:]), axis=0)
 
+        
     def compute_kenergy_edge(self, vc, g, c):
         # Compute the kinetic energy
         self.vEdge = vc.discrete_skewgrad_t(self.psi_cell)
@@ -876,13 +822,8 @@ class state_data:
         self.kenergy_edge += vc.discrete_skewgrad_nd(self.psi_vertex) * vc.discrete_grad_n(self.phi_cell)
         self.kenergy_edge += vc.discrete_skewgrad_t(self.psi_cell) * vc.discrete_grad_tn(self.phi_vertex)
 
-        self.kenergy_edge /= self.thickness_edge**2
+#        self.kenergy_edge /= self.thickness_edge**2
         
-        ## DEBUGGING ##
-#        for iLayer in range(c.nLayers):
-#            print("min and max of kenergy_edge: %f, %f" % (xp.min(self.kenergy_edge[:,iLayer]), xp.max(self.kenergy_edge[:,iLayer])))
-#            if self.kenergy_edge[:,iLayer].min() < 0.:
-#                raise ValueError('kenergy_edge negative')
         
 def timestepping_rk4_z_hex(s, s_pre, s_old, poisson, g, vc, c):
 
@@ -909,6 +850,15 @@ def timestepping_rk4_z_hex(s, s_pre, s_old, poisson, g, vc, c):
         s.thickness[:] += s_intm.tend_thickness[:]*accum[i]*dt
         s.vorticity[:] += s_intm.tend_vorticity[:]*accum[i]*dt
         s.divergence[:] += s_intm.tend_divergence[:]*accum[i]*dt
+
+        ## DEBUGGING
+#        print('Thickness printout')
+#        print(s.thickness[:10,0])
+#        print('Thickness tend printout')
+#        print(s_intm.tend_thickness[:10,0])
+#        print('Vorticity tend printout')
+#        print(s_intm.tend_vorticity[:10,0])
+        ## END DEBUGGING
 
         if i < 3:
             # Advance s_intm 

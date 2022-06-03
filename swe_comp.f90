@@ -565,8 +565,8 @@ end subroutine construct_matrix_discrete_laplace
 ! Similar to the above, but for Poisson BVP on the primary
 ! mesh.
 subroutine construct_discrete_laplace_neumann(nCells, nEdges, &
-     cellsOnEdge, dvEdge, dcEdge, areaCell, nEntries, &
-     rows, cols, valEntries)
+     cellsOnEdge, dvEdge, dcEdge, areaCell, &
+     nEntries, rows, cols, valEntries)
 
   integer, intent(in)              :: nCells, nEdges
   integer, intent(in)              :: cellsOnEdge(0:nEdges-1,0:1)

@@ -3,8 +3,13 @@ import time
 from scipy.sparse import isspmatrix_bsr, isspmatrix_csr
 from scipy.sparse.linalg import factorized, splu
 from swe_comp import swe_comp as cmp
-
+    
 def run_tests(g, c, s, vc, poisson):
+
+    if c.use_gpu:
+        import cupy as xp
+    else:
+        import numpy as xp
 
 
     if False:
@@ -1727,7 +1732,72 @@ def run_tests(g, c, s, vc, poisson):
         print("L infinity error = %e" % l8)
 
 
-    if True: # misc GPU tests
+    if False: # misc GPU tests
         print(type(g.latCell))
         print(type(g.latCell.get()))
+
+    if False:
+        # Test the Poisson solver
+        x_true = xp.random.rand(g.nCells)
+        x_true[0] = 0.
+        
+        b1 = vc.discrete_laplace_v(x_true)
+        b1 *= g.areaCell[:,0]
+        b1[0] = 0.
+        
+        x = xp.zeros(g.nCells)*1.
+        poisson.solve(b1, x)
+
+        print('x_true:')
+        print(x_true)
+        print('b1:')
+        print(b1)
+        print('x:')
+        print(x)
+        
+        l8 = np.max(np.abs(x_true[:] - x[:])) / np.max(np.abs(x_true[:]))
+        l2 = np.sum(np.abs(x_true[:] - x[:])**2 * g.areaCell[:])
+        l2 /=  np.sum(np.abs(x_true[:])**2 * g.areaCell[:])
+        l2 = np.sqrt(l2)
+        print("Errors in psi")
+        print("L infinity error = ", l8)
+        print("L^2 error        = ", l2)
+
+
+    if True:
+        # Test the State.compute_psi_phi method
+        psi_true = xp.random.rand(g.nCells, c.nLayers)
+        phi_true = xp.random.rand(g.nCells, c.nLayers)
+        psi_true -= psi_true[0,:]
+        phi_true -= phi_true[0,:]
+        
+        s.vorticity = vc.discrete_laplace_v(psi_true)
+        s.divergence = vc.discrete_laplace_v(phi_true)
+        
+
+        s.compute_psi_phi(g, c, poisson)
+
+        for k in range(c.nLayers):
+            l8 = np.max(np.abs(psi_true[:,k] - s.psi_cell[:,k])) / np.max(np.abs(psi_true[:,k]))
+            l2 = np.sum(np.abs(psi_true[:,k] - s.psi_cell[:,k])**2 * g.areaCell[:,0])
+            l2 /=  np.sum(np.abs(psi_true[:,k])**2 * g.areaCell[:,0])
+            l2 = np.sqrt(l2)
+            print("Errors in psi")
+            print("L infinity error = ", l8)
+            print("L^2 error        = ", l2)
+
+
+        for k in range(c.nLayers):
+            l8 = np.max(np.abs(phi_true[:,k] - s.phi_cell[:,k])) / np.max(np.abs(phi_true[:,k]))
+            l2 = np.sum(np.abs(phi_true[:,k] - s.phi_cell[:,k])**2 * g.areaCell[:,0])
+            l2 /=  np.sum(np.abs(phi_true[:,k])**2 * g.areaCell[:,0])
+            l2 = np.sqrt(l2)
+            print("Errors in phi")
+            print("L infinity error = ", l8)
+            print("L^2 error        = ", l2)
+            
+        
+
+
+        
     
