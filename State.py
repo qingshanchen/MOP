@@ -110,7 +110,7 @@ class state_data:
             gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
 
             total_thickness = gh / c.gravity
-            constant_layer_thickness = 400.
+            constant_layer_thickness = 250.
 
             # Non-interactive case
 #            self.thickness[:] = total_thickness[:]
@@ -118,7 +118,7 @@ class state_data:
             # Interactive case: top layer variable thickness, others constant thickness
             self.thickness[:,1:] = constant_layer_thickness
             self.thickness[:,0] = total_thickness[:,0] - xp.sum(self.thickness[:,1:], axis=1)
-#            self.l1Thickness[:] = self.thickness[:,0]
+            self.l1Thickness[:] = self.thickness[:,0]
 
             # Interactive case: bottom layer variable thickness, others constant thickness
 #            self.thickness[:,:-1] = constant_layer_thickness
@@ -127,8 +127,8 @@ class state_data:
             
             h0 = gh0 / c.gravity
             
-            self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
-            self.divergence[:] = 0.
+            self.vorticity[:,:] = 2*u0/a * xp.sin(g.latCell[:,:])
+            self.divergence[:,:] = 0.
 
             self.psi_cell[:,:] = -a * u0 * xp.sin(g.latCell[:,:])
             self.psi_cell -= self.psi_cell[0,:]
@@ -754,31 +754,31 @@ class state_data:
             self.psi_cell[:,k] = psi[:]
             self.phi_cell[:,k] = phi[:]
 
-            
+
     def save(self, c, g, k):
         # Open the output file to save current data data
         out = nc.Dataset(c.output_file, 'a', format='NETCDF3_64BIT')
         
         out.variables['xtime'][k] = self.time
         if c.use_gpu:
-            out.variables['thickness'][k,:,0] = self.thickness.get()
-            out.variables['vorticity_cell'][k,:,0] = self.vorticity.get()
-            out.variables['divergence'][k,:,0] = self.divergence.get()
-            out.variables['psi_cell'][k,:,0] = self.psi_cell.get()
-            out.variables['phi_cell'][k,:,0] = self.phi_cell.get()
-            out.variables['nVelocity'][k,:,0] = self.nVelocity.get()
-            out.variables['tVelocity'][k,:,0] = self.tVelocity.get()
-            out.variables['kenergy'][k,:,0] = self.kenergy.get()
+            out.variables['thickness'][k,:,:] = self.thickness.get()
+            out.variables['vorticity_cell'][k,:,:] = self.vorticity.get()
+            out.variables['divergence'][k,:,:] = self.divergence.get()
+            out.variables['psi_cell'][k,:,:] = self.psi_cell.get()
+            out.variables['phi_cell'][k,:,:] = self.phi_cell.get()
+            out.variables['nVelocity'][k,:,:] = self.nVelocity.get()
+            out.variables['tVelocity'][k,:,:] = self.tVelocity.get()
+            out.variables['kenergy'][k,:,:] = self.kenergy.get()
 
         else:    
-            out.variables['thickness'][k,:,0] = self.thickness[:]
-            out.variables['vorticity_cell'][k,:,0] = self.vorticity[:]
-            out.variables['divergence'][k,:,0] = self.divergence[:]
-            out.variables['psi_cell'][k,:,0] = self.psi_cell[:]
-            out.variables['phi_cell'][k,:,0] = self.phi_cell[:]
-            out.variables['nVelocity'][k,:,0] = self.nVelocity[:]
-            out.variables['tVelocity'][k,:,0] = self.tVelocity[:]
-            out.variables['kenergy'][k,:,0] = self.kenergy[:]
+            out.variables['thickness'][k,:,:] = self.thickness
+            out.variables['vorticity_cell'][k,:,:] = self.vorticity
+            out.variables['divergence'][k,:,:] = self.divergence
+            out.variables['psi_cell'][k,:,:] = self.psi_cell
+            out.variables['phi_cell'][k,:,:] = self.phi_cell
+            out.variables['nVelocity'][k,:,:] = self.nVelocity
+            out.variables['tVelocity'][k,:,:] = self.tVelocity
+            out.variables['kenergy'][k,:,:] = self.kenergy
 
             
         if k==0:
@@ -790,8 +790,7 @@ class state_data:
                 out.variables['bottomTopographyCell'][:] = g.bottomTopographyCell[:]
                 
         out.close( )
-
-
+            
         
     def compute_tc2_errors(self, iStep, s_init, error1, error2, errorInf, g):
         # For test case #2, compute the errors
