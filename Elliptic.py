@@ -7,123 +7,6 @@ from LinearAlgebra import cg
 from pyamg import rootnode_solver
 import time
 
-class EllipticCPL:
-    def __init__(self, A, linear_solver, env):
-
-
-        if linear_solver == 'lu':
-            self.A = A.tocsc( )
-            
-        elif linear_solver == 'amgx':
-            import pyamgx
-
-            pyamgx.initialize( )
-
-            hA = A.tocsr( )
-            AMGX_CONFIG_FILE_NAME = 'amgx_config/PCGF_CLASSICAL_AGGRESSIVE_PMIS_JACOBI.json'
-
-            if False:
-                cfg = pyamgx.Config( ).create_from_file(AMGX_CONFIG_FILE_NAME)
-            else:
-                cfg = pyamgx.Config( ).create_from_dict({
-                    "config_version": 2, 
-                    "determinism_flag": 0, 
-                    "solver": {
-                        "preconditioner": {
-                            "print_grid_stats": c.print_stats, 
-                            "algorithm": "AGGREGATION", 
-                            "print_vis_data": 0, 
-                            "solver": "AMG", 
-                            "smoother": {
-                                "relaxation_factor": 0.8, 
-                                "scope": "jacobi", 
-                                "solver": "BLOCK_JACOBI", 
-                                "monitor_residual": 0, 
-                                "print_solve_stats": 0
-                            }, 
-                            "print_solve_stats": 0, 
-                            "presweeps": 2, 
-                            "selector": "SIZE_2", 
-                            "coarse_solver": "NOSOLVER", 
-                            "max_iters": 2, 
-                            "monitor_residual": 0, 
-                            "store_res_history": 0, 
-                            "scope": "amg_solver", 
-                            "max_levels": 1000, 
-                            "postsweeps": 2, 
-                            "cycle": "V"
-                        }, 
-                        "solver": "PCGF", 
-                        "print_solve_stats": c.print_stats, 
-                        "obtain_timings": c.print_stats, 
-                        "max_iters": c.max_iters, 
-                        "monitor_residual": 1, 
-                        "convergence": "RELATIVE_INI", 
-                        "scope": "main", 
-                        "tolerance": c.err_tol, 
-                        "norm": "L2"
-                    }
-                })
-                
-            rsc = pyamgx.Resources().create_simple(cfg)
-            mode = 'dDDI'
-
-            # Create solver:
-            self.amgx = pyamgx.Solver().create(rsc, cfg, mode)
-
-            # Create matrices and vectors:
-            self.d_A = pyamgx.Matrix().create(rsc, mode)
-            self.d_x = pyamgx.Vector().create(rsc, mode)
-            self.d_b = pyamgx.Vector().create(rsc, mode)
-
-            self.d_A.upload_CSR(hA)
-
-            # Setup and solve system:
-            # self.amgx.setup(d_A)
-
-            ## Clean up:
-            #A.destroy()
-            #x.destroy()
-            #b.destroy()
-            #self.amgx.destroy()
-            #rsc.destroy()
-            #cfg.destroy()
-
-            #pyamgx.finalize()
-
-        elif linear_solver == 'cg' or linear_solver == 'amg':
-            pass
-        
-        else:
-            raise ValueError("Invalid solver choice.")
-
-    def solve(self, A, b, x, env=None, linear_solver='lu'):
-        
-        if linear_solver == 'lu':
-            x[:] = spsolve(A, b)
-
-        elif linear_solver == 'amgx':
-            self.d_b.upload(b)
-            self.d_x.upload(x)
-            #self.d_A.replace_coefficients(A.data)
-            self.d_A.upload_CSR(A)
-            self.amgx.setup(self.d_A)
-            self.amgx.solve(self.d_b, self.d_x)
-            self.d_x.download(x)
-
-        elif linear_solver == 'cg':
-            t0 = time.clock()
-            t0a = time.time( )
-            err, counter = cg(env, A, b, x, max_iter = c.max_iters, relres = c.err_tol)
-            t1 = time.clock()
-            t1a = time.time( )
-            if c.print_stats:
-                print("CG # iters, cpu time, wall time: %d %f %f" % (counter, t1-t0, t1a-t0a))
-
-        else:
-            raise ValueError("Invalid solver choice.")
-
-
 class EllipticCpl2:
     def __init__(self, vc, g, c):
 
@@ -477,31 +360,14 @@ class Poisson:
                                     xp.asarray(cols[:nEntries]))), shape=(g.nCells, g.nCells))
         self.A = A.tocsr( )
 
-        ### DEBUGGING
-#        print('valEntries[:10], valEntries[nEntries-10:nEntries]')
-#        print(valEntries[:10])
-#        print(valEntries[nEntries-10:nEntries])
-#        print('A.data')
-#        print(self.A.data)
-        # END DEBUGGING
-
         if c.on_a_global_sphere:
             mAreaCell = diags(g.areaCell[:,0], 0, format='csr')
-#            mAreaCell[0,0] = 0.
         else:
             raise ValueError('Bounded domains are not supported at this time.')
 
-
-#        raise ValueError('For some checking')
-    
-        # Scale matrix A to make it symmetric, and set A[0,0] to a non-zero
+        # Scale matrix A to make it symmetric
         self.A = mAreaCell * self.A
 
-        # DEBUGGING
-#        print('A.data after scaling')
-#        print(self.A.data)
-        # END DEBUGGING
-        
         if c.linear_solver == 'lu':
             A = self.A.tocsc( )
             self.lu = splu(A)
@@ -580,7 +446,7 @@ class Poisson:
 
             pyamgx.initialize( )
 
-            err_tol = c.err_tol*1e-5*np.mean(areaCell_cpu)*np.sqrt(g.nCells)  # For vorticity
+            err_tol = c.err_tol*1e-6*np.mean(areaCell_cpu)*np.sqrt(g.nCells)  # For vorticity
             #err_tol = c.err_tol
             cfg = pyamgx.Config( ).create_from_dict({    
                 "config_version": 2, 
@@ -664,10 +530,24 @@ class Poisson:
             print("AMG, nIter = %d" % (len(res),))
 
         elif c.linear_solver == 'amgx':
+#            b_cp = b.copy()
+#            x_cp = x.copy()
             self.d_b.upload(b)
             self.d_x.upload(x)
             self.amgx.solve(self.d_b, self.d_x)
             self.d_x.download_raw(x.data)
+#            x[:] = x_cp[:]
+
+            ### DEBUGGING
+#            print("Inside solve")
+#            print("b print out")
+#            print(b[0:10])
+#            print("b max: %e" % (b.max()))
+#            print("b min: %e" % (b.min()))
+#            print("x printout")
+#            print(x[:10])
+#            if x[1] > -1e7 and x[1] < -1e6:
+#                raise ValueError("Stop for checking")
             
         else:
             raise ValueError("Invalid solver choice.")

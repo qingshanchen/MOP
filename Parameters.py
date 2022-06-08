@@ -2,7 +2,7 @@ import numpy as np
 
 ### Parameters essential
 test_case = 2
-use_gpu = False
+use_gpu = True
 performing_test = False
 
 if use_gpu:
@@ -11,15 +11,13 @@ else:
     import numpy as xp
 vector_order = 'F'
     
+#nLayers = 1
+#rho_vec = xp.array([1000.]) # index 0 = top layer
+#nLayers = 2
+#rho_vec = xp.array([1000., 1010.]) # index 0 = top layer
 nLayers = 3
 rho_vec = xp.array([1000., 1010., 1020.]) # index 0 = top layer
-#nLayers = 3
-#rho_vec = xp.array([1000., 1010., 1020.]) # index 0 = top layer
 rho0 = 1000.
-
-#nLayers = 2
-#rho_vec = xp.array([1014.,1026.]) # index 0 = top layer
-#rho0 = 1014.
 
 do_restart = False
 restart_file = 'restart.nc'
@@ -46,7 +44,7 @@ no_slip_BC = False
 free_slip_BC = False
 
 # Solver config
-linear_solver = 'lu'      # lu, cg, cudaCG, cudaPCG, amg, amgx
+linear_solver = 'amgx'      # lu, cg, cudaCG, cudaPCG, amg, amgx
 err_tol = 5e-9
 max_iters = 1000
 print_stats = 0             # 1 for True, 0 for False

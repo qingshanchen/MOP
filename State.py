@@ -112,13 +112,14 @@ class state_data:
             total_thickness = gh / c.gravity
             constant_layer_thickness = 250.
 
+            ### Only one of these cases should be active at any time
             # Non-interactive case
 #            self.thickness[:] = total_thickness[:]
 
             # Interactive case: top layer variable thickness, others constant thickness
             self.thickness[:,1:] = constant_layer_thickness
             self.thickness[:,0] = total_thickness[:,0] - xp.sum(self.thickness[:,1:], axis=1)
-            self.l1Thickness[:] = self.thickness[:,0]
+#            self.l1Thickness[:] = self.thickness[:,0]
 
             # Interactive case: bottom layer variable thickness, others constant thickness
 #            self.thickness[:,:-1] = constant_layer_thickness
@@ -564,6 +565,19 @@ class state_data:
         self.vEdge[:] = self.thickness_edge * vc.discrete_grad_n(self.phi_cell)
         self.tend_thickness[:] -= vc.discrete_div_v(self.vEdge)
 
+        ### DEBUGGING
+#        print('thickness tendency printout')
+#        print(self.tend_thickness[0:10,0])
+#        print('thickness_edge printout')
+#        print(self.thickness_edge[0:10,0])
+#        print('psi_cell printout')
+#        print(self.psi_cell[0:10,0])
+#        print('vorticity printout')
+#        print(self.vorticity[0:10,0])
+#        print('phi_cell printout')
+#        print(self.phi_cell[0:10,0])
+        ### END DEBUGGING
+        
         # Tendency for vorticity
         self.vEdge[:] = self.eta_edge * vc.discrete_skewgrad_t(self.psi_cell)
         self.vVertex[:] = vc.discrete_div_t(self.vEdge)
@@ -747,12 +761,14 @@ class state_data:
                 raise ValueError('Bounded domains are not supported at this time.')
 
             ## Important: array slicing is not safe with amgx solver
-            psi = self.psi_cell[:,k]
-            phi = self.phi_cell[:,k]
+            psi = self.psi_cell[:,k].copy()
+            phi = self.phi_cell[:,k].copy()
             poisson.solve(vort, psi)
             poisson.solve(div, phi)
             self.psi_cell[:,k] = psi[:]
-            self.phi_cell[:,k] = phi[:]
+            self.phi_cell[:,k] = phi[:]  
+
+            
 
 
     def save(self, c, g, k):
