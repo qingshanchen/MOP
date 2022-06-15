@@ -150,70 +150,6 @@ class state_data:
             print('Sea/layer sufrace average height:')
             print(self.SS0)
                                     
-            ## DEBUGGING
-#            print("kinetic energy stats right after initialization:")
-#            self.phi_vertex[:] = vc.cell2vertex(self.phi_cell)
-#            gh = xp.sin(g.latEdge[:])**2
-#            gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
-#            total_thickness = gh / c.gravity
-#            self.thickness_edge[:] = constant_layer_thickness
-#            self.thickness_edge[:,0] = total_thickness[:,0] - (c.nLayers-1) * constant_layer_thickness
-#            self.psi_vertex[:,1:] = -a * u0 * constant_layer_thickness * xp.sin(g.latVertex[:])
-#            self.psi_vertex[:,0] = -a * h0 * u0 * xp.sin(g.latVertex[:,0]) 
-#            self.psi_vertex[:,0] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (xp.sin(g.latVertex[:,0]))**3 / 3.
-#            self.psi_vertex[:,0] += a*u0*(c.nLayers-1)*constant_layer_thickness * xp.sin(g.latVertex[:,0])
-#            self.psi_vertex -= self.psi_vertex[0,:]
-#            self.compute_kenergy_edge(vc, g, c)
-                
-        elif c.test_case == 2 and False: # original single-layer initialization
-            # SWSTC #2, with a stationary analytic solution 
-            a = c.sphere_radius
-            u0 = 2*np.pi*a / (12*86400)
-            gh0 = 2.94e4
-            gh = xp.sin(g.latCell[:])**2
-            gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
-            self.thickness[:] = gh / c.gravity
-            h0 = gh0 / c.gravity
-
-            self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
-            self.divergence[:] = 0.
-            
-            self.psi_cell[:] = -a * h0 * u0 * xp.sin(g.latCell[:]) 
-            self.psi_cell[:] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (xp.sin(g.latCell[:]))**3 / 3.
-            self.psi_cell -= self.psi_cell[0]
-            self.phi_cell[:] = 0.
-
-            self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell, axis=0) / xp.sum(g.areaCell)
-
-
-            ## For debugging ##
-            if False:
-                # To check the consistency between psi_cell and vorticity
-                self.thickness_edge = vc.cell2edge(self.thickness)
-                self.psi_vertex[:] = vc.cell2vertex(self.psi_cell)
-                nVelocity = vc.discrete_grad_n(self.phi_cell)
-                nVelocity -= vc.discrete_grad_td(self.psi_vertex)
-                nVelocity /= self.thickness_edge
-                vorticity1 = vc.vertex2cell(vc.discrete_curl_t(nVelocity))
-                err = vorticity1 - self.vorticity
-                print("vorticity computed using normal vel.")
-                print("relative error = %e" % (xp.sqrt(xp.sum(err**2*g.areaCell)/xp.sum(self.vorticity**2*g.areaCell))))
-
-                self.phi_vertex[:] = vc.cell2vertex(self.phi_cell)
-                tVelocity = vc.discrete_grad_n(self.psi_cell)
-                tVelocity += vc.discrete_grad_tn(self.phi_vertex)
-                tVelocity /= self.thickness_edge
-                vorticity2 = vc.discrete_curl_v(tVelocity)
-                err = vorticity2 - self.vorticity
-                print("vorticity computed using tang vel.")
-                print("relative error = %e" % (xp.sqrt(xp.sum(err**2*g.areaCell)/xp.sum(self.vorticity**2*g.areaCell))))
-
-                err = 0.5*(vorticity1 + vorticity2) - self.vorticity
-                print("vorticity computed using both normal and tang vel.")
-                print("relative error = %e" % (xp.sqrt(xp.sum(err**2*g.areaCell)/xp.sum(self.vorticity**2*g.areaCell))))
-                raise ValueError("Testing the consistency between streamfunction and vorticity.")
-                ## End of debugging ##
-            
         elif c.test_case == 5:
             #SWSTC #5: zonal flow over a mountain topography
             
@@ -233,18 +169,23 @@ class state_data:
             r = xp.where(r < R, r, R)
             g.bottomTopographyCell[:] = h_s0 * ( 1 - r/R)
 
-            if False:
-                raise ValueError("This case requires nLayers = 2.")
-            else:
-                ## Non-interactive case
-#                self.thickness[:] = h[:] - g.bottomTopographyCell[:]
-
+            if c.nLayers == 1:
+                self.thickness[:,0] = h[:,0] - g.bottomTopographyCell[:,0]
+                
+            elif c.nLayers == 2:
                 ## Interactive case
                 self.thickness[:,0] = h[:,0] - 2500.
                 self.thickness[:,1] = 2500. - g.bottomTopographyCell[:,0]
 
-                self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
-                self.divergence[:] = 0.
+            else:
+                raise ValueError('This test case only takes nLayers = 1 or 2.')
+
+            self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
+            self.divergence[:] = 0.
+
+            self.psi_cell[:,:] = -a * u0 * xp.sin(g.latCell[:,:])
+            self.psi_cell -= self.psi_cell[0,:]
+            self.phi_cell[:] = 0.
             
             self.curlWind_cell[:] = 0.
             self.divWind_cell[:] = 0.

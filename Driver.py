@@ -71,26 +71,14 @@ def main( ):
         kinetic_energy[0] = s.kinetic_energy.get()
         pot_energy[0] = s.pot_energy.get()
         total_energy[0] = kinetic_energy[0] + pot_energy[0]
-#        mass[0] = xp.sum(s.thickness * g.areaCell, axis=0).get()
         pot_enstrophy[0] = s.pot_enstrophy.get()
-#        total_vorticity[0] = xp.sum(s.pv_cell * s.thickness * g.areaCell, axis=0).get()
-#        pv_max[0,:] = xp.max(s.pv_cell, axis=0).get()
-#        pv_min[0,:] = xp.min(s.pv_cell, axis=0).get()
     else:
         kinetic_energy[0] = s.kinetic_energy
         pot_energy[0] = s.pot_energy
         total_energy[0] = kinetic_energy[0] + pot_energy[0]
-#        mass[0,:] = xp.sum(s.thickness * g.areaCell, axis=0)
         pot_enstrophy[0] = s.pot_enstrophy
-#        total_vorticity[0,:] = xp.sum(s.pv_cell * s.thickness * g.areaCell, axis=0)
-#        pv_max[0,:] = xp.max(s.pv_cell, axis=0)
-#        pv_min[0,:] = xp.min(s.pv_cell, axis=0)
 
     print(("Running test case \#%d" % c.test_case))
- #   for iLayer in range(c.nLayers):
- #       print(("K-energy, p-energy, t-energy, p-enstrophy, mass: %.15e, %.15e, %.15e, %.15e, %.15e" % \
- #              (kinetic_energy[0,iLayer], pot_energy[0,iLayer], total_energy[0,iLayer], pot_enstrophy[0,iLayer], mass[0,iLayer])))
- #       print("min and max thickness: %f, %f" % (xp.min(s.thickness[:,iLayer]), xp.max(s.thickness[:,iLayer])) )
     print(("K-energy, p-energy, t-energy, p-enstrophy, mass: %.15e, %.15e, %.15e, %.15e, %.15e" % (kinetic_energy[0], pot_energy[0], total_energy[0], pot_enstrophy[0], mass[0])))
 
     if c.test_case == 2 or c.test_case == 12:
@@ -114,7 +102,6 @@ def main( ):
     t0a = time.time( )
     s_pre = deepcopy(s)
     s_old = deepcopy(s)
-#    s_old1 = deepcopy(s)
     
     for iStep in range(c.nTimeSteps):
 
@@ -134,27 +121,18 @@ def main( ):
             total_energy[iStep+1] = kinetic_energy[iStep+1] + pot_energy[iStep+1]
             mass[iStep+1] = xp.sum(xp.sum(s.thickness * g.areaCell, axis=0)).get()
             pot_enstrophy[iStep+1] = s.pot_enstrophy.get()
-#            total_vorticity[iStep+1,:] = xp.sum(s.pv_cell * s.thickness * g.areaCell, axis=0).get()
-#            pv_max[iStep+1,:] = xp.max(s.pv_cell, axis=0).get()
-#            pv_min[iStep+1,:] = xp.min(s.pv_cell, axis=0).get()
         else:
             kinetic_energy[iStep+1] = s.kinetic_energy
             pot_energy[iStep+1] = s.pot_energy
             total_energy[iStep+1] = kinetic_energy[iStep+1] + pot_energy[iStep+1]
             mass[iStep+1] = xp.sum(xp.sum(s.thickness * g.areaCell))
             pot_enstrophy[iStep+1] = s.pot_enstrophy
-#            total_vorticity[iStep+1,:] = xp.sum(s.pv_cell * s.thickness * g.areaCell, axis=0)
-#            pv_max[iStep+1,:] = xp.max(s.pv_cell, axis=0)
-#            pv_min[iStep+1,:] = xp.min(s.pv_cell, axis=0)
 
-        print(("K-energy, p-energy, t-energy, p-enstrophy, mass: %.15e, %.15e, %.15e, %.15e, %.15e" % \
-               (kinetic_energy[iStep+1], pot_energy[iStep+1], total_energy[iStep+1], pot_enstrophy[iStep+1], mass[iStep+1])))
+        print("K-energy, p-energy, t-energy, p-enstrophy: %.15e, %.15e, %.15e, %.15e" % \
+               (kinetic_energy[iStep+1], pot_energy[iStep+1], total_energy[iStep+1], pot_enstrophy[iStep+1]))
         for iLayer in range(c.nLayers):
             print("min and max thickness: %f, %f" % (xp.min(s.thickness[:,iLayer]), xp.max(s.thickness[:,iLayer])) )
 
-        #if kinetic_energy[iStep+1] != kinetic_energy[iStep+1]:
-        #    raise ValueError("Exceptions detected in energy. Stop now")
-        
         if np.mod(iStep+1, c.save_interval) == 0:
             nc_num += 1
             s.save(c, g, nc_num)
@@ -172,7 +150,7 @@ def main( ):
     t1 = time.process_time( )
     t1a = time.time( )
 
-    if False: # plotting functionality not updated for multilayer
+    if True: # plotting functionality not updated for multilayer
         plt.close('all')
 
         plt.figure(0)
@@ -202,35 +180,6 @@ def main( ):
         #plt.ylim(0.74, 0.78)
         plt.savefig('enstrophy.png', format='PNG')
         print(("Change in potential enstrophy = %e " % (np.abs(pot_enstrophy[-1] - pot_enstrophy[0])/pot_enstrophy[0])))
-
-        plt.figure(5)
-        plt.plot(days, (mass-mass[0])/mass[0])
-        plt.xlabel('Time (days)')
-        plt.ylabel('Normalized changes in mass')
-        #plt.ylim(1.175e18, 1.225e18)
-        plt.savefig('mass.png', format='PNG')
-        print(("Change in mass = %e " % (np.abs(mass[-1] - mass[0])/mass[0])))
-
-        plt.figure(7)
-        plt.plot(days, pv_max, '-.', label='PV max')
-        plt.plot(days, pv_min, '--', label='PV min')
-        plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
-        #plt.ylim([-0.0001, 0.0001])
-        plt.xlabel('Days')
-        plt.ylabel('Max/Min potential vorticity')
-        plt.legend(loc=1)
-        plt.savefig('pv_max_min.png', format='PNG')
-
-        plt.figure(8)
-        plt.plot(days, total_vorticity)
-        plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
-        #plt.ylim([-0.0001, 0.0001])
-        plt.xlabel('Days')
-        plt.ylabel('Total absolute vorticity')
-        plt.savefig('aVort_total.png', format='PNG')
-        if np.abs(total_vorticity[0]) > 1e-10: 
-            print(("Change in total vorticity = %e " % (np.abs(total_vorticity[-1] - total_vorticity[0])/total_vorticity[0])))
-        print("Initial and final total vorticity:%.15e, %.15e" % (total_vorticity[0], total_vorticity[-1]))
 
         if c.test_case == 2 or c.test_case == 12:
             plt.figure(2); 

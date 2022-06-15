@@ -1,8 +1,8 @@
 import numpy as np
 
 ### Parameters essential
-test_case = 2
-use_gpu = True
+test_case = 5
+use_gpu = False
 performing_test = False
 
 if use_gpu:
@@ -11,13 +11,15 @@ else:
     import numpy as xp
 vector_order = 'F'
     
-#nLayers = 1
-#rho_vec = xp.array([1000.]) # index 0 = top layer
+nLayers = 1
+rho_vec = xp.array([1000.]) # index 0 = top layer
+rho0 = 1000.
 #nLayers = 2
 #rho_vec = xp.array([1000., 1010.]) # index 0 = top layer
-nLayers = 3
-rho_vec = xp.array([1000., 1010., 1020.]) # index 0 = top layer
-rho0 = 1000.
+#rho0 = 1000.
+#nLayers = 3
+#rho_vec = xp.array([1000., 1010., 1020.]) # index 0 = top layer
+#rho0 = 1000.
 
 do_restart = False
 restart_file = 'restart.nc'
@@ -33,7 +35,7 @@ conserve_enstrophy = False     # False for energy-conserving only; True for both
 # Duration, time stepping size, saving interval
 dt = 180.   #1440 for 480km
 #dt = 90.   #360 for NA818
-nYears = 5./360
+nYears = 50./360
 save_inter_days = 1.
 
 # Model configuraitons, boundary conditions
@@ -44,7 +46,7 @@ no_slip_BC = False
 free_slip_BC = False
 
 # Solver config
-linear_solver = 'amgx'      # lu, cg, cudaCG, cudaPCG, amg, amgx
+linear_solver = 'lu'      # lu, cg, cudaCG, cudaPCG, amg, amgx
 err_tol = 5e-9
 max_iters = 1000
 print_stats = 0             # 1 for True, 0 for False
