@@ -527,7 +527,7 @@ class Poisson:
             x[:] = self.A_amg.solve(b, x0=x0, tol=c.err_tol, residuals=res)
             x *= -1.
             
-            print("AMG, nIter = %d" % (len(res),))
+#            print("AMG, nIter = %d" % (len(res),))
 
         elif c.linear_solver == 'amgx':
 #            b_cp = b.copy()

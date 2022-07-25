@@ -59,9 +59,9 @@ def main( ):
     kinetic_energy = np.zeros( c.nTimeSteps+1 )
     pot_energy = np.zeros( c.nTimeSteps+1)
     total_energy = np.zeros(c.nTimeSteps+1)
-    mass = np.zeros( c.nTimeSteps+1 )
+    mass = np.zeros((c.nTimeSteps+1, c.nLayers))
     pot_enstrophy = np.zeros(c.nTimeSteps+1)
-    total_vorticity = np.zeros(c.nTimeSteps+1 )
+    total_vorticity = np.zeros((c.nTimeSteps+1, c.nLayers))
     pv_max = np.zeros( (c.nTimeSteps+1,c.nLayers) )
     pv_min = np.zeros( (c.nTimeSteps+1,c.nLayers) )
     avg_divergence = np.zeros( (c.nTimeSteps+1,c.nLayers) )
@@ -72,14 +72,20 @@ def main( ):
         pot_energy[0] = s.pot_energy.get()
         total_energy[0] = kinetic_energy[0] + pot_energy[0]
         pot_enstrophy[0] = s.pot_enstrophy.get()
+        mass[0,:] = xp.sum(s.thickness * g.areaCell, axis = 0).get()
+        total_vorticity[0,:] = xp.sum(s.pv_cell * s.thickness * g.areaCell, axis=0).get() 
     else:
         kinetic_energy[0] = s.kinetic_energy
         pot_energy[0] = s.pot_energy
         total_energy[0] = kinetic_energy[0] + pot_energy[0]
         pot_enstrophy[0] = s.pot_enstrophy
+        mass[0,:] = xp.sum(s.thickness * g.areaCell, axis = 0)
+        total_vorticity[0,:] = xp.sum(s.pv_cell * s.thickness * g.areaCell, axis=0) 
 
     print(("Running test case \#%d" % c.test_case))
-    print(("K-energy, p-energy, t-energy, p-enstrophy, mass: %.15e, %.15e, %.15e, %.15e, %.15e" % (kinetic_energy[0], pot_energy[0], total_energy[0], pot_enstrophy[0], mass[0])))
+    print("Mass for each layer: ", mass[0,:])
+    print("Total vorticity for each layer: ", total_vorticity[0,:])
+    print(("K-energy, p-energy, t-energy, p-enstrophy: %.15e, %.15e, %.15e, %.15e" % (kinetic_energy[0], pot_energy[0], total_energy[0], pot_enstrophy[0])))
 
     if c.test_case == 2 or c.test_case == 12:
         error1 = xp.zeros((c.nTimeSteps+1, 3, c.nLayers)); error1[0,:,:] = 0.
@@ -114,20 +120,26 @@ def main( ):
         else:
             raise ValueError("Invalid choice for time stepping")
 
-        # Compute energy and enstrophy
+        # Compute statistics
         if c.use_gpu:
             kinetic_energy[iStep+1] = s.kinetic_energy.get()
             pot_energy[iStep+1] = s.pot_energy.get()
             total_energy[iStep+1] = kinetic_energy[iStep+1] + pot_energy[iStep+1]
-            mass[iStep+1] = xp.sum(xp.sum(s.thickness * g.areaCell, axis=0)).get()
+            mass[iStep+1,:] = xp.sum(xp.sum(s.thickness * g.areaCell, axis=0)).get()
             pot_enstrophy[iStep+1] = s.pot_enstrophy.get()
+            mass[iStep+1,:] = xp.sum(s.thickness * g.areaCell, axis = 0).get()
+            total_vorticity[iStep+1,:] = xp.sum(s.pv_cell * s.thickness * g.areaCell, axis=0).get() 
         else:
             kinetic_energy[iStep+1] = s.kinetic_energy
             pot_energy[iStep+1] = s.pot_energy
             total_energy[iStep+1] = kinetic_energy[iStep+1] + pot_energy[iStep+1]
-            mass[iStep+1] = xp.sum(xp.sum(s.thickness * g.areaCell))
+            mass[iStep+1,:] = xp.sum(xp.sum(s.thickness * g.areaCell))
             pot_enstrophy[iStep+1] = s.pot_enstrophy
+            mass[iStep+1,:] = xp.sum(s.thickness * g.areaCell, axis = 0)
+            total_vorticity[iStep+1,:] = xp.sum(s.pv_cell * s.thickness * g.areaCell, axis=0)
 
+        print("Mass for each layer: ", mass[iStep+1,:])
+        print("Total vorticity for each layer: ", total_vorticity[iStep+1,:])
         print("K-energy, p-energy, t-energy, p-enstrophy: %.15e, %.15e, %.15e, %.15e" % \
                (kinetic_energy[iStep+1], pot_energy[iStep+1], total_energy[iStep+1], pot_enstrophy[iStep+1]))
         for iLayer in range(c.nLayers):
@@ -152,6 +164,7 @@ def main( ):
 
     if True: # plotting functionality not updated for multilayer
         plt.close('all')
+        print("Change in mass for each layer: ", np.abs(mass[-1,:] - mass[0,:])/mass[0,:])
 
         plt.figure(0)
         plt.plot(days, (total_energy-total_energy[0])/total_energy[0], '--')

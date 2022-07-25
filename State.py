@@ -99,7 +99,7 @@ class state_data:
             self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / xp.sum(g.areaCell)
             
 
-        elif c.test_case == 2 and True:
+        elif c.test_case == 2:
             # SWSTC #2, with a stationary analytic solution 
             a = c.sphere_radius
             u0 = 2*np.pi*a / (12*86400)   # Standard setup
@@ -493,7 +493,7 @@ class state_data:
         out.close( )
         
 
-    def compute_tendencies(self, g, c, vc):
+    def compute_tendencies_mix(self, g, c, vc):
 
         # Tendency for thicknetss
         self.vEdge[:] = self.thickness_edge * vc.discrete_skewgrad_t(self.psi_cell)
@@ -506,19 +506,6 @@ class state_data:
         self.vEdge[:] = self.thickness_edge * vc.discrete_grad_n(self.phi_cell)
         self.tend_thickness[:] -= vc.discrete_div_v(self.vEdge)
 
-        ### DEBUGGING
-#        print('thickness tendency printout')
-#        print(self.tend_thickness[0:10,0])
-#        print('thickness_edge printout')
-#        print(self.thickness_edge[0:10,0])
-#        print('psi_cell printout')
-#        print(self.psi_cell[0:10,0])
-#        print('vorticity printout')
-#        print(self.vorticity[0:10,0])
-#        print('phi_cell printout')
-#        print(self.phi_cell[0:10,0])
-        ### END DEBUGGING
-        
         # Tendency for vorticity
         self.vEdge[:] = self.eta_edge * vc.discrete_skewgrad_t(self.psi_cell)
         self.vVertex[:] = vc.discrete_div_t(self.vEdge)
@@ -553,6 +540,173 @@ class state_data:
 #                                                   g.dvEdge)
 #        self.vEdge *= self.pv_edge
         self.tend_divergence[:] += 0.5 * vc.discrete_curl_v(self.vEdge)
+
+        ## The boundary terms
+        if not c.on_a_global_sphere:
+            pv_bv_edge = 0.5*(self.pv_cell[vc.cellBoundary_ord[:-1]-1] + self.pv_cell[vc.cellBoundary_ord[1:]-1])
+            phi_diff_edge = self.phi_cell[vc.cellBoundary_ord[1:]-1] - self.phi_cell[vc.cellBoundary_ord[:-1]-1]
+            pv_phi_diff_edge = pv_bv_edge * phi_diff_edge
+            self.tend_divergence[vc.cellBoundary_ord[0]-1] -= 1./4/g.areaCell[vc.cellBoundary_ord[0]-1] * \
+                    (pv_phi_diff_edge[-1] + pv_phi_diff_edge[0])
+            self.tend_divergence[vc.cellBoundary_ord[1:-1]-1] -= 1./4/g.areaCell[vc.cellBoundary_ord[1:-1]-1] * \
+                    (pv_phi_diff_edge[:-1] + pv_phi_diff_edge[1:])
+
+        self.tend_divergence[:] -= vc.discrete_laplace_v(self.geoPot)
+        self.tend_divergence[:] += c.delVisc * vc.discrete_laplace_v(self.divergence)
+
+
+
+    def compute_tendencies_nambu(self, g, c, vc):
+
+        # Tendency for thicknetss
+        self.vEdge[:] = self.thickness_edge * vc.discrete_skewgrad_t(self.psi_cell)
+        self.vVertex[:] = vc.discrete_div_t(self.vEdge)
+        self.tend_thickness[:] = -0.5 * vc.vertex2cell(self.vVertex)
+
+        self.vEdge[:] = self.thickness_edge * vc.discrete_skewgrad_nd(self.psi_vertex)
+        self.tend_thickness[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
+                
+        self.vEdge[:] = self.thickness_edge * vc.discrete_grad_n(self.phi_cell)
+        self.tend_thickness[:] -= vc.discrete_div_v(self.vEdge)
+
+        # Tendency for vorticity
+        eta_vertex = vc.cell2vertex(self.eta_cell)
+        psi_edge = vc.cell2edge(self.psi_cell)
+
+        self.vEdge[:] = vc.discrete_grad_n(self.psi_cell)
+        self.vEdge *= self.eta_edge
+        self.vEdge -= psi_edge * vc.discrete_grad_n(self.eta_cell)
+        self.vVertex[:] = vc.discrete_curl_t(self.vEdge)
+        self.tend_vorticity[:] = 1./6 * vc.vertex2cell(self.vVertex)
+
+        self.vEdge[:] = psi_edge * vc.discrete_skewgrad_nd(eta_vertex)  # valid on a globe
+        self.vEdge[:] -= self.eta_edge * vc.discrete_skewgrad_nd(self.psi_vertex)
+        self.tend_vorticity += 1./6 * vc.discrete_div_v(self.vEdge)
+
+        self.vEdge[:] = vc.discrete_skewgrad_nd(eta_vertex) * vc.discrete_grad_n(self.psi_cell)
+        self.vEdge -= vc.discrete_skewgrad_nd(self.psi_vertex) * vc.discrete_grad_n(self.eta_cell)
+        self.tend_vorticity += 1./3 * vc.edge2cell(self.vEdge)
+                
+        self.vEdge[:] = self.eta_edge * vc.discrete_grad_n(self.phi_cell)
+        self.tend_vorticity[:] -= vc.discrete_div_v(self.vEdge)
+
+        self.tend_vorticity[:,0] += self.curlWind_cell / self.thickness[:,0]
+        self.tend_vorticity[:,-1] -= c.bottomDrag * self.vorticity[:,-1]
+        self.tend_vorticity[:] += c.delVisc * vc.discrete_laplace_v(self.vorticity)
+
+        # Tendency for divergence
+        self.vEdge[:] = self.eta_edge * vc.discrete_skewgrad_t(self.psi_cell)
+        self.tend_divergence[:] = vc.discrete_curl_v(self.vEdge)
+
+        self.vEdge[:] = self.eta_edge * vc.discrete_grad_n(self.phi_cell)
+        self.vVertex[:] = vc.discrete_curl_t(self.vEdge)
+        self.tend_divergence[:] += 0.5 * vc.vertex2cell(self.vVertex)
+
+#        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_nd(self.phi_vertex)
+        self.vEdge[:] = self.eta_edge * vc.discrete_grad_tn(self.phi_vertex)  # phi satisfies homog. Neumann
+
+        # The following lines implement the natural BC's for skewgrad; natural BC's are needed to
+        # strictly retain the symmetry of the Poisson bracket. However, phi_vertex satisfies the homogeneous Neumann
+        # BC's. In this case, the requirement for symmetry may be slightly relaxed, and the above skewgrad_nn can be used
+        # instead, which is simpler.
+#        self.vEdge[:] = cmp.discrete_skewgrad_nnat(self.phi_vertex, self.phi_cell, g.verticesOnEdge, g.cellsOnEdge, \
+#                                                   g.dvEdge)
+#        self.vEdge *= self.pv_edge
+        self.tend_divergence[:] += 0.5 * vc.discrete_curl_v(self.vEdge)
+
+        ## The boundary terms
+        if not c.on_a_global_sphere:
+            pv_bv_edge = 0.5*(self.pv_cell[vc.cellBoundary_ord[:-1]-1] + self.pv_cell[vc.cellBoundary_ord[1:]-1])
+            phi_diff_edge = self.phi_cell[vc.cellBoundary_ord[1:]-1] - self.phi_cell[vc.cellBoundary_ord[:-1]-1]
+            pv_phi_diff_edge = pv_bv_edge * phi_diff_edge
+            self.tend_divergence[vc.cellBoundary_ord[0]-1] -= 1./4/g.areaCell[vc.cellBoundary_ord[0]-1] * \
+                    (pv_phi_diff_edge[-1] + pv_phi_diff_edge[0])
+            self.tend_divergence[vc.cellBoundary_ord[1:-1]-1] -= 1./4/g.areaCell[vc.cellBoundary_ord[1:-1]-1] * \
+                    (pv_phi_diff_edge[:-1] + pv_phi_diff_edge[1:])
+
+        self.tend_divergence[:] -= vc.discrete_laplace_v(self.geoPot)
+        self.tend_divergence[:] += c.delVisc * vc.discrete_laplace_v(self.divergence)
+
+        
+    def compute_tendencies_v2c(self, g, c, vc):
+
+        # Tendency for thicknetss
+        self.vEdge[:] = self.thickness_edge * vc.discrete_skewgrad_t(self.psi_cell)
+        self.vVertex[:] = vc.discrete_div_t(self.vEdge)
+        self.tend_thickness[:] = -1. * vc.vertex2cell(self.vVertex)
+                
+        self.vEdge[:] = self.thickness_edge * vc.discrete_grad_n(self.phi_cell)
+        self.tend_thickness[:] -= vc.discrete_div_v(self.vEdge)
+
+        # Tendency for vorticity
+        self.vEdge[:] = self.eta_edge * vc.discrete_skewgrad_t(self.psi_cell)
+        self.vVertex[:] = vc.discrete_div_t(self.vEdge)
+        self.tend_vorticity[:] = -1. * vc.vertex2cell(self.vVertex)
+
+        self.vEdge[:] = self.eta_edge * vc.discrete_grad_n(self.phi_cell)
+        self.tend_vorticity[:] -= vc.discrete_div_v(self.vEdge)
+
+        self.tend_vorticity[:,0] += self.curlWind_cell / self.thickness[:,0]
+        self.tend_vorticity[:,-1] -= c.bottomDrag * self.vorticity[:,-1]
+        self.tend_vorticity[:] += c.delVisc * vc.discrete_laplace_v(self.vorticity)
+
+        # Tendency for divergence
+        self.vEdge[:] = self.eta_edge * vc.discrete_skewgrad_t(self.psi_cell)
+        self.tend_divergence[:] = vc.discrete_curl_v(self.vEdge)
+
+        self.vEdge[:] = self.eta_edge * vc.discrete_grad_n(self.phi_cell)
+        self.vVertex[:] = vc.discrete_curl_t(self.vEdge)
+        self.tend_divergence[:] += vc.vertex2cell(self.vVertex)
+
+        ## The boundary terms
+        if not c.on_a_global_sphere:
+            pv_bv_edge = 0.5*(self.pv_cell[vc.cellBoundary_ord[:-1]-1] + self.pv_cell[vc.cellBoundary_ord[1:]-1])
+            phi_diff_edge = self.phi_cell[vc.cellBoundary_ord[1:]-1] - self.phi_cell[vc.cellBoundary_ord[:-1]-1]
+            pv_phi_diff_edge = pv_bv_edge * phi_diff_edge
+            self.tend_divergence[vc.cellBoundary_ord[0]-1] -= 1./4/g.areaCell[vc.cellBoundary_ord[0]-1] * \
+                    (pv_phi_diff_edge[-1] + pv_phi_diff_edge[0])
+            self.tend_divergence[vc.cellBoundary_ord[1:-1]-1] -= 1./4/g.areaCell[vc.cellBoundary_ord[1:-1]-1] * \
+                    (pv_phi_diff_edge[:-1] + pv_phi_diff_edge[1:])
+
+        self.tend_divergence[:] -= vc.discrete_laplace_v(self.geoPot)
+        self.tend_divergence[:] += c.delVisc * vc.discrete_laplace_v(self.divergence)
+
+
+    def compute_tendencies_c2v(self, g, c, vc):
+
+        # Tendency for thicknetss
+        self.vEdge[:] = self.thickness_edge * vc.discrete_skewgrad_nd(self.psi_vertex)
+        self.tend_thickness[:] = -1. * vc.discrete_div_v(self.vEdge)
+                
+        self.vEdge[:] = self.thickness_edge * vc.discrete_grad_n(self.phi_cell)
+        self.tend_thickness[:] -= vc.discrete_div_v(self.vEdge)
+
+        # Tendency for vorticity
+        self.vEdge[:] = self.eta_edge * vc.discrete_skewgrad_nd(self.psi_vertex)
+        self.tend_vorticity[:] = -1. * vc.discrete_div_v(self.vEdge)
+                
+        self.vEdge[:] = self.eta_edge * vc.discrete_grad_n(self.phi_cell)
+        self.tend_vorticity[:] -= vc.discrete_div_v(self.vEdge)
+
+        self.tend_vorticity[:,0] += self.curlWind_cell / self.thickness[:,0]
+        self.tend_vorticity[:,-1] -= c.bottomDrag * self.vorticity[:,-1]
+        self.tend_vorticity[:] += c.delVisc * vc.discrete_laplace_v(self.vorticity)
+
+        # Tendency for divergence
+        self.vEdge[:] = self.eta_edge * vc.discrete_skewgrad_t(self.psi_cell)
+        self.tend_divergence[:] = vc.discrete_curl_v(self.vEdge)
+
+#        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_nd(self.phi_vertex)
+        self.vEdge[:] = self.eta_edge * vc.discrete_grad_tn(self.phi_vertex)  # phi satisfies homog. Neumann
+
+        # The following lines implement the natural BC's for skewgrad; natural BC's are needed to
+        # strictly retain the symmetry of the Poisson bracket. However, phi_vertex satisfies the homogeneous Neumann
+        # BC's. In this case, the requirement for symmetry may be slightly relaxed, and the above skewgrad_nn can be used
+        # instead, which is simpler.
+#        self.vEdge[:] = cmp.discrete_skewgrad_nnat(self.phi_vertex, self.phi_cell, g.verticesOnEdge, g.cellsOnEdge, \
+#                                                   g.dvEdge)
+#        self.vEdge *= self.pv_edge
+        self.tend_divergence[:] += vc.discrete_curl_v(self.vEdge)
 
         ## The boundary terms
         if not c.on_a_global_sphere:
@@ -800,7 +954,7 @@ def timestepping_rk4_z_hex(s, s_pre, s_old, poisson, g, vc, c):
     for i in range(4):
 
         # Compute the tendencies
-        s_intm.compute_tendencies(g, c, vc)
+        s_intm.compute_tendencies_nambu(g, c, vc)
 
         # Accumulating the change in s
         s.thickness[:] += s_intm.tend_thickness[:]*accum[i]*dt
