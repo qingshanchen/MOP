@@ -174,8 +174,8 @@ class state_data:
                 
             elif c.nLayers == 2:
                 ## Interactive case
-                self.thickness[:,0] = h[:,0] - 2500.
-                self.thickness[:,1] = 2500. - g.bottomTopographyCell[:,0]
+                self.thickness[:,0] = h[:,0] - 3500.
+                self.thickness[:,1] = 3500. - g.bottomTopographyCell[:,0]
 
             else:
                 raise ValueError('This test case only takes nLayers = 1 or 2.')

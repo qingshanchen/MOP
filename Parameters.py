@@ -1,7 +1,7 @@
 import numpy as np
 
 ### Parameters essential
-test_case = 2
+test_case = 5
 use_gpu = False
 performing_test = False
 
@@ -14,12 +14,12 @@ vector_order = 'F'
 #nLayers = 1
 #rho_vec = xp.array([1000.]) # index 0 = top layer
 #rho0 = 1000.
-#nLayers = 2
-#rho_vec = xp.array([1000., 1010.]) # index 0 = top layer
-#rho0 = 1000.
-nLayers = 3
-rho_vec = xp.array([1000., 1010., 1020.]) # index 0 = top layer
+nLayers = 2
+rho_vec = xp.array([1000., 1010.]) # index 0 = top layer
 rho0 = 1000.
+#nLayers = 3
+#rho_vec = xp.array([1000., 1010., 1020.]) # index 0 = top layer
+#rho0 = 1000.
 
 do_restart = False
 restart_file = 'restart.nc'
@@ -33,9 +33,9 @@ timestepping = 'RK4'
 conserve_enstrophy = False     # False for energy-conserving only; True for both energy and enstrophy conserving 
 
 # Duration, time stepping size, saving interval
-dt = 1440.   #1440 for 480km
+dt = 180.   #1440 for 480km
 #dt = 90.   #360 for NA818
-nYears = 5./360
+nYears = 50./360
 save_inter_days = 1.
 
 # Model configuraitons, boundary conditions
