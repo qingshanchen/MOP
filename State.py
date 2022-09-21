@@ -31,6 +31,7 @@ class state_data:
         self.psi_vertex = xp.zeros( (g.nVertices,c.nLayers), order=c.vector_order )
         self.psi_vertex_pred = xp.zeros(g.nVertices)
         self.phi_cell = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
+        self.phi_cell_effective = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
         self.phi_vertex = xp.zeros( (g.nVertices,c.nLayers), order=c.vector_order )
         self.psiphi = xp.zeros(2*g.nCells)
         
@@ -565,8 +566,12 @@ class state_data:
 
         self.vEdge[:] = self.thickness_edge * vc.discrete_skewgrad_nd(self.psi_vertex)
         self.tend_thickness[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
-                
-        self.vEdge[:] = self.thickness_edge * vc.discrete_grad_n(self.phi_cell)
+
+        if c.use_GM:
+            self.phi_cell_effective[:] = self.phi_cell[:] - c.kappa * self.thickness[:]
+        else:
+            self.phi_cell_effective = self.phi_cell
+        self.vEdge[:] = self.thickness_edge * vc.discrete_grad_n(self.phi_cell_effective)
         self.tend_thickness[:] -= vc.discrete_div_v(self.vEdge)
 
         # Tendency for vorticity
