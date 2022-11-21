@@ -735,7 +735,6 @@ class state_data:
             self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
             self.divergence[:] = 0.
 
-        self.thickness_edge[:] = vc.cell2edge(self.thickness)
         self.compute_psi_phi(g, c, poisson)
 #        for layer in range(c.nLayers):
 #            self.compute_psi_phi_cpl2(poisson, vc, g, c, layer)
@@ -743,6 +742,17 @@ class state_data:
         self.psi_vertex[:] = vc.cell2vertex(self.psi_cell)
         self.phi_vertex[:] = vc.cell2vertex(self.phi_cell)
 
+        # Compute the normal transport velocity on the edges
+        self.nVelocity = vc.discrete_grad_n(self.phi_cell)
+        self.nVelocity += vc.discrete_skewgrad_nd(self.psi_vertex)
+
+        self.thickness_edge[:] = vc.cell2edge(self.thickness)
+        if c.upwind_thickness:
+            grad_thickness = vc.discrete_grad_n(self.thickness)
+            self.thickness_edge[:] -= 0.5*c.dt*grad_thickness * self.nVelocity
+            
+
+        
         # Compute the absolute vorticity
         self.eta_cell = self.vorticity + g.fCell
 
