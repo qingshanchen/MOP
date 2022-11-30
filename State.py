@@ -490,6 +490,9 @@ class state_data:
         out.no_flux_BC = "%s" % (c.no_flux_BC)
         out.no_slip_BC = "%s" % (c.no_slip_BC)
         out.free_slip_BC = "%s" % (c.free_slip_BC)
+        out.use_GM = "%s" % (c.use_GM)
+        out.upwind_thickness = "%s" % (c.upwind_thickness)
+        out.upwind_coef = "%f" % (c.upwind_coef)
         
         out.close( )
         
@@ -746,10 +749,10 @@ class state_data:
         self.nVelocity = vc.discrete_grad_n(self.phi_cell)
         self.nVelocity += vc.discrete_skewgrad_nd(self.psi_vertex)
 
-        self.thickness_edge[:] = vc.cell2edge(self.thickness)
+        self.thickness_edge[:,:] = vc.cell2edge(self.thickness)
         if c.upwind_thickness:
             grad_thickness = vc.discrete_grad_n(self.thickness)
-            self.thickness_edge[:] -= 0.5*c.dt*grad_thickness * self.nVelocity
+            self.thickness_edge[:,:] -= c.upwind_coef*c.dt*grad_thickness * self.nVelocity
             
 
         
