@@ -99,7 +99,7 @@ class state_data:
             self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / xp.sum(g.areaCell)
             
 
-        elif c.test_case == 2 and True:
+        elif c.test_case == 2:
             # SWSTC #2, with a stationary analytic solution 
             a = c.sphere_radius
             u0 = 2*np.pi*a / (12*86400)   # Standard setup
@@ -112,109 +112,52 @@ class state_data:
             total_thickness = gh / c.gravity
             constant_layer_thickness = 400.
 
-            # Non-interactive case
-#            self.thickness[:] = total_thickness[:]
+            if c.nLayers == 1:
+                self.thickness[:,0] = total_thickness[:,0]
+            else:
+                ### Only one of these cases should be active at any time
+                # Non-interactive case
+    #            self.thickness[:] = total_thickness[:]
 
-            # Interactive case: top layer variable thickness, others constant thickness
-            self.thickness[:,1:] = constant_layer_thickness
-            self.thickness[:,0] = total_thickness[:,0] - xp.sum(self.thickness[:,1:], axis=1)
-#            self.l1Thickness[:] = self.thickness[:,0]
+                # Interactive case: top layer variable thickness, others constant thickness
+                self.thickness[:,1:] = constant_layer_thickness
+                self.thickness[:,0] = total_thickness[:,0] - xp.sum(self.thickness[:,1:], axis=1)
+    #            self.l1Thickness[:] = self.thickness[:,0]
 
-            # Interactive case: bottom layer variable thickness, others constant thickness
-#            self.thickness[:,:-1] = constant_layer_thickness
-#            self.thickness[:,-1] = total_thickness[:,0] - xp.sum(self.thickness[:,:-1], axis=1)
-#            self.l1Thickness[:] = self.thickness[:,-1]
+                # Interactive case: bottom layer variable thickness, others constant thickness
+    #            self.thickness[:,:-1] = constant_layer_thickness
+    #            self.thickness[:,-1] = total_thickness[:,0] - xp.sum(self.thickness[:,:-1], axis=1)
+    #            self.l1Thickness[:] = self.thickness[:,-1]
             
             h0 = gh0 / c.gravity
             
             self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
             self.divergence[:] = 0.
 
-            self.psi_cell[:,1:] = -a * u0 * constant_layer_thickness * xp.sin(g.latCell[:])
-            self.psi_cell[:,0] = -a * h0 * u0 * xp.sin(g.latCell[:,0]) 
-            self.psi_cell[:,0] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (xp.sin(g.latCell[:,0]))**3 / 3.
-            self.psi_cell[:,0] += a*u0*(c.nLayers-1)*constant_layer_thickness * xp.sin(g.latCell[:,0])
-            self.psi_cell -= self.psi_cell[0,:]
+            if c.nLayers == 1:
+                self.psi_cell[:,0] = -a * h0 * u0 * xp.sin(g.latCell[:,0]) 
+                self.psi_cell[:,0] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (xp.sin(g.latCell[:,0]))**3 / 3.
+                self.psi_cell[:,0] -= self.psi_cell[0,0]
+            else:
+                self.psi_cell[:,1:] = -a * u0 * constant_layer_thickness * xp.sin(g.latCell[:])
+                self.psi_cell[:,0] = -a * h0 * u0 * xp.sin(g.latCell[:,0]) 
+                self.psi_cell[:,0] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (xp.sin(g.latCell[:,0]))**3 / 3.
+                self.psi_cell[:,0] += a*u0*(c.nLayers-1)*constant_layer_thickness * xp.sin(g.latCell[:,0])
+                self.psi_cell[:,:] -= self.psi_cell[0,:]
             
-            self.phi_cell[:] = 0.
+            self.phi_cell[:,:] = 0.
 
-            #self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell, axis=0) / xp.sum(g.areaCell)
-
-            #for iLayer in range(c.nLayers):
-           # 	self.SS0[iLayer] = xp.sum((xp.sum(self.thickness[:,:iLayer+1], axis = 1, keepdims=True) + \
-           # 		g.bottomTopographyCell) * g.areaCell, axis=0) / xp.sum(g.areaCell)
-
+            # Average thickness of each layer (which remains constant due to mass conservation)
             self.SS0[:] = xp.sum(self.thickness * g.areaCell, axis=0) / xp.sum(g.areaCell, axis=0)
+            # Average topo height (static) 
             topo_avg = xp.sum(g.bottomTopographyCell * g.areaCell, axis=0).item()/xp.sum(g.areaCell, axis=0).item()
+            # Average height of layer interfaces
             for layer in range(c.nLayers):
                 self.SS0[layer] = xp.sum(self.SS0[layer:]) + topo_avg
 
             print('Sea/layer sufrace average height:')
             print(self.SS0)
                                     
-            ## DEBUGGING
-#            print("kinetic energy stats right after initialization:")
-#            self.phi_vertex[:] = vc.cell2vertex(self.phi_cell)
-#            gh = xp.sin(g.latEdge[:])**2
-#            gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
-#            total_thickness = gh / c.gravity
-#            self.thickness_edge[:] = constant_layer_thickness
-#            self.thickness_edge[:,0] = total_thickness[:,0] - (c.nLayers-1) * constant_layer_thickness
-#            self.psi_vertex[:,1:] = -a * u0 * constant_layer_thickness * xp.sin(g.latVertex[:])
-#            self.psi_vertex[:,0] = -a * h0 * u0 * xp.sin(g.latVertex[:,0]) 
-#            self.psi_vertex[:,0] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (xp.sin(g.latVertex[:,0]))**3 / 3.
-#            self.psi_vertex[:,0] += a*u0*(c.nLayers-1)*constant_layer_thickness * xp.sin(g.latVertex[:,0])
-#            self.psi_vertex -= self.psi_vertex[0,:]
-#            self.compute_kenergy_edge(vc, g, c)
-                
-        elif c.test_case == 2 and False: # original single-layer initialization
-            # SWSTC #2, with a stationary analytic solution 
-            a = c.sphere_radius
-            u0 = 2*np.pi*a / (12*86400)
-            gh0 = 2.94e4
-            gh = xp.sin(g.latCell[:])**2
-            gh = -(a*c.Omega0*u0 + 0.5*u0*u0)*gh + gh0
-            self.thickness[:] = gh / c.gravity
-            h0 = gh0 / c.gravity
-
-            self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
-            self.divergence[:] = 0.
-            
-            self.psi_cell[:] = -a * h0 * u0 * xp.sin(g.latCell[:]) 
-            self.psi_cell[:] += a*u0/c.gravity * (a*c.Omega0*u0 + 0.5*u0**2) * (xp.sin(g.latCell[:]))**3 / 3.
-            self.psi_cell -= self.psi_cell[0]
-            self.phi_cell[:] = 0.
-
-            self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell, axis=0) / xp.sum(g.areaCell)
-
-
-            ## For debugging ##
-            if False:
-                # To check the consistency between psi_cell and vorticity
-                self.thickness_edge = vc.cell2edge(self.thickness)
-                self.psi_vertex[:] = vc.cell2vertex(self.psi_cell)
-                nVelocity = vc.discrete_grad_n(self.phi_cell)
-                nVelocity -= vc.discrete_grad_td(self.psi_vertex)
-                nVelocity /= self.thickness_edge
-                vorticity1 = vc.vertex2cell(vc.discrete_curl_t(nVelocity))
-                err = vorticity1 - self.vorticity
-                print("vorticity computed using normal vel.")
-                print("relative error = %e" % (xp.sqrt(xp.sum(err**2*g.areaCell)/xp.sum(self.vorticity**2*g.areaCell))))
-
-                self.phi_vertex[:] = vc.cell2vertex(self.phi_cell)
-                tVelocity = vc.discrete_grad_n(self.psi_cell)
-                tVelocity += vc.discrete_grad_tn(self.phi_vertex)
-                tVelocity /= self.thickness_edge
-                vorticity2 = vc.discrete_curl_v(tVelocity)
-                err = vorticity2 - self.vorticity
-                print("vorticity computed using tang vel.")
-                print("relative error = %e" % (xp.sqrt(xp.sum(err**2*g.areaCell)/xp.sum(self.vorticity**2*g.areaCell))))
-
-                err = 0.5*(vorticity1 + vorticity2) - self.vorticity
-                print("vorticity computed using both normal and tang vel.")
-                print("relative error = %e" % (xp.sqrt(xp.sum(err**2*g.areaCell)/xp.sum(self.vorticity**2*g.areaCell))))
-                raise ValueError("Testing the consistency between streamfunction and vorticity.")
-                ## End of debugging ##
             
         elif c.test_case == 5:
             #SWSTC #5: zonal flow over a mountain topography
@@ -235,19 +178,29 @@ class state_data:
             r = xp.where(r < R, r, R)
             g.bottomTopographyCell[:] = h_s0 * ( 1 - r/R)
 
-            if False:
-                raise ValueError("This case requires nLayers = 2.")
-            else:
-                ## Non-interactive case
-#                self.thickness[:] = h[:] - g.bottomTopographyCell[:]
+#            if False:
+#                raise ValueError("This case requires nLayers = 2.")
+#            else:
+#                ## Non-interactive case
+##                self.thickness[:] = h[:] - g.bottomTopographyCell[:]
 
+#                ## Interactive case
+#                self.thickness[:,0] = h[:,0] - 2500.
+#                self.thickness[:,1] = 2500. - g.bottomTopographyCell[:,0]
+            if c.nLayers == 1:
+                self.thickness[:,0] = h[:,0] - g.bottomTopographyCell[:,0]
+                
+            elif c.nLayers == 2:
                 ## Interactive case
-                self.thickness[:,0] = h[:,0] - 2500.
-                self.thickness[:,1] = 2500. - g.bottomTopographyCell[:,0]
+                self.thickness[:,0] = h[:,0] - 3500.
+                self.thickness[:,1] = 3500. - g.bottomTopographyCell[:,0]
 
-                self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
-                self.divergence[:] = 0.
-            
+            else:
+                raise ValueError('This test case only takes nLayers = 1 or 2.')
+
+            self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
+            self.divergence[:] = 0.
+
             self.curlWind_cell[:] = 0.
             self.divWind_cell[:] = 0.
             
@@ -557,7 +510,8 @@ class state_data:
     def compute_tendencies(self, g, c, vc):
 
         # Tendency for thicknetss
-        self.tend_thickness[:] = -vc.discrete_laplace_v(self.phi_cell)
+        self.vCell[:,:] = self.phi_cell[:,:] - 0.5 * c.GM_kappa * self.thickness[:,:]**2
+        self.tend_thickness[:] = -vc.discrete_laplace_v(self.vCell)
         self.tend_thickness[:] += c.delVisc * vc.discrete_laplace_v(self.thickness)
 
         ## DEBUGGING
@@ -725,13 +679,33 @@ class state_data:
 #        self.geoPot += self.kenergy
         
         ## Interactive layers (Implementation #3, Boussinesq)
-        self.geoPot[:,0]  = c.rho_vec[0] * (xp.sum(self.thickness, axis=1) + g.bottomTopographyCell[:,0])
+#        self.geoPot[:,0]  = c.rho_vec[0] * (xp.sum(self.thickness, axis=1) + g.bottomTopographyCell[:,0])
+#        for k in range(1,c.nLayers):
+#            self.geoPot[:,k] = self.geoPot[:,k-1] + (c.rho_vec[k]-c.rho_vec[k-1]) *  \
+#                (xp.sum(self.thickness[:,k:], axis = 1) + g.bottomTopographyCell[:,0])
+#        self.geoPot *= c.gravity / c.rho0
+#        self.geoPot += self.kenergy
+
+
+        ## Interactive layers (Implementation #3, Boussinesq, average depth subtracted)
+#        self.geoPot[:,0]  = c.rho_vec[0] * (xp.sum(self.thickness, axis=1) + g.bottomTopographyCell[:,0] - self.SS0[0])
+#        for k in range(1,c.nLayers):
+#            self.geoPot[:,k] = self.geoPot[:,k-1] + (c.rho_vec[k]-c.rho_vec[k-1]) *  \
+#                (xp.sum(self.thickness[:,k:], axis = 1) + g.bottomTopographyCell[:,0] - self.SS0[k])
+#        self.geoPot *= c.gravity / c.rho0
+#        self.geoPot += self.kenergy
+
+        ## Interactive layers (Implementation #3, Boussinesq, average depth subtracted)
+        ## with artificial potential energy
+        self.geoPot[:,0]  = c.rho_vec[0] * (xp.sum(self.thickness, axis=1) + g.bottomTopographyCell[:,0] \
+                                            - self.SS0[0]) - c.power*c.sigma/c.min_thickness*(c.min_thickness/self.thickness[:,0])**(c.power+1)
         for k in range(1,c.nLayers):
             self.geoPot[:,k] = self.geoPot[:,k-1] + (c.rho_vec[k]-c.rho_vec[k-1]) *  \
-                (xp.sum(self.thickness[:,k:], axis = 1) + g.bottomTopographyCell[:,0])
+                (xp.sum(self.thickness[:,k:], axis = 1) + g.bottomTopographyCell[:,0] - self.SS0[k]) \
+                 - c.power*c.sigma/c.min_thickness*(c.min_thickness/self.thickness[:,k])**(c.power+1)
         self.geoPot *= c.gravity / c.rho0
         self.geoPot += self.kenergy
-
+        
         ## Interactive layers (Implementation #4, Non-Boussinesq)
 #        self.geoPot[:,0]  = c.rho_vec[0] * (xp.sum(self.thickness, axis=1) + g.bottomTopographyCell[:,0])
 #        for k in range(1,c.nLayers):
@@ -744,8 +718,8 @@ class state_data:
         self.kinetic_energy = xp.sum(xp.sum(self.kenergy_edge * self.thickness_edge * g.areaEdge))
 
         ## DEBUG ##
-        if self.kinetic_energy < 0.:
-            raise ValueError('Negative energy!!')
+#        if self.kinetic_energy < 0.:
+#            raise ValueError('Negative energy!!')
         
         self.pot_energy = 0.5 * c.gravity * c.rho_vec[0]/c.rho0 * xp.sum((xp.sum(self.thickness[:,0:], axis=1) + \
         	g.bottomTopographyCell[:,0] - self.SS0[0])**2 * g.areaCell[:,0], axis=0).item( )

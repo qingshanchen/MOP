@@ -1,10 +1,13 @@
 import numpy as np
-import cupy as cp
 import Parameters as c
-#from scipy.sparse import coo_matrix, csc_matrix, csr_matrix, eye, diags, bmat
-from scipy.sparse.linalg import spsolve, splu, factorized
-from LinearAlgebra import cg
-from pyamg import rootnode_solver
+if c.use_gpu is True:
+    import cupy as cp
+elif c.linear_solver == 'lu':
+    from scipy.sparse.linalg import spsolve, splu, factorized
+elif c.linear_solver == 'amg':
+    from pyamg import rootnode_solver
+elif c.linear_solver == 'cg':
+    from LinearAlgebra import cg
 import time
 
 class EllipticCPL:

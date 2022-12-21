@@ -1,8 +1,8 @@
 import numpy as np
 
 ### Parameters essential
-test_case = 12
-use_gpu = True
+test_case = 2
+use_gpu = False
 performing_test = False
 
 if use_gpu:
@@ -11,13 +11,13 @@ else:
     import numpy as xp
 vector_order = 'F'
     
-nLayers = 2
-rho_vec = xp.array([1000., 1010.]) # index 0 = top layer
-rho0 = 1000.
+#nLayers = 1
+#rho_vec = xp.array([1000.]) # index 0 = top layer
+#rho0 = 1000.
 
-#nLayers = 2
-#rho_vec = xp.array([1014.,1026.]) # index 0 = top layer
-#rho0 = 1014.
+nLayers = 2
+rho_vec = xp.array([1000.,1010.]) # index 0 = top layer
+rho0 = 1000.
 
 do_restart = False
 restart_file = 'restart.nc'
@@ -31,20 +31,25 @@ timestepping = 'RK4'
 conserve_enstrophy = True     # False for energy-conserving only; True for both energy and enstrophy conserving 
 
 # Duration, time stepping size, saving interval
-dt = 360.   #1440 for 480km
+dt = 1440.   #1440 for 480km
 #dt = 90.   #360 for NA818
 nYears = 5./360
-save_inter_days = .01
+save_inter_days = 1.
 
 # Model configuraitons, boundary conditions
 delVisc = 0.  # 80 for NA818
 bottomDrag =  0. #5.e-8
+GM_kappa = 0.
 no_flux_BC = True  # Should always be on
 no_slip_BC = False
 free_slip_BC = False
+sigma = 10000000.
+min_thickness = 300. # Minimum layer thickness
+power = 6 # Power of the artificial potential energy
+
 
 # Solver config
-linear_solver = 'amgx'      # lu, cg, cudaCG, cudaPCG, amg, amgx
+linear_solver = 'lu'      # lu, cg, cudaCG, cudaPCG, amg, amgx
 err_tol = 5e-8
 max_iters = 1000
 print_stats = 0             # 1 for True, 0 for False
