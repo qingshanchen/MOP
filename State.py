@@ -514,11 +514,6 @@ class state_data:
         self.tend_thickness[:] = -vc.discrete_laplace_v(self.vCell)
         self.tend_thickness[:] += c.delVisc * vc.discrete_laplace_v(self.thickness)
 
-        ## DEBUGGING
-        #for layer in range(c.nLayers):
-        #    print('max and min of phi_cell: %f, %f' % (self.phi_cell[:,layer].max( ), self.phi_cell[:,layer].min()))
-        #    print('max and min of laplace(phi_cell): %f, %f' % (self.tend_thickness[:,layer].max( ), self.tend_thickness[:,layer].min()))
-
         # Tendency for vorticity
         if c.conserve_enstrophy:
             pv_vertex = vc.cell2vertex(self.pv_cell)
@@ -688,23 +683,25 @@ class state_data:
 
 
         ## Interactive layers (Implementation #3, Boussinesq, average depth subtracted)
-#        self.geoPot[:,0]  = c.rho_vec[0] * (xp.sum(self.thickness, axis=1) + g.bottomTopographyCell[:,0] - self.SS0[0])
-#        for k in range(1,c.nLayers):
-#            self.geoPot[:,k] = self.geoPot[:,k-1] + (c.rho_vec[k]-c.rho_vec[k-1]) *  \
-#                (xp.sum(self.thickness[:,k:], axis = 1) + g.bottomTopographyCell[:,0] - self.SS0[k])
-#        self.geoPot *= c.gravity / c.rho0
-#        self.geoPot += self.kenergy
+        self.geoPot[:,0]  = c.rho_vec[0] * (xp.sum(self.thickness, axis=1) + g.bottomTopographyCell[:,0] - self.SS0[0])
+        for k in range(1,c.nLayers):
+            self.geoPot[:,k] = self.geoPot[:,k-1] + (c.rho_vec[k]-c.rho_vec[k-1]) *  \
+                (xp.sum(self.thickness[:,k:], axis = 1) + g.bottomTopographyCell[:,0] - self.SS0[k])
+        self.geoPot *= c.gravity / c.rho0
+        self.geoPot += self.kenergy
+        ## Potential energy due to layer thinning
+        self.geoPot -= c.power*c.sigma/c.min_thickness*(c.min_thickness / self.thickness[:,:])**(c.power+1)
 
         ## Interactive layers (Implementation #3, Boussinesq, average depth subtracted)
         ## with artificial potential energy
-        self.geoPot[:,0]  = c.rho_vec[0] * (xp.sum(self.thickness, axis=1) + g.bottomTopographyCell[:,0] \
-                                            - self.SS0[0]) - c.power*c.sigma/c.min_thickness*(c.min_thickness/self.thickness[:,0])**(c.power+1)
-        for k in range(1,c.nLayers):
-            self.geoPot[:,k] = self.geoPot[:,k-1] + (c.rho_vec[k]-c.rho_vec[k-1]) *  \
-                (xp.sum(self.thickness[:,k:], axis = 1) + g.bottomTopographyCell[:,0] - self.SS0[k]) \
-                 - c.power*c.sigma/c.min_thickness*(c.min_thickness/self.thickness[:,k])**(c.power+1)
-        self.geoPot *= c.gravity / c.rho0
-        self.geoPot += self.kenergy
+#        self.geoPot[:,0]  = c.rho_vec[0] * (xp.sum(self.thickness, axis=1) + g.bottomTopographyCell[:,0] \
+#                                            - self.SS0[0]) - c.power*c.sigma/c.min_thickness*(c.min_thickness/self.thickness[:,0])**(c.power+1)
+#        for k in range(1,c.nLayers):
+#            self.geoPot[:,k] = self.geoPot[:,k-1] + (c.rho_vec[k]-c.rho_vec[k-1]) *  \
+#                (xp.sum(self.thickness[:,k:], axis = 1) + g.bottomTopographyCell[:,0] - self.SS0[k]) \
+#                 - c.power*c.sigma/c.min_thickness*(c.min_thickness/self.thickness[:,k])**(c.power+1)
+#        self.geoPot *= c.gravity / c.rho0
+#        self.geoPot += self.kenergy
         
         ## Interactive layers (Implementation #4, Non-Boussinesq)
 #        self.geoPot[:,0]  = c.rho_vec[0] * (xp.sum(self.thickness, axis=1) + g.bottomTopographyCell[:,0])
