@@ -46,9 +46,10 @@ class state_data:
         self.geoPot = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
 
         self.SS0 = xp.zeros(c.nLayers)     # Sea Surface at rest
-        self.kinetic_energy = xp.zeros(c.nLayers)
-        self.pot_energy = xp.zeros(c.nLayers)
-        self.pot_enstrophy = xp.zeros(c.nLayers)
+        self.kinetic_energy = 0. #xp.zeros(c.nLayers)
+        self.pot_energy = 0. #xp.zeros(c.nLayers)
+        self.art_energy = 0. 
+        self.pot_enstrophy = 0. #xp.zeros(c.nLayers)
         
         self.tend_thickness = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
         self.tend_vorticity = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
@@ -494,6 +495,8 @@ class state_data:
         out.dt = "%f" % (c.dt)
         out.delVisc = "%e" % (c.delVisc)
         out.bottomDrag = "%e" % (c.bottomDrag)
+        out.sigma = "%f" % (c.sigma)
+        out.min_thickness = "%f" % (c.min_thickness)
         if c.on_a_sphere:
             out.on_a_sphere = "YES"
         else:
@@ -689,8 +692,18 @@ class state_data:
                 (xp.sum(self.thickness[:,k:], axis = 1) + g.bottomTopographyCell[:,0] - self.SS0[k])
         self.geoPot *= c.gravity / c.rho0
         self.geoPot += self.kenergy
-        ## Potential energy due to layer thinning
-        self.geoPot -= c.power*c.sigma/c.min_thickness*(c.min_thickness / self.thickness[:,:])**(c.power+1)
+        ## Potential energy (power function) due to layer thinning; sigma = 2e7
+        #self.geoPot -= c.power*c.sigma/c.min_thickness*(c.min_thickness / self.thickness[:,:])**(c.power+1)
+        #self.art_energy = c.sigma*xp.sum(xp.sum(c.min_thickness/self.thickness[:,:]*g.areaCell[:,:]))
+        ## Potential energy (exponential function) due to layer thinning; sigma = 2e6, min_thickness = 100.
+        #self.geoPot -= c.sigma/c.min_thickness * np.exp(-self.thickness[:,:]/c.min_thickness)
+        #self.art_energy = c.sigma*xp.sum(xp.sum(xp.exp(-self.thickness[:,:]/c.min_thickness)*g.areaCell[:,:]))
+        ## Potential energy (Gaussian) due to layer thinning; sigma = 2e10
+        #self.geoPot -= 2*c.sigma/c.min_thickness**2 * self.thickness[:,:]*np.exp(-(self.thickness[:,:]/c.min_thickness)**2)
+        #self.art_energy = c.sigma*xp.sum(xp.sum(xp.exp(-(self.thickness[:,:]/c.min_thickness)**2)*g.areaCell[:,:]))
+        ## Potential energy (powered Gaussian) due to layer thinning; sigma = 2e112
+        self.geoPot -= 2*c.power*c.sigma*self.thickness[:,:]**(2*c.power-1)/c.min_thickness**(2*c.power) * np.exp(-(self.thickness[:,:]/c.min_thickness)**(2*c.power))
+        self.art_energy = c.sigma*xp.sum(xp.sum(xp.exp(-(self.thickness[:,:]/c.min_thickness)**(2*c.power))*g.areaCell[:,:]))
 
         ## Interactive layers (Implementation #3, Boussinesq, average depth subtracted)
         ## with artificial potential energy
@@ -717,13 +730,15 @@ class state_data:
         ## DEBUG ##
 #        if self.kinetic_energy < 0.:
 #            raise ValueError('Negative energy!!')
-        
+
+        # Compute the potential energy
         self.pot_energy = 0.5 * c.gravity * c.rho_vec[0]/c.rho0 * xp.sum((xp.sum(self.thickness[:,0:], axis=1) + \
         	g.bottomTopographyCell[:,0] - self.SS0[0])**2 * g.areaCell[:,0], axis=0).item( )
         for iLayer in range(1,c.nLayers):
         	self.pot_energy += 0.5 * c.gravity * (c.rho_vec[iLayer] - c.rho_vec[iLayer-1])/c.rho0 * \
         		xp.sum( (xp.sum(self.thickness[:,iLayer:], axis=1) + \
         			g.bottomTopographyCell[:,0] - self.SS0[iLayer])**2 * g.areaCell[:,0])
+
 
         self.pot_enstrophy = 0.5 * xp.sum(xp.sum(g.areaCell[:] * self.thickness * self.pv_cell[:]**2))
         

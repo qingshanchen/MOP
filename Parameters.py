@@ -33,7 +33,7 @@ conserve_enstrophy = True     # False for energy-conserving only; True for both 
 # Duration, time stepping size, saving interval
 dt = 1440.   #1440 for 480km
 #dt = 90.   #360 for NA818
-nYears = 5./360
+nYears = 10./360
 save_inter_days = 1.
 
 # Model configuraitons, boundary conditions
@@ -43,9 +43,9 @@ GM_kappa = 0.
 no_flux_BC = True  # Should always be on
 no_slip_BC = False
 free_slip_BC = False
-sigma = 10000000.
-min_thickness = 300. # Minimum layer thickness
-power = 6 # Power of the artificial potential energy
+sigma = 2.e112
+min_thickness = 100. # Minimum layer thickness
+power = 2 # Power of the artificial potential energy
 
 
 # Solver config

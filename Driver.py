@@ -58,6 +58,7 @@ def main( ):
     kinetic_energy = np.zeros( c.nTimeSteps+1 )
     pot_energy = np.zeros( c.nTimeSteps+1)
     total_energy = np.zeros(c.nTimeSteps+1)
+    art_energy = np.zeros(c.nTimeSteps+1)
     mass = np.zeros( (c.nTimeSteps+1, c.nLayers) )
     pot_enstrophy = np.zeros(c.nTimeSteps+1)
     total_vorticity = np.zeros((c.nTimeSteps+1, c.nLayers) )
@@ -69,6 +70,7 @@ def main( ):
     if c.use_gpu:
         kinetic_energy[0] = s.kinetic_energy.get()
         pot_energy[0] = s.pot_energy.get()
+        art_energy[0] = s.art_energy.get()
         total_energy[0] = kinetic_energy[0] + pot_energy[0]
         mass[0] = xp.sum(s.thickness * g.areaCell, axis=0).get()
         pot_enstrophy[0] = s.pot_enstrophy.get()
@@ -78,6 +80,7 @@ def main( ):
     else:
         kinetic_energy[0] = s.kinetic_energy
         pot_energy[0] = s.pot_energy
+        art_energy[0] = s.art_energy
         total_energy[0] = kinetic_energy[0] + pot_energy[0]
         mass[0,:] = xp.sum(s.thickness * g.areaCell, axis=0)
         pot_enstrophy[0] = s.pot_enstrophy
@@ -128,6 +131,7 @@ def main( ):
         if c.use_gpu:
             kinetic_energy[iStep+1] = s.kinetic_energy.get()
             pot_energy[iStep+1] = s.pot_energy.get()
+            art_energy[iStep+1] = s.art_energy.get()
             total_energy[iStep+1] = kinetic_energy[iStep+1] + pot_energy[iStep+1]
             mass[iStep+1] = xp.sum(xp.sum(s.thickness * g.areaCell, axis=0)).get()
             pot_enstrophy[iStep+1] = s.pot_enstrophy.get()
@@ -137,6 +141,7 @@ def main( ):
         else:
             kinetic_energy[iStep+1] = s.kinetic_energy
             pot_energy[iStep+1] = s.pot_energy
+            art_energy[iStep+1] = s.art_energy
             total_energy[iStep+1] = kinetic_energy[iStep+1] + pot_energy[iStep+1]
             mass[iStep+1] = xp.sum(xp.sum(s.thickness * g.areaCell))
             pot_enstrophy[iStep+1] = s.pot_enstrophy
@@ -147,8 +152,8 @@ def main( ):
 
         print("Mass for each layer: ", mass[iStep+1,:])
         print("Total vorticity for each layer: ", total_vorticity[iStep+1,:])
-        print(("K-energy, p-energy, t-energy, p-enstrophy, mass: %.15e, %.15e, %.15e, %.15e" % \
-               (kinetic_energy[iStep+1], pot_energy[iStep+1], total_energy[iStep+1], pot_enstrophy[iStep+1])))
+        print(("k-energy, p-energy, t-energy, a-energy, p-enstrophy: %.15e, %.15e, %.15e, %.15e, %.15e" % \
+               (kinetic_energy[iStep+1], pot_energy[iStep+1], total_energy[iStep+1], art_energy[iStep+1], pot_enstrophy[iStep+1])))
         for iLayer in range(c.nLayers):
             print("min and max thickness: %f, %f" % (xp.min(s.thickness[:,iLayer]), xp.max(s.thickness[:,iLayer])) )
 
