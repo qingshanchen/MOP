@@ -732,14 +732,27 @@ class state_data:
 #        if self.kinetic_energy < 0.:
 #            raise ValueError('Negative energy!!')
 
-        # Compute the potential energy
-        self.pot_energy = 0.5 * c.gravity * c.rho_vec[0]/c.rho0 * xp.sum((xp.sum(self.thickness[:,0:], axis=1) + \
-        	g.bottomTopographyCell[:,0] - self.SS0[0])**2 * g.areaCell[:,0], axis=0).item( )
+        # Compute the real and artificial potential energy
+        self.vCell[:, 0] = xp.sum(self.thickness[:,0:], axis=1) + g.bottomTopographyCell[:,0] - self.SS0[0]
+        self.vEdge[:,0] = vc.discrete_grad_n(self.vCell[:,0])
+        self.pot_energy = 0.5 * c.gravity * c.rho_vec[0]/c.rho0 * xp.sum(self.vCell[:,0]**2 * g.areaCell[:,0]).item( )
+        self.art_energy = c.gravity * c.rho_vec[0]/c.rho0 * xp.sum(self.vEdge[:,0]**2 * g.areaEdge[:,0]).item( ) 
         for iLayer in range(1,c.nLayers):
-        	self.pot_energy += 0.5 * c.gravity * (c.rho_vec[iLayer] - c.rho_vec[iLayer-1])/c.rho0 * \
-        		xp.sum( (xp.sum(self.thickness[:,iLayer:], axis=1) + \
-        			g.bottomTopographyCell[:,0] - self.SS0[iLayer])**2 * g.areaCell[:,0])
+            self.vCell[:,0] = xp.sum(self.thickness[:,iLayer:], axis=1) + g.bottomTopographyCell[:,0] - self.SS0[iLayer]
+            self.vEdge[:,0] = vc.discrete_grad_n(self.vCell[:,0])
+            d_rho = c.rho_vec[iLayer] - c.rho_vec[iLayer-1]
+            self.pot_energy += 0.5 * c.gravity * d_rho /c.rho0 * xp.sum(self.vCell[:,0]**2 * g.areaCell[:,0]).item( )
+            self.art_energy += c.gravity * d_rho /c.rho0 * xp.sum(self.vEdge[:,0]**2 * g.areaEdge[:,0]).item( )
+        self.art_energy *= c.kappa
 
+        # Compute the artificial potential energy
+#        self.pot_energy = 0.5 * c.kappa * c.gravity * c.rho_vec[0]/c.rho0 * xp.sum(vc.discrete_grad_n(xp.sum(self.thickness[:,0:], axis=1) + \
+#        	g.bottomTopographyCell[:,0] - self.SS0[0])**2 * g.areaCell[:,0], axis=0).item( )
+#        for iLayer in range(1,c.nLayers):
+#        	self.pot_energy += 0.5 * c.gravity * (c.rho_vec[iLayer] - c.rho_vec[iLayer-1])/c.rho0 * \
+#        		xp.sum( (xp.sum(self.thickness[:,iLayer:], axis=1) + \
+#        			g.bottomTopographyCell[:,0] - self.SS0[iLayer])**2 * g.areaCell[:,0])
+                
 
         self.pot_enstrophy = 0.5 * xp.sum(xp.sum(g.areaCell[:] * self.thickness * self.pv_cell[:]**2))
         
