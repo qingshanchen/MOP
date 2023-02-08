@@ -31,7 +31,7 @@ timestepping = 'RK4'
 conserve_enstrophy = True     # False for energy-conserving only; True for both energy and enstrophy conserving 
 
 # Duration, time stepping size, saving interval
-dt = 360.   #1440 for 480km
+dt = 45.   #1440 for 480km
 #dt = 90.   #360 for NA818
 nYears = 50./360
 save_inter_days = 1.
@@ -40,7 +40,7 @@ save_inter_days = 1.
 delVisc = 0.  # 80 for NA818
 bottomDrag =  0. #5.e-8
 GM_kappa = 0.
-kappa = 1.e12 #2.e12
+kappa = 2.e12 #2.e12
 no_flux_BC = True  # Should always be on
 no_slip_BC = False
 free_slip_BC = False

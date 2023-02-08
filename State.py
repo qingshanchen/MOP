@@ -495,8 +495,7 @@ class state_data:
         out.dt = "%f" % (c.dt)
         out.delVisc = "%e" % (c.delVisc)
         out.bottomDrag = "%e" % (c.bottomDrag)
-        out.sigma = "%f" % (c.sigma)
-        out.min_thickness = "%f" % (c.min_thickness)
+        out.kappa = "%e" % (c.kappa)
         if c.on_a_sphere:
             out.on_a_sphere = "YES"
         else:
