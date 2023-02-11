@@ -74,9 +74,9 @@ def main( ):
         art_energy[0] = s.art_energy.get()
         total_energy[0] = kinetic_energy[0] + pot_energy[0]
         total_energy2[0] = total_energy[0] + art_energy[0]
-        mass[0] = xp.sum(s.thickness * g.areaCell, axis=0).get()
+        mass[0,:] = xp.sum(s.thickness * g.areaCell, axis=0).get()
         pot_enstrophy[0] = s.pot_enstrophy.get()
-        total_vorticity[0] = xp.sum(s.pv_cell * s.thickness * g.areaCell, axis=0).get()
+        total_vorticity[0,:] = xp.sum(s.pv_cell * s.thickness * g.areaCell, axis=0).get()
 #        pv_max[0,:] = xp.max(s.pv_cell, axis=0).get()
 #        pv_min[0,:] = xp.min(s.pv_cell, axis=0).get()
     else:
@@ -137,7 +137,7 @@ def main( ):
             art_energy[iStep+1] = s.art_energy.get()
             total_energy[iStep+1] = kinetic_energy[iStep+1] + pot_energy[iStep+1]
             total_energy2[iStep+1] = total_energy[iStep+1] + art_energy[iStep+1]
-            mass[iStep+1] = xp.sum(xp.sum(s.thickness * g.areaCell, axis=0)).get()
+            mass[iStep+1,:] = xp.sum(xp.sum(s.thickness * g.areaCell, axis=0)).get()
             pot_enstrophy[iStep+1] = s.pot_enstrophy.get()
             total_vorticity[iStep+1,:] = xp.sum(s.pv_cell * s.thickness * g.areaCell, axis=0).get()
 #            pv_max[iStep+1,:] = xp.max(s.pv_cell, axis=0).get()
@@ -148,7 +148,7 @@ def main( ):
             art_energy[iStep+1] = s.art_energy
             total_energy[iStep+1] = kinetic_energy[iStep+1] + pot_energy[iStep+1]
             total_energy2[iStep+1] = total_energy[iStep+1] + art_energy[iStep+1]
-            mass[iStep+1] = xp.sum(xp.sum(s.thickness * g.areaCell))
+            mass[iStep+1,:] = xp.sum(s.thickness * g.areaCell, axis=0)
             pot_enstrophy[iStep+1] = s.pot_enstrophy
             total_vorticity[iStep+1,:] = xp.sum(s.pv_cell * s.thickness * g.areaCell, axis=0)
 #            pv_max[iStep+1,:] = xp.max(s.pv_cell, axis=0)
