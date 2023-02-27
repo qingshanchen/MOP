@@ -597,6 +597,9 @@ class state_data:
             self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
             self.divergence[:] = 0.
 
+        if xp.any(self.thickness[:,0] < 0.):
+            raise ValueError('Negative layer thickness detected. Aborting.')
+            
         self.thickness_edge[:] = vc.cell2edge(self.thickness)
 #        self.compute_psi_phi(vc, g, c)
         for layer in range(c.nLayers):
