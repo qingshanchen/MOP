@@ -19,8 +19,8 @@ nLayers = 2
 rho_vec = xp.array([1000.,1010.]) # index 0 = top layer
 rho0 = 1000.
 
-do_restart = False
-restart_file = 'restart.nc'
+do_restart = True
+restart_file = 'output-tc5-2layer-40962-day9-16.nc'
 save_restart_init = False
 
 ### Parameters secondary
@@ -33,7 +33,7 @@ conserve_enstrophy = True     # False for energy-conserving only; True for both 
 # Duration, time stepping size, saving interval
 dt = 45.   #1440 for 480km
 #dt = 90.   #360 for NA818
-nYears = 50./360
+nYears = 34./360
 save_inter_days = 1.
 
 # Model configuraitons, boundary conditions

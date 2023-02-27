@@ -137,7 +137,7 @@ def main( ):
             art_energy[iStep+1] = s.art_energy.get()
             total_energy[iStep+1] = kinetic_energy[iStep+1] + pot_energy[iStep+1]
             total_energy2[iStep+1] = total_energy[iStep+1] + art_energy[iStep+1]
-            mass[iStep+1,:] = xp.sum(xp.sum(s.thickness * g.areaCell, axis=0)).get()
+            mass[iStep+1,:] = xp.sum(s.thickness * g.areaCell, axis=0).get()
             pot_enstrophy[iStep+1] = s.pot_enstrophy.get()
             total_vorticity[iStep+1,:] = xp.sum(s.pv_cell * s.thickness * g.areaCell, axis=0).get()
 #            pv_max[iStep+1,:] = xp.max(s.pv_cell, axis=0).get()
