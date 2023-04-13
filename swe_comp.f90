@@ -971,6 +971,47 @@ subroutine discrete_skewgrad_nnat(nEdges, nVertices, nCells, &
 end subroutine discrete_skewgrad_nnat
 
 
+subroutine discrete_skewgrad_nnat2(nEdges, nVertices, nCells, nVertLevels, &
+     scalar_vertex, scalar_cell, verticesOnEdge, cellsOnEdge, dvEdge, &
+     skewgrad_n)
+  
+  integer, intent(in) :: nEdges, nVertices, nCells, nVertLevels
+  integer, intent(in) :: verticesOnEdge(0:nEdges-1, 0:1), cellsOnEdge(0:nEdges-1,0:1)
+  real*8, intent(in)  :: dvEdge(0:nEdges-1)
+  real*8, intent(in)  :: scalar_vertex(0:nVertices-1, 0:nVertLevels-1), scalar_cell(0:nCells-1, 0:nVertLevels-1)
+  real*8, intent(out) :: skewgrad_n(0:nEdges-1, 0:nVertLevels-1)
+
+  integer :: iEdge, vertex0, vertex1, cell0, cell1, k
+  double precision :: scalar_edge
+
+  skewgrad_n = 0.0
+
+  do iEdge = 0, nEdges-1
+     vertex0 = verticesOnEdge(iEdge,0) - 1
+     vertex1 = verticesOnEdge(iEdge,1) - 1
+     do k = 0, nVertLevels-1
+        if (vertex0 .GE. 0 .and. vertex1 .GE. 0) then
+           skewgrad_n(iEdge, k) = (scalar_vertex(vertex0, k) - scalar_vertex(vertex1, k))/dvEdge(iEdge)
+        else if (vertex0 .GE. 0) then
+           cell0 = cellsOnEdge(iEdge,0) - 1
+           cell1 = cellsOnEdge(iEdge,1) - 1
+           scalar_edge = 0.5*(scalar_cell(cell0, k) + scalar_cell(cell1, k))
+           skewgrad_n(iEdge, k) =  (scalar_vertex(vertex0, k) - scalar_edge) /dvEdge(iEdge)
+        else if (vertex1 .GE. 0) then
+           cell0 = cellsOnEdge(iEdge,0) - 1
+           cell1 = cellsOnEdge(iEdge,1) - 1
+           scalar_edge = 0.5*(scalar_cell(cell0, k) + scalar_cell(cell1, k))
+           skewgrad_n(iEdge, k) =  (scalar_edge - scalar_vertex(vertex1, k)) /dvEdge(iEdge)
+        else
+           write(*,*) "Vertex indices in verticesOnEdge are wrong in discrete_skewgrad_nnat. Exit."
+           stop
+        end if
+     end do
+  end do
+
+end subroutine discrete_skewgrad_nnat2
+
+
 !
 ! Functions and subroutines for the Shallow Water Test Case #8 (barotropic instability)
 !

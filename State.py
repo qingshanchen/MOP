@@ -179,15 +179,6 @@ class state_data:
             r = xp.where(r < R, r, R)
             g.bottomTopographyCell[:] = h_s0 * ( 1 - r/R)
 
-#            if False:
-#                raise ValueError("This case requires nLayers = 2.")
-#            else:
-#                ## Non-interactive case
-##                self.thickness[:] = h[:] - g.bottomTopographyCell[:]
-
-#                ## Interactive case
-#                self.thickness[:,0] = h[:,0] - 2500.
-#                self.thickness[:,1] = 2500. - g.bottomTopographyCell[:,0]
             if c.nLayers == 1:
                 self.thickness[:,0] = h[:,0] - g.bottomTopographyCell[:,0]
                 
@@ -402,16 +393,29 @@ class state_data:
 
         elif c.test_case == 22:
             # One gyre with no forcing, for a bounded domain over NA
-            d = xp.sqrt(32*(g.latCell[:] - latmid)**2/latwidth**2 + 4*(g.lonCell[:]-(-1.1))**2/.3**2)
+            d = xp.sqrt(32*(g.latCell[:,:] - latmid)**2/latwidth**2 + 4*(g.lonCell[:,:]-(-1.1))**2/.3**2)
             f0 = xp.mean(g.fCell)
-            self.thickness[:] = 4000.
-            self.psi_cell[:] = 2*xp.exp(-d**2) * 0.5*(1-xp.tanh(20*(d-1.5)))
-#            self.psi_cell[:] -= np.sum(self.psi_cell * g.areaCell) / np.sum(g.areaCell)
-            self.psi_cell *= c.gravity / f0 * self.thickness
-            self.phi_cell[:] = 0.
-            self.vorticity = vc.discrete_laplace_v(self.psi_cell)
-            self.vorticity /= self.thickness
-            self.divergence[:] = 0.
+
+            if c.nLayers == 1:
+                self.thickness[:] = 4000.
+                self.psi_cell[:] = 2*xp.exp(-d**2) * 0.5*(1-xp.tanh(20*(d-1.5)))
+#               self.psi_cell[:] -= np.sum(self.psi_cell * g.areaCell) / np.sum(g.areaCell)
+                self.psi_cell *= c.gravity / f0 * self.thickness
+            elif c.nLayers == 2:
+                self.thickness[:,0] = 1000.
+                self.thickness[:,1] = 3000.
+                self.psi_cell[:,:] = xp.exp(-d**2) * 0.5*(1-xp.tanh(20*(d-1.5)))
+#               self.psi_cell[:] -= np.sum(self.psi_cell * g.areaCell) / np.sum(g.areaCell)
+                self.psi_cell[:,:] *= c.gravity / f0 * self.thickness[:,:]
+
+            else:
+                raise ValueError('This test case only takes nLayers = 1 or 2.')
+                
+                
+            self.phi_cell[:,:] = 0.
+            self.vorticity[:,:] = vc.discrete_laplace_v(self.psi_cell[:,:])
+            self.vorticity[:,:] /= self.thickness[:,:]
+            self.divergence[:,:] = 0.
             
             # Initialize wind
             self.curlWind_cell[:] = 0.
@@ -424,7 +428,14 @@ class state_data:
             #c.delVisc = 0.
             #c.del2Visc = 0.
             
-            self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / xp.sum(g.areaCell)
+            self.SS0[:] = xp.sum(self.thickness * g.areaCell, axis=0) / xp.sum(g.areaCell, axis=0)
+            topo_avg = xp.sum(g.bottomTopographyCell * g.areaCell, axis=0).item()/xp.sum(g.areaCell, axis=0).item()
+            for layer in range(c.nLayers):
+                self.SS0[layer] = xp.sum(self.SS0[layer:]) + topo_avg
+
+            print('Sea/layer sufrace average height:')
+            print(self.SS0)
+
             
         else:
             raise ValueError("Invaid choice for the test case.")
@@ -564,26 +575,26 @@ class state_data:
         self.tend_divergence[:] += 0.5 * vc.vertex2cell(self.vVertex)
 
 #        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_nd(self.phi_vertex)
-        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_nn(self.phi_vertex)  # phi satisfies homog. Neumann
+#        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_nn(self.phi_vertex)  # phi satisfies homog. Neumann
 
         # The following lines implement the natural BC's for skewgrad; natural BC's are needed to
         # strictly retain the symmetry of the Poisson bracket. However, phi_vertex satisfies the homogeneous Neumann
         # BC's. In this case, the requirement for symmetry may be slightly relaxed, and the above skewgrad_nn be used
         # instead, which is simpler.
-#        self.vEdge[:] = cmp.discrete_skewgrad_nnat(self.phi_vertex, self.phi_cell, g.verticesOnEdge, g.cellsOnEdge, \
-#                                                   g.dvEdge)
-#        self.vEdge *= self.pv_edge
+        self.vEdge[:] = cmp.discrete_skewgrad_nnat2(self.phi_vertex, self.phi_cell, g.verticesOnEdge, g.cellsOnEdge, \
+                                                   g.dvEdge)
+        self.vEdge *= self.pv_edge
         self.tend_divergence[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
 
         ## The boundary terms
         if not c.on_a_global_sphere:
-            pv_bv_edge = 0.5*(self.pv_cell[vc.cellBoundary_ord[:-1]-1] + self.pv_cell[vc.cellBoundary_ord[1:]-1])
-            phi_diff_edge = self.phi_cell[vc.cellBoundary_ord[1:]-1] - self.phi_cell[vc.cellBoundary_ord[:-1]-1]
+            pv_bv_edge = 0.5*(self.pv_cell[vc.cellBoundary_ord[:-1]-1,:] + self.pv_cell[vc.cellBoundary_ord[1:]-1,:])
+            phi_diff_edge = self.phi_cell[vc.cellBoundary_ord[1:]-1,:] - self.phi_cell[vc.cellBoundary_ord[:-1]-1,:]
             pv_phi_diff_edge = pv_bv_edge * phi_diff_edge
-            self.tend_divergence[vc.cellBoundary_ord[0]-1] -= 1./4/g.areaCell[vc.cellBoundary_ord[0]-1] * \
-                    (pv_phi_diff_edge[-1] + pv_phi_diff_edge[0])
-            self.tend_divergence[vc.cellBoundary_ord[1:-1]-1] -= 1./4/g.areaCell[vc.cellBoundary_ord[1:-1]-1] * \
-                    (pv_phi_diff_edge[:-1] + pv_phi_diff_edge[1:])
+            self.tend_divergence[vc.cellBoundary_ord[0]-1,:] -= 1./4/g.areaCell[vc.cellBoundary_ord[0]-1,:] * \
+                    (pv_phi_diff_edge[-1,:] + pv_phi_diff_edge[0,:])
+            self.tend_divergence[vc.cellBoundary_ord[1:-1]-1,:] -= 1./4/g.areaCell[vc.cellBoundary_ord[1:-1]-1,:] * \
+                    (pv_phi_diff_edge[:-1,:] + pv_phi_diff_edge[1:,:])
 
         self.tend_divergence[:] -= vc.discrete_laplace_v(self.geoPot)
         self.tend_divergence[:] += c.delVisc * vc.discrete_laplace_v(self.divergence)
