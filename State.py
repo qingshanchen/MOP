@@ -581,7 +581,7 @@ class state_data:
         # strictly retain the symmetry of the Poisson bracket. However, phi_vertex satisfies the homogeneous Neumann
         # BC's. In this case, the requirement for symmetry may be slightly relaxed, and the above skewgrad_nn be used
         # instead, which is simpler.
-        self.vEdge[:] = cmp.discrete_skewgrad_nnat2(self.phi_vertex, self.phi_cell, g.verticesOnEdge, g.cellsOnEdge, \
+        self.vEdge[:] = cmp.discrete_skewgrad_nnat(self.phi_vertex, self.phi_cell, g.verticesOnEdge, g.cellsOnEdge, \
                                                    g.dvEdge)
         self.vEdge *= self.pv_edge
         self.tend_divergence[:] -= 0.5 * vc.discrete_div_v(self.vEdge)

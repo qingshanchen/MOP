@@ -931,47 +931,7 @@ end subroutine construct_matrix_discrete_skewgrad_td
 ! Discrete skewgrad in the normal direction, with natural boundary condition
 ! This type of boundary condition is required to ensure the symmetry of the
 ! Hamiltonian system, and hence the conservations. 
-subroutine discrete_skewgrad_nnat(nEdges, nVertices, nCells, &
-     scalar_vertex, scalar_cell, verticesOnEdge, cellsOnEdge, dvEdge, &
-     skewgrad_n)
-  
-  integer, intent(in) :: nEdges, nVertices, nCells
-  integer, intent(in) :: verticesOnEdge(0:nEdges-1, 0:1), cellsOnEdge(0:nEdges-1,0:1)
-  real*8, intent(in)  :: dvEdge(0:nEdges-1)
-  real*8, intent(in)  :: scalar_vertex(0:nVertices-1), scalar_cell(0:nCells-1)
-  real*8, intent(out) :: skewgrad_n(0:nEdges-1)
-
-  integer :: iEdge, vertex0, vertex1, cell0, cell1
-  double precision :: scalar_edge
-
-  skewgrad_n = 0.0
-  do iEdge = 0, nEdges-1
-        vertex0 = verticesOnEdge(iEdge,0) - 1
-        vertex1 = verticesOnEdge(iEdge,1) - 1
-        if (vertex0 .GE. 0 .and. vertex1 .GE. 0) then
-           skewgrad_n(iEdge) = (scalar_vertex(vertex0) - scalar_vertex(vertex1))/dvEdge(iEdge)
-        else if (vertex0 .GE. 0) then
-           cell0 = cellsOnEdge(iEdge,0) - 1
-           cell1 = cellsOnEdge(iEdge,1) - 1
-           scalar_edge = 0.5*(scalar_cell(cell0) + scalar_cell(cell1))
-           skewgrad_n(iEdge) =  (scalar_vertex(vertex0) - scalar_edge) /dvEdge(iEdge)
-           
-        else if (vertex1 .GE. 0) then
-           cell0 = cellsOnEdge(iEdge,0) - 1
-           cell1 = cellsOnEdge(iEdge,1) - 1
-           scalar_edge = 0.5*(scalar_cell(cell0) + scalar_cell(cell1))
-           skewgrad_n(iEdge) =  (scalar_edge - scalar_vertex(vertex1)) /dvEdge(iEdge)
-
-        else
-           write(*,*) "Vertex indices in verticesOnEdge are wrong in discrete_skewgrad_nnat. Exit."
-           stop
-        end if
-  end do
-
-end subroutine discrete_skewgrad_nnat
-
-
-subroutine discrete_skewgrad_nnat2(nEdges, nVertices, nCells, nVertLevels, &
+subroutine discrete_skewgrad_nnat(nEdges, nVertices, nCells, nVertLevels, &
      scalar_vertex, scalar_cell, verticesOnEdge, cellsOnEdge, dvEdge, &
      skewgrad_n)
   
@@ -1009,7 +969,7 @@ subroutine discrete_skewgrad_nnat2(nEdges, nVertices, nCells, nVertLevels, &
      end do
   end do
 
-end subroutine discrete_skewgrad_nnat2
+end subroutine discrete_skewgrad_nnat
 
 
 !
