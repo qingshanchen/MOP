@@ -366,8 +366,8 @@ class state_data:
             # A wind-driven gyre at mid-latitude in the northern hemisphere
             tau0 = 1.e-4
             
-            latmin = xp.min(g.latCell[:]); latmax = xp.max(g.latCell[:])
-            lonmin = xp.min(g.lonCell[:]); lonmax = xp.max(g.lonCell[:])
+            latmin = xp.min(g.latCell[:,0]); latmax = xp.max(g.latCell[:,0])
+            lonmin = xp.min(g.lonCell[:,0]); lonmax = xp.max(g.lonCell[:,0])
 
             latmid = 0.5*(latmin+latmax)
             latwidth = latmax - latmin
@@ -377,20 +377,35 @@ class state_data:
 
             r = c.sphere_radius
 
-            self.vorticity[:] = 0.
-            self.divergence[:] = 0.
-            self.thickness[:] = 4000.
+            self.vorticity[:,:] = 0.
+            self.divergence[:,:] = 0.
 
-            self.psi_cell[:] = 0.0
-            self.psi_vertex[:] = 0.0
+            if c.nLayers == 1:
+                self.thickness[:,:] = 4000.
+            elif c.nLayers == 2:
+                self.thickness[:,0] = 1000.
+                self.thickness[:,1] = 3000.
+            else:
+                raise ValueError('This test only takes nLayers = 1 or 2.')
+
+            self.psi_cell[:,:] = 0.0
+            self.psi_vertex[:,:] = 0.0
             
             # Initialize wind
             self.curlWind_cell[:] = -tau0 * np.pi/(latwidth*r) * \
-                                    xp.sin(np.pi*(g.latCell[:]-latmin) / latwidth)
+                                    xp.sin(np.pi*(g.latCell[:,0]-latmin) / latwidth)
             self.divWind_cell[:] = 0.
-            
-            self.SS0 = xp.sum((self.thickness + g.bottomTopographyCell) * g.areaCell) / xp.sum(g.areaCell)
 
+
+            self.SS0[:] = xp.sum(self.thickness * g.areaCell, axis=0) / xp.sum(g.areaCell, axis=0)
+            topo_avg = xp.sum(g.bottomTopographyCell * g.areaCell, axis=0).item()/xp.sum(g.areaCell, axis=0).item()
+            for layer in range(c.nLayers):
+                self.SS0[layer] = xp.sum(self.SS0[layer:]) + topo_avg
+
+            print('Sea/layer sufrace average height:')
+            print(self.SS0)
+
+            
         elif c.test_case == 22:
             # One gyre with no forcing, for a bounded domain over NA
             d = xp.sqrt(32*(g.latCell[:,:] - latmid)**2/latwidth**2 + 4*(g.lonCell[:,:]-(-1.1))**2/.3**2)
@@ -597,6 +612,9 @@ class state_data:
                     (pv_phi_diff_edge[:-1,:] + pv_phi_diff_edge[1:,:])
 
         self.tend_divergence[:] -= vc.discrete_laplace_v(self.geoPot)
+
+        self.tend_divergence[:,0] += self.divWind_cell / self.thickness[:,0] 
+        self.tend_divergence[:,-1] -= c.bottomDrag * self.divergence[:,-1] 
         self.tend_divergence[:] += c.delVisc * vc.discrete_laplace_v(self.divergence)
         
     def compute_diagnostics(self, poisson, g, vc, c):

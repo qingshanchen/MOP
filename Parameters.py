@@ -1,7 +1,7 @@
 import numpy as np
 
 ### Parameters essential
-test_case = 22
+test_case = 21
 use_gpu = False
 performing_test = False
 
@@ -11,13 +11,13 @@ else:
     import numpy as xp
 vector_order = 'F'
     
-#nLayers = 1
-#rho_vec = xp.array([1000.]) # index 0 = top layer
-#rho0 = 1000.
-
-nLayers = 2
-rho_vec = xp.array([1000.,1010.]) # index 0 = top layer
+nLayers = 1
+rho_vec = xp.array([1000.]) # index 0 = top layer
 rho0 = 1000.
+
+#nLayers = 2
+#rho_vec = xp.array([1000.,1010.]) # index 0 = top layer
+#rho0 = 1000.
 
 do_restart = False
 restart_file = 'output-tc5-2layer-40962-day9-16.nc'
@@ -33,12 +33,12 @@ conserve_enstrophy = True     # False for energy-conserving only; True for both 
 # Duration, time stepping size, saving interval
 #dt = 45.   #1440 for 480km
 dt = 90.   #360 for NA818
-nYears = 360./360
+nYears = 5*360./360
 save_inter_days = 36.
 
 # Model configuraitons, boundary conditions
 delVisc = 0.  # 80 for NA818
-bottomDrag =  0. #5.e-8
+bottomDrag =  5.e-8
 GM_kappa = 0.
 kappa = 0. #2.e12
 no_flux_BC = True  # Should always be on
