@@ -437,11 +437,11 @@ class state_data:
             self.divWind_cell[:] = 0.
 
             # Eliminate bottom drag
-            #c.bottomDrag = 0.
+            c.bottomDrag = 0.
 
             # Eliminate lateral diffusion
-            #c.delVisc = 0.
-            #c.del2Visc = 0.
+            c.delVisc = 0.
+            c.del2Visc = 0.
             
             self.SS0[:] = xp.sum(self.thickness * g.areaCell, axis=0) / xp.sum(g.areaCell, axis=0)
             topo_avg = xp.sum(g.bottomTopographyCell * g.areaCell, axis=0).item()/xp.sum(g.areaCell, axis=0).item()
@@ -596,8 +596,9 @@ class state_data:
         # strictly retain the symmetry of the Poisson bracket. However, phi_vertex satisfies the homogeneous Neumann
         # BC's. In this case, the requirement for symmetry may be slightly relaxed, and the above skewgrad_nn be used
         # instead, which is simpler.
-        self.vEdge[:] = cmp.discrete_skewgrad_nnat(self.phi_vertex, self.phi_cell, g.verticesOnEdge, g.cellsOnEdge, \
-                                                   g.dvEdge)
+#        self.vEdge[:] = cmp.discrete_skewgrad_nnat(self.phi_vertex, self.phi_cell, g.verticesOnEdge, g.cellsOnEdge, \
+#                                                   g.dvEdge)
+        self.vEdge[:,:] = vc.discrete_skewgrad_nnat(self.phi_cell[:,:])
         self.vEdge *= self.pv_edge
         self.tend_divergence[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
 

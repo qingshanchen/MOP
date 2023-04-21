@@ -223,6 +223,18 @@ class VectorCalculus:
         
 
         #
+        # Skew gradient normal w. natural
+        #
+        ## Construct the matrix representing the discrete skew grad operator 
+        ## along the normal direction. Natural BC's assumed.
+        nEntries, rows, cols, valEntries = \
+            cmp.construct_matrix_discrete_skewgrad_nnat(g.verticesOnEdge, g.cellsOnVertex, g.cellsOnEdge, g.kiteAreasOnVertex, areaTriangle_cpu, g.dvEdge)
+        A = coo_matrix((xp.asarray(valEntries[:nEntries]),  (xp.asarray(rows[:nEntries]), \
+                                    xp.asarray(cols[:nEntries]))), shape=(g.nEdges, g.nCells))
+        self.mSkewgrad_nnat = A.tocsr( )
+        
+
+        #
         # Map from cell to vertex
         #
         ## Construct the matrix representing the mapping from the primary mesh onto the dual
@@ -384,6 +396,15 @@ class VectorCalculus:
         '''
         return -self.mGrad_tn.dot(sVertex)
 
+
+    # The discrete skew gradient operator along the normal direction, assuming
+    # homogeneous Neumann BC's
+    def discrete_skewgrad_nnat(self, sCell):
+        '''With natural BC's.
+        '''
+        
+        return self.mSkewgrad_nnat.dot(sCell)
+    
     
     # The discrete skew gradient operator along the tangential direction
     def discrete_skewgrad_t(self, sCell):

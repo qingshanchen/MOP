@@ -831,6 +831,89 @@ subroutine construct_matrix_discrete_skewgrad_nd(nEdges, &
 end subroutine construct_matrix_discrete_skewgrad_nd
 
 
+! Construct the discrete skew gradient operator along the normal direction with natural BC's.
+! Input data: scalar on cells.
+! Output data: vector along the normal direction.
+subroutine construct_matrix_discrete_skewgrad_nnat(nEdges, nVertices, vertexDegree,  &
+     verticesOnEdge, cellsOnVertex, cellsOnEdge, kiteAreasOnVertex, areaTriangle, dvEdge, &
+     nEntries, rows, cols, valEntries)
+  integer, intent(in) :: nEdges, nVertices, vertexDegree
+  integer, intent(in) :: verticesOnEdge(0:nEdges-1, 0:1), cellsOnVertex(0:nVertices-1, 0:vertexDegree-1), cellsOnEdge(0:nEdges-1,0:1)
+  double precision, intent(in)  :: dvEdge(0:nEdges-1), kiteAreasOnVertex(0:nVertices-1, 0:vertexDegree-1), &
+                                   areaTriangle(0:nVertices-1)
+  double precision, intent(out) :: valEntries(0:2*vertexDegree*nEdges-1)
+  integer, intent(out) :: nEntries, rows(0:2*vertexDegree*nEdges-1), cols(0:2*vertexDegree*nEdges-1)
+
+  integer :: iEdge, vertex0, vertex1, iEntry, i
+
+  iEntry = 0
+  do iEdge = 0, nEdges-1
+        vertex0 = verticesOnEdge(iEdge,0) - 1
+        vertex1 = verticesOnEdge(iEdge,1) - 1
+
+        if (vertex0 .GE. 0 .and. vertex1 .GE. 0) then
+           do i = 0, vertexDegree - 1
+              rows(iEntry) = iEdge
+              cols(iEntry) = cellsOnVertex(vertex0, i) -1
+              valEntries(iEntry) = kiteAreasOnVertex(vertex0, i)/areaTriangle(vertex0)/dvEdge(iEdge)
+              iEntry = iEntry + 1
+           end do
+
+           do i = 0, vertexDegree - 1
+              rows(iEntry) = iEdge
+              cols(iEntry) = cellsOnVertex(vertex1,i) - 1
+              valEntries(iEntry) = -kiteAreasOnVertex(vertex1,i)/areaTriangle(vertex1)/dvEdge(iEdge)
+              iEntry = iEntry + 1
+           end do
+           
+        else if (vertex0 .GE. 0 .and. vertex1 < 0) then
+           do i = 0, vertexDegree - 1
+              rows(iEntry) = iEdge
+              cols(iEntry) = cellsOnVertex(vertex0, i) -1
+              valEntries(iEntry) = kiteAreasOnVertex(vertex0, i)/areaTriangle(vertex0)/dvEdge(iEdge)
+              iEntry = iEntry + 1
+           end do
+
+           rows(iEntry) = iEdge
+           cols(iEntry) = cellsOnEdge(iEdge,0) - 1
+           valEntries(iEntry) = -0.5/dvEdge(iEdge)
+           iEntry = iEntry + 1
+
+           rows(iEntry) = iEdge
+           cols(iEntry) = cellsOnEdge(iEdge,1) - 1
+           valEntries(iEntry) = -0.5/dvEdge(iEdge)
+           iEntry = iEntry + 1
+
+           
+        else if (vertex1 .GE. 0 .and. vertex0 < 0) then
+           rows(iEntry) = iEdge
+           cols(iEntry) = cellsOnEdge(iEdge,0) - 1
+           valEntries(iEntry) = 0.5/dvEdge(iEdge)
+           iEntry = iEntry + 1
+
+           rows(iEntry) = iEdge
+           cols(iEntry) = cellsOnEdge(iEdge,1) - 1
+           valEntries(iEntry) = 0.5/dvEdge(iEdge)
+           iEntry = iEntry + 1
+
+           do i = 0, vertexDegree - 1
+              rows(iEntry) = iEdge
+              cols(iEntry) = cellsOnVertex(vertex1,i) - 1
+              valEntries(iEntry) = -kiteAreasOnVertex(vertex1,i)/areaTriangle(vertex1)/dvEdge(iEdge)
+              iEntry = iEntry + 1
+           end do
+           
+         else
+           write(*,*) "Vertex indices in verticesOnEdge are wrong in construct_matrix_discrete_skewgrad_nnat. Exit."
+           stop
+        end if
+   end do
+
+   nEntries = iEntry
+
+end subroutine construct_matrix_discrete_skewgrad_nnat
+
+
 ! Construct the discrete skew gradient operator on the primal mesh;
 ! the resulting vector is along the tangential direction.
 subroutine construct_matrix_discrete_skewgrad_t(nEdges, &
