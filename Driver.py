@@ -66,6 +66,7 @@ def main( ):
     pv_max = np.zeros( (c.nTimeSteps+1,c.nLayers) )
     pv_min = np.zeros( (c.nTimeSteps+1,c.nLayers) )
     avg_divergence = np.zeros( (c.nTimeSteps+1,c.nLayers) )
+    timeNow = np.zeros(c.nTimeSteps+1)
 
     print("========== Computing some initial statistics =====================")
     if c.use_gpu:
@@ -79,6 +80,7 @@ def main( ):
         total_vorticity[0,:] = xp.sum(s.pv_cell * s.thickness * g.areaCell, axis=0).get()
 #        pv_max[0,:] = xp.max(s.pv_cell, axis=0).get()
 #        pv_min[0,:] = xp.min(s.pv_cell, axis=0).get()
+        timeNow[0] = s.time
     else:
         kinetic_energy[0] = s.kinetic_energy
         pot_energy[0] = s.pot_energy
@@ -90,6 +92,7 @@ def main( ):
         total_vorticity[0,:] = xp.sum(s.pv_cell * s.thickness * g.areaCell, axis=0)
 #        pv_max[0,:] = xp.max(s.pv_cell, axis=0)
 #        pv_min[0,:] = xp.min(s.pv_cell, axis=0)
+        timeNow[0] = s.time
 
     print(("Running test case \#%d" % c.test_case))
     print("Mass for each layer: ", mass[0,:])
@@ -154,6 +157,7 @@ def main( ):
 #            pv_max[iStep+1,:] = xp.max(s.pv_cell, axis=0)
 #            pv_min[iStep+1,:] = xp.min(s.pv_cell, axis=0)
 
+        timeNow[iStep+1] = s.time
 
         print("Mass for each layer: ", mass[iStep+1,:])
         print("Total vorticity for each layer: ", total_vorticity[iStep+1,:])
@@ -175,7 +179,7 @@ def main( ):
         s_pre = s
         s = s_tmp
 
-    days = c.dt * np.arange(c.nTimeSteps+1) / 86400.
+    days = timeNow[:] / 86400.
     t1 = time.process_time( )
     t1a = time.time( )
 
@@ -195,11 +199,13 @@ def main( ):
         plt.figure(6)
         plt.plot(days, kinetic_energy, '--', label="Kinetic energy")
         plt.plot(days, pot_energy, '-.', label="Potential energy")
-        #plt.plot(days, total_energy, '-', label="Total energy")
+        plt.plot(days, art_energy, '-.', label="Art. pot. energy")
+        plt.plot(days, total_energy, 'r-', label="K. + pot. energy")
+        plt.plot(days, total_energy2, 'k-', label="K. + pot.+ art. pot. energy")
         plt.xlabel('Time (days)')
         plt.ylabel('Energy')
         #plt.ylim(8.0e20,8.15e20)
-        plt.legend(loc=1)
+        plt.legend(loc=0)
         plt.savefig('energys.png', format='PNG')
 
         plt.figure(1)
