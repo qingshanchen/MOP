@@ -468,6 +468,8 @@ class state_data:
         self.divergence[:,:] = xp.asarray(rdata.variables['divergence'][start_ind,:,:])
         self.psi_cell[:,:] = xp.asarray(rdata.variables['psi_cell'][start_ind,:,:])
         self.phi_cell[:,:] = xp.asarray(rdata.variables['phi_cell'][start_ind,:,:])
+        self.curlWind_cell[:] = xp.asarray(rdata.variables['curlWind_cell'][:])
+        ## divWind_cell should also be saved and read. It is not, since currently it is set to zero.
         self.time = rdata.variables['xtime'][start_ind]
 
         g.bottomTopographyCell[:,0] = xp.asarray(rdata.variables['bottomTopographyCell'][:])
@@ -514,6 +516,14 @@ class state_data:
         out.createVariable('curlWind_cell', 'f8', ('nCells',))
         out.createVariable('bottomTopographyCell', 'f8', ('nCells',))
 
+        # Save some timeless data
+        if c.use_gpu:
+            out.variables['curlWind_cell'][:] = self.curlWind_cell.get()
+            out.variables['bottomTopographyCell'][:] = g.bottomTopographyCell.get()
+        else:
+            out.variables['curlWind_cell'][:] = self.curlWind_cell[:]
+            out.variables['bottomTopographyCell'][:] = g.bottomTopographyCell[:]
+        
         # Record parameters used for this simulation
         out.test_case = "%d" % (c.test_case)
         out.conserve_enstrophy = "%s" % (c.conserve_enstrophy)
@@ -591,6 +601,7 @@ class state_data:
 
 #        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_nd(self.phi_vertex)
 #        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_nn(self.phi_vertex)  # phi satisfies homog. Neumann
+
         # The following lines implement the natural BC's for skewgrad; natural BC's are needed to
         # strictly retain the symmetry of the Poisson bracket. However, phi_vertex satisfies the homogeneous Neumann
         # BC's. In this case, the requirement for symmetry may be slightly relaxed, and the above skewgrad_nn be used
@@ -876,13 +887,14 @@ class state_data:
             out.variables['kenergy'][k,:,:] = self.kenergy
 
             
-        if k==0:
-            if c.use_gpu:
-                out.variables['curlWind_cell'][:] = self.curlWind_cell.get()
-                out.variables['bottomTopographyCell'][:] = g.bottomTopographyCell.get()
-            else:
-                out.variables['curlWind_cell'][:] = self.curlWind_cell[:]
-                out.variables['bottomTopographyCell'][:] = g.bottomTopographyCell[:]
+#        if k==0:
+#            if c.use_gpu:
+#                out.variables['curlWind_cell'][:] = self.curlWind_cell.get()
+#                out.variables['bottomTopographyCell'][:] = g.bottomTopographyCell.get()
+#                print("curlWind_cell saved!")
+#            else:
+#                out.variables['curlWind_cell'][:] = self.curlWind_cell[:]
+#                out.variables['bottomTopographyCell'][:] = g.bottomTopographyCell[:]
                 
         out.close( )
 
