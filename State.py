@@ -591,13 +591,14 @@ class state_data:
 
 #        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_nd(self.phi_vertex)
 #        self.vEdge[:] = self.pv_edge * vc.discrete_skewgrad_nn(self.phi_vertex)  # phi satisfies homog. Neumann
-
         # The following lines implement the natural BC's for skewgrad; natural BC's are needed to
         # strictly retain the symmetry of the Poisson bracket. However, phi_vertex satisfies the homogeneous Neumann
         # BC's. In this case, the requirement for symmetry may be slightly relaxed, and the above skewgrad_nn be used
         # instead, which is simpler.
+        ## Fortran implementation: taking phi_vertex and phi_cell as inputs
 #        self.vEdge[:] = cmp.discrete_skewgrad_nnat(self.phi_vertex, self.phi_cell, g.verticesOnEdge, g.cellsOnEdge, \
 #                                                   g.dvEdge)
+        ## Matrix version: taking phi_cell as an input
         self.vEdge[:,:] = vc.discrete_skewgrad_nnat(self.phi_cell[:,:])
         self.vEdge *= self.pv_edge
         self.tend_divergence[:] -= 0.5 * vc.discrete_div_v(self.vEdge)
