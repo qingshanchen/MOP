@@ -467,7 +467,7 @@ class state_data:
             elif c.nLayers == 2:
                 self.thickness[:,0] = 1000.
                 self.thickness[:,1] = 3000.
-                self.psi_cell[:,0] = xp.exp(-d**2) * 0.5*(1-xp.tanh(20*(d-1.5)))
+                self.psi_cell[:,0] = 10*xp.exp(-d**2) * 0.5*(1-xp.tanh(20*(d-1.5)))
                 self.psi_cell[:,0] *= c.gravity / f0 * self.thickness[:,0]
 #               self.psi_cell[:] -= np.sum(self.psi_cell * g.areaCell) / np.sum(g.areaCell)
 
@@ -603,7 +603,7 @@ class state_data:
         # Tendency for thicknetss
         self.vCell[:,:] = self.phi_cell[:,:] - 0.5 * c.GM_kappa * self.thickness[:,:]**2
         self.tend_thickness[:] = -vc.discrete_laplace_v(self.vCell)
-        self.tend_thickness[:] += c.delVisc * vc.discrete_laplace_v(self.thickness)
+#        self.tend_thickness[:] += c.delVisc * vc.discrete_laplace_v(self.thickness)
 
         # Tendency for vorticity
         if c.conserve_enstrophy:

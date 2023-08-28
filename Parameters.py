@@ -20,7 +20,7 @@ rho_vec = xp.array([1000.,1010.]) # index 0 = top layer
 rho0 = 1000.
 
 do_restart = True
-restart_file = 'output-day0_10.nc'
+restart_file = 'output-tc21-2layers-818-day2610_3070.nc'
 save_restart_init = False
 
 ### Parameters secondary
@@ -31,16 +31,16 @@ timestepping = 'RK4'
 conserve_enstrophy = True     # False for energy-conserving only; True for both energy and enstrophy conserving 
 
 # Duration, time stepping size, saving interval
-#dt = 45.   #1440 for 480km
-dt = 90.   #360 for NA818
-nYears = 10./360
+#dt = 360.   #1440 for 480km
+dt = 30.   #360 for NA818
+nYears = (10*360.-2600)/360
 save_inter_days = 10.
 
 # Model configuraitons, boundary conditions
 delVisc = 0.  # 80 for NA818
 bottomDrag =  5.e-8
 GM_kappa = 0.
-kappa = 1.e10 #2.e12
+kappa = 1.e11 #2.e12
 no_flux_BC = True  # Should always be on
 no_slip_BC = False
 free_slip_BC = False
