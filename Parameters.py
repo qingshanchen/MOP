@@ -1,7 +1,7 @@
 import numpy as np
 
 ### Parameters essential
-test_case = 21
+test_case = 5
 use_gpu = False
 performing_test = False
 
@@ -19,7 +19,7 @@ nLayers = 2
 rho_vec = xp.array([1000.,1010.]) # index 0 = top layer
 rho0 = 1000.
 
-do_restart = True
+do_restart = False
 restart_file = 'output-tc21-2layers-818-day2610_3070.nc'
 save_restart_init = False
 
@@ -31,16 +31,17 @@ timestepping = 'RK4'
 conserve_enstrophy = True     # False for energy-conserving only; True for both energy and enstrophy conserving 
 
 # Duration, time stepping size, saving interval
-#dt = 360.   #1440 for 480km
-dt = 30.   #360 for NA818
-nYears = (10*360.-2600)/360
+dt = 180.   #1440 for 480km
+#dt = 30.   #360 for NA818
+nYears = 50./360
 save_inter_days = 10.
 
 # Model configuraitons, boundary conditions
 delVisc = 0.  # 80 for NA818
-bottomDrag =  5.e-8
+bottomDrag =  0.
 GM_kappa = 0.
 kappa = 1.e11 #2.e12
+mu = 1.e-4
 no_flux_BC = True  # Should always be on
 no_slip_BC = False
 free_slip_BC = False

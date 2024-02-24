@@ -26,6 +26,7 @@ class state_data:
         self.circulation = xp.zeros(g.nCells)
         self.flux = xp.zeros(g.nCells)
         self.vortdiv = xp.zeros(2*g.nCells)
+        self.zSurface = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
 
         self.psi_cell = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
         self.psi_vertex = xp.zeros( (g.nVertices,c.nLayers), order=c.vector_order )
@@ -782,37 +783,33 @@ class state_data:
 #        self.geoPot += self.kenergy
 
 
-        ## Interactive layers (Implementation #3, Boussinesq, average depth subtracted)
-        self.geoPot[:,0]  = c.rho_vec[0] * (xp.sum(self.thickness, axis=1) + g.bottomTopographyCell[:,0] - self.SS0[0])
-        for k in range(1,c.nLayers):
-            self.geoPot[:,k] = self.geoPot[:,k-1] + (c.rho_vec[k]-c.rho_vec[k-1]) *  \
-                (xp.sum(self.thickness[:,k:], axis = 1) + g.bottomTopographyCell[:,0] - self.SS0[k])
-        self.geoPot *= c.gravity / c.rho0
-        self.geoPot -= c.kappa*vc.discrete_laplace_v(self.geoPot)     # Artifical PE
-        self.geoPot += self.kenergy
-        ## Potential energy (power function) due to layer thinning; sigma = 2e7
-        #self.geoPot -= c.power*c.sigma/c.min_thickness*(c.min_thickness / self.thickness[:,:])**(c.power+1)
-        #self.art_energy = c.sigma*xp.sum(xp.sum(c.min_thickness/self.thickness[:,:]*g.areaCell[:,:]))
-        ## Potential energy (exponential function) due to layer thinning; sigma = 2e6, min_thickness = 100.
-        #self.geoPot -= c.sigma/c.min_thickness * np.exp(-self.thickness[:,:]/c.min_thickness)
-        #self.art_energy = c.sigma*xp.sum(xp.sum(xp.exp(-self.thickness[:,:]/c.min_thickness)*g.areaCell[:,:]))
-        ## Potential energy (Gaussian) due to layer thinning; sigma = 2e10
-        #self.geoPot -= 2*c.sigma/c.min_thickness**2 * self.thickness[:,:]*np.exp(-(self.thickness[:,:]/c.min_thickness)**2)
-        #self.art_energy = c.sigma*xp.sum(xp.sum(xp.exp(-(self.thickness[:,:]/c.min_thickness)**2)*g.areaCell[:,:]))
-        ## Potential energy (powered Gaussian) due to layer thinning; sigma = 2e112
-        #self.geoPot -= 2*c.power*c.sigma*self.thickness[:,:]**(2*c.power-1)/c.min_thickness**(2*c.power) * np.exp(-(self.thickness[:,:]/c.min_thickness)**(2*c.power))
-        #self.art_energy = c.sigma*xp.sum(xp.sum(xp.exp(-(self.thickness[:,:]/c.min_thickness)**(2*c.power))*g.areaCell[:,:]))
-
-        ## Interactive layers (Implementation #3, Boussinesq, average depth subtracted)
-        ## with artificial potential energy
-#        self.geoPot[:,0]  = c.rho_vec[0] * (xp.sum(self.thickness, axis=1) + g.bottomTopographyCell[:,0] \
-#                                            - self.SS0[0]) - c.power*c.sigma/c.min_thickness*(c.min_thickness/self.thickness[:,0])**(c.power+1)
+        ## Interactive layers (Implementation #3, Boussinesq, average depth subtracted, arti. pot. energy due to surface deformation)
+#        self.geoPot[:,0]  = c.rho_vec[0] * (xp.sum(self.thickness, axis=1) + g.bottomTopographyCell[:,0] - self.SS0[0])
 #        for k in range(1,c.nLayers):
 #            self.geoPot[:,k] = self.geoPot[:,k-1] + (c.rho_vec[k]-c.rho_vec[k-1]) *  \
-#                (xp.sum(self.thickness[:,k:], axis = 1) + g.bottomTopographyCell[:,0] - self.SS0[k]) \
-#                 - c.power*c.sigma/c.min_thickness*(c.min_thickness/self.thickness[:,k])**(c.power+1)
+#                (xp.sum(self.thickness[:,k:], axis = 1) + g.bottomTopographyCell[:,0] - self.SS0[k])
 #        self.geoPot *= c.gravity / c.rho0
+#        self.geoPot -= c.kappa*vc.discrete_laplace_v(self.geoPot)     # Artifical PE
 #        self.geoPot += self.kenergy
+
+        ## Interactive layers (Implementation #3, Boussinesq, average depth subtracted, arti. pot. energy due to surface deformation)
+        self.zSurface[:, c.nLayers - 1] = self.thickness[:, c.nLayers - 1] + g.bottomTopographyCell[:,0] 
+        for k in range(1, c.nLayers):
+            l = c.nLayers - 1 -k
+            self.zSurface[:, l] = self.zSurface[:, l+1] + self.thickness[:, l]
+        self.zSurface[:,:] -= self.SS0[:]
+
+        self.geoPot[:,0]  = c.rho_vec[0] * self.zSurface[:,0]
+        self.geoPot[:,0] += c.mu* c.rho_vec[0] * self.zSurface[:,0]**3 # Artificial pot energy 1
+        self.geoPot[:,0] -= c.kappa* c.rho_vec[0] * vc.discrete_laplace_v(self.zSurface[:,0]) # Artificial pot energy 2
+        
+        for k in range(1,c.nLayers):
+            self.geoPot[:,k] = self.geoPot[:,k-1] + (c.rho_vec[k]-c.rho_vec[k-1]) * self.zSurface[:,k]
+            self.geoPot[:,k] += c.mu * (c.rho_vec[k]-c.rho_vec[k-1]) * self.zSurface[:,k]**3  # Artificial pot energy 1
+            self.geoPot[:,k] -= c.kappa * (c.rho_vec[k]-c.rho_vec[k-1]) * vc.discrete_laplace_v(self.zSurface[:,k]) # Artificial pot energy 2
+        self.geoPot *= c.gravity / c.rho0
+        self.geoPot += self.kenergy
+        
         
         ## Interactive layers (Implementation #4, Non-Boussinesq)
 #        self.geoPot[:,0]  = c.rho_vec[0] * (xp.sum(self.thickness, axis=1) + g.bottomTopographyCell[:,0])
