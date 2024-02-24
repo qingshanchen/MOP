@@ -586,6 +586,7 @@ class state_data:
         out.delVisc = "%e" % (c.delVisc)
         out.bottomDrag = "%e" % (c.bottomDrag)
         out.kappa = "%e" % (c.kappa)
+        out.mu = "%e" % (c.mu)
         if c.on_a_sphere:
             out.on_a_sphere = "YES"
         else:
