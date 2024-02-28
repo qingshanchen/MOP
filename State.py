@@ -49,7 +49,8 @@ class state_data:
         self.SS0 = xp.zeros(c.nLayers)     # Sea Surface at rest
         self.kinetic_energy = 0. #xp.zeros(c.nLayers)
         self.pot_energy = 0. #xp.zeros(c.nLayers)
-        self.art_energy = 0. 
+        self.art2_energy = 0.
+        self.art1_energy = 0.
         self.pot_enstrophy = 0. #xp.zeros(c.nLayers)
         
         self.tend_thickness = xp.zeros( (g.nCells,c.nLayers), order=c.vector_order )
@@ -831,14 +832,17 @@ class state_data:
         self.vCell[:, 0] = xp.sum(self.thickness[:,0:], axis=1) + g.bottomTopographyCell[:,0] - self.SS0[0]
         self.vEdge[:,0] = vc.discrete_grad_n(self.vCell[:,0])
         self.pot_energy = 0.5 * c.gravity * c.rho_vec[0]/c.rho0 * xp.sum(self.vCell[:,0]**2 * g.areaCell[:,0]).item( )
-        self.art_energy = c.gravity * c.rho_vec[0]/c.rho0 * xp.sum(self.vEdge[:,0]**2 * g.areaEdge[:,0]).item( ) 
+        self.art1_energy = c.gravity * c.rho_vec[0]/c.rho0 * xp.sum(self.vCell[:,0]**4 * g.areaCell[:,0]).item( )
+        self.art2_energy = c.gravity * c.rho_vec[0]/c.rho0 * xp.sum(self.vEdge[:,0]**2 * g.areaEdge[:,0]).item( ) 
         for iLayer in range(1,c.nLayers):
             self.vCell[:,0] = xp.sum(self.thickness[:,iLayer:], axis=1) + g.bottomTopographyCell[:,0] - self.SS0[iLayer]
             self.vEdge[:,0] = vc.discrete_grad_n(self.vCell[:,0])
             d_rho = c.rho_vec[iLayer] - c.rho_vec[iLayer-1]
             self.pot_energy += 0.5 * c.gravity * d_rho /c.rho0 * xp.sum(self.vCell[:,0]**2 * g.areaCell[:,0]).item( )
-            self.art_energy += c.gravity * d_rho /c.rho0 * xp.sum(self.vEdge[:,0]**2 * g.areaEdge[:,0]).item( )
-        self.art_energy *= c.kappa
+            self.art1_energy += c.gravity * d_rho /c.rho0 * xp.sum(self.vCell[:,0]**4 * g.areaCell[:,0]).item( )
+            self.art2_energy += c.gravity * d_rho /c.rho0 * xp.sum(self.vEdge[:,0]**2 * g.areaEdge[:,0]).item( )
+        self.art1_energy *= c.mu
+        self.art2_energy *= c.kappa
 
         # Compute the artificial potential energy
 #        self.pot_energy = 0.5 * c.kappa * c.gravity * c.rho_vec[0]/c.rho0 * xp.sum(vc.discrete_grad_n(xp.sum(self.thickness[:,0:], axis=1) + \
