@@ -100,7 +100,9 @@ def main( ):
     print(("Running test case \#%d" % c.test_case))
     print("Mass for each layer: ", mass[0,:])
     print("Total vorticity for each layer: ", total_vorticity[0,:])
-    print(("K-energy, p-energy, t-energy, p-enstrophy, mass: %.15e, %.15e, %.15e, %.15e" % (kinetic_energy[0], pot_energy[0], total_energy[0], pot_enstrophy[0])))
+#    print(("K-energy, p-energy, t-energy, p-enstrophy, mass: %.15e, %.15e, %.15e, %.15e" % (kinetic_energy[0], pot_energy[0], total_energy[0], pot_enstrophy[0])))
+    print(("k-energy, p-energy, a1-energy, a2-energy, t-energy, t2_energy, p-enstrophy: %.15e, %.15e, %.15e, %.15e, %.15e, %.15e, %.15e" % \
+           (kinetic_energy[0], pot_energy[0], art1_energy[0], art2_energy[0], total_energy[0], total_energy2[0], pot_enstrophy[0])))
 
     if c.test_case == 2 or c.test_case == 12:
         error1 = xp.zeros((c.nTimeSteps+1, 3, c.nLayers)); error1[0,:,:] = 0.
@@ -140,8 +142,8 @@ def main( ):
         if c.use_gpu:
             kinetic_energy[iStep+1] = s.kinetic_energy.get()
             pot_energy[iStep+1] = s.pot_energy.get()
-            art_energy1[iStep+1] = s.art_energy1.get()
-            art_energy2[iStep+1] = s.art_energy2.get()
+            art1_energy[iStep+1] = s.art1_energy.get()
+            art2_energy[iStep+1] = s.art2_energy.get()
             total_energy[iStep+1] = kinetic_energy[iStep+1] + pot_energy[iStep+1]
             total_energy2[iStep+1] = total_energy[iStep+1] + art1_energy[iStep+1] + art2_energy[iStep+1]
             mass[iStep+1,:] = xp.sum(s.thickness * g.areaCell, axis=0).get()
@@ -204,7 +206,8 @@ def main( ):
         plt.figure(6)
         plt.plot(days, kinetic_energy, '--', label="Kinetic energy")
         plt.plot(days, pot_energy, '-.', label="Potential energy")
-        plt.plot(days, art_energy, '-.', label="Art. pot. energy")
+        plt.plot(days, art1_energy, '-.', label="Art. PE (polynm)")
+        plt.plot(days, art2_energy, '-.', label="Art. PE (Grad)")
         plt.plot(days, total_energy, 'r-', label="K. + pot. energy")
         plt.plot(days, total_energy2, 'k-', label="K. + pot.+ art. pot. energy")
         plt.xlabel('Time (days)')

@@ -724,86 +724,17 @@ class state_data:
         self.compute_kenergy_edge(vc, g, c)
         self.kenergy[:] = vc.edge2cell(self.kenergy_edge)
 
-        # Compute the Montgomery potential. Only one of the following should
-        # be active.
-        ## Completely decoupled non-interactive layers
-#        self.geoPot = c.rho_vec * (g.bottomTopographyCell + self.thickness)
-#        self.geoPot *= c.gravity / c.rho_vec
-#        self.geoPot += self.kenergy
-
-        ## Completely decoupled non-interactive layers; but second layer is forced
-#        self.geoPot = c.rho_vec * (g.bottomTopographyCell + self.thickness)
-#        self.geoPot[:,1] += c.rho_vec[1] * self.l1Thickness
-#        self.geoPot *= c.gravity / c.rho0
-#        self.geoPot += self.kenergy
-
-        ## One-directional interaction; layer 2 forced by layer 1.
-#        self.geoPot = c.rho_vec * (g.bottomTopographyCell + self.thickness)
-#        self.geoPot[:,1] += c.rho_vec[0] * self.thickness[:,0]
-#        self.geoPot *= c.gravity / c.rho0
-#        self.geoPot += self.kenergy
-
-        ## One-directional interaction; layer 1 forced by layer 2
-#        self.geoPot = c.rho_vec * (g.bottomTopographyCell + self.thickness)
-#        self.geoPot[:,0] += c.rho_vec[0] * self.thickness[:,1]
-#        self.geoPot *= c.gravity / c.rho0
-#        self.geoPot += self.kenergy
-        
-        ## 2-layer with bi-directional interaction
-#        if c.nLayers != 2:
-#            raise ValueError('Only 2-layer case is considered.')
-#        else:
-#            self.geoPot = c.rho_vec * (g.bottomTopographyCell + self.thickness)
-#            self.geoPot[:,0] += c.rho_vec[0] * self.thickness[:,1]
-#            self.geoPot[:,1] += c.rho_vec[0] * self.thickness[:,0]
-#            self.geoPot *= c.gravity
-#            self.geoPot /= c.rho_vec
-#            self.geoPot += self.kenergy
-       
-        ## Interactive layers (Implementation #1, Boussinesq)
-#        self.geoPot = c.rho_vec * g.bottomTopographyCell
-#        for i in range(c.nLayers):
-#            self.geoPot[:,i] += xp.sum(c.rho_vec[:i] * self.thickness[:,:i], axis = 1)
-#            self.geoPot[:,i] += c.rho_vec[i] * xp.sum(self.thickness[:,i:], axis = 1)
-#        self.geoPot *= c.gravity / c.rho0
-#        self.geoPot += self.kenergy
-
-        ## Interactive layers (Implementation #2, Non-Boussinesq)
-#        self.geoPot = c.rho_vec * g.bottomTopographyCell
-#        for i in range(c.nLayers):
-#            self.geoPot[:,i] += xp.sum(c.rho_vec[:i] * self.thickness[:,:i], axis = 1)
-#            self.geoPot[:,i] += c.rho_vec[i] * xp.sum(self.thickness[:,i:], axis = 1)
-#        self.geoPot *= c.gravity / c.rho_vec
-#        self.geoPot += self.kenergy
-        
-        ## Interactive layers (Implementation #3, Boussinesq)
-#        self.geoPot[:,0]  = c.rho_vec[0] * (xp.sum(self.thickness, axis=1) + g.bottomTopographyCell[:,0])
-#        for k in range(1,c.nLayers):
-#            self.geoPot[:,k] = self.geoPot[:,k-1] + (c.rho_vec[k]-c.rho_vec[k-1]) *  \
-#                (xp.sum(self.thickness[:,k:], axis = 1) + g.bottomTopographyCell[:,0])
-#        self.geoPot *= c.gravity / c.rho0
-#        self.geoPot += self.kenergy
-
-
-        ## Interactive layers (Implementation #3, Boussinesq, average depth subtracted, arti. pot. energy due to surface deformation)
-#        self.geoPot[:,0]  = c.rho_vec[0] * (xp.sum(self.thickness, axis=1) + g.bottomTopographyCell[:,0] - self.SS0[0])
-#        for k in range(1,c.nLayers):
-#            self.geoPot[:,k] = self.geoPot[:,k-1] + (c.rho_vec[k]-c.rho_vec[k-1]) *  \
-#                (xp.sum(self.thickness[:,k:], axis = 1) + g.bottomTopographyCell[:,0] - self.SS0[k])
-#        self.geoPot *= c.gravity / c.rho0
-#        self.geoPot -= c.kappa*vc.discrete_laplace_v(self.geoPot)     # Artifical PE
-#        self.geoPot += self.kenergy
-
-        ## Interactive layers (Implementation #3, Boussinesq, average depth subtracted, arti. pot. energy due to surface deformation)
+        ## Compute height of each layer interface
         self.zSurface[:, c.nLayers - 1] = self.thickness[:, c.nLayers - 1] + g.bottomTopographyCell[:,0] 
         for k in range(1, c.nLayers):
             l = c.nLayers - 1 -k
             self.zSurface[:, l] = self.zSurface[:, l+1] + self.thickness[:, l]
         self.zSurface[:,:] -= self.SS0[:]
 
+        ## Interactive layers (Implementation #3, Boussinesq, average depth subtracted, arti. pot. energy due to surface deformation)
         self.geoPot[:,0]  = c.rho_vec[0] * self.zSurface[:,0]
-        self.geoPot[:,0] += c.mu* c.rho_vec[0] * self.zSurface[:,0]**3 # Artificial pot energy 1
-        self.geoPot[:,0] -= c.kappa* c.rho_vec[0] * vc.discrete_laplace_v(self.zSurface[:,0]) # Artificial pot energy 2
+        self.geoPot[:,0] += c.mu* c.rho_vec[0] * self.zSurface[:,0]**3 # due to artificial pot energy 1
+        self.geoPot[:,0] -= c.kappa* c.rho_vec[0] * vc.discrete_laplace_v(self.zSurface[:,0]) # due to artificial pot energy 2
         
         for k in range(1,c.nLayers):
             self.geoPot[:,k] = self.geoPot[:,k-1] + (c.rho_vec[k]-c.rho_vec[k-1]) * self.zSurface[:,k]
@@ -824,34 +755,21 @@ class state_data:
         # Compute kinetic energy, total energy, and potential enstrophy
         self.kinetic_energy = xp.sum(xp.sum(self.kenergy_edge * self.thickness_edge * g.areaEdge))
 
-        ## DEBUG ##
-#        if self.kinetic_energy < 0.:
-#            raise ValueError('Negative energy!!')
-
         # Compute the real and artificial potential energy
         self.vCell[:, 0] = xp.sum(self.thickness[:,0:], axis=1) + g.bottomTopographyCell[:,0] - self.SS0[0]
         self.vEdge[:,0] = vc.discrete_grad_n(self.vCell[:,0])
         self.pot_energy = 0.5 * c.gravity * c.rho_vec[0]/c.rho0 * xp.sum(self.vCell[:,0]**2 * g.areaCell[:,0]).item( )
-        self.art1_energy = c.gravity * c.rho_vec[0]/c.rho0 * xp.sum(self.vCell[:,0]**4 * g.areaCell[:,0]).item( )
-        self.art2_energy = c.gravity * c.rho_vec[0]/c.rho0 * xp.sum(self.vEdge[:,0]**2 * g.areaEdge[:,0]).item( ) 
+        self.art1_energy = c.rho_vec[0]/c.rho0 * xp.sum(self.vCell[:,0]**4 * g.areaCell[:,0]).item( )
+        self.art2_energy = c.rho_vec[0]/c.rho0 * xp.sum(self.vEdge[:,0]**2 * g.areaEdge[:,0]).item( ) 
         for iLayer in range(1,c.nLayers):
             self.vCell[:,0] = xp.sum(self.thickness[:,iLayer:], axis=1) + g.bottomTopographyCell[:,0] - self.SS0[iLayer]
             self.vEdge[:,0] = vc.discrete_grad_n(self.vCell[:,0])
             d_rho = c.rho_vec[iLayer] - c.rho_vec[iLayer-1]
             self.pot_energy += 0.5 * c.gravity * d_rho /c.rho0 * xp.sum(self.vCell[:,0]**2 * g.areaCell[:,0]).item( )
-            self.art1_energy += c.gravity * d_rho /c.rho0 * xp.sum(self.vCell[:,0]**4 * g.areaCell[:,0]).item( )
-            self.art2_energy += c.gravity * d_rho /c.rho0 * xp.sum(self.vEdge[:,0]**2 * g.areaEdge[:,0]).item( )
-        self.art1_energy *= c.mu
-        self.art2_energy *= c.kappa
-
-        # Compute the artificial potential energy
-#        self.pot_energy = 0.5 * c.kappa * c.gravity * c.rho_vec[0]/c.rho0 * xp.sum(vc.discrete_grad_n(xp.sum(self.thickness[:,0:], axis=1) + \
-#        	g.bottomTopographyCell[:,0] - self.SS0[0])**2 * g.areaCell[:,0], axis=0).item( )
-#        for iLayer in range(1,c.nLayers):
-#        	self.pot_energy += 0.5 * c.gravity * (c.rho_vec[iLayer] - c.rho_vec[iLayer-1])/c.rho0 * \
-#        		xp.sum( (xp.sum(self.thickness[:,iLayer:], axis=1) + \
-#        			g.bottomTopographyCell[:,0] - self.SS0[iLayer])**2 * g.areaCell[:,0])
-                
+            self.art1_energy += d_rho /c.rho0 * xp.sum(self.vCell[:,0]**4 * g.areaCell[:,0]).item( )
+            self.art2_energy += d_rho /c.rho0 * xp.sum(self.vEdge[:,0]**2 * g.areaEdge[:,0]).item( )
+        self.art1_energy *= 0.25 * c.gravity * c.mu 
+        self.art2_energy *= c.gravity * c.kappa   # Factor of 1/2 not needed since only 1 component of the vector is used  
 
         self.pot_enstrophy = 0.5 * xp.sum(xp.sum(g.areaCell[:] * self.thickness * self.pv_cell[:]**2))
         
