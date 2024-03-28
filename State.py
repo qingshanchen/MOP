@@ -756,21 +756,21 @@ class state_data:
         self.kinetic_energy = xp.sum(xp.sum(self.kenergy_edge * self.thickness_edge * g.areaEdge))
 
         # Compute the real and artificial potential energy
-        self.vCell[:, 0] = xp.sum(self.thickness[:,0:], axis=1) + g.bottomTopographyCell[:,0] - self.SS0[0]
-        self.vEdge[:,0] = vc.discrete_grad_n(self.vCell[:,0])
-        self.pot_energy = 0.5 * c.gravity * c.rho_vec[0]/c.rho0 * xp.sum(self.vCell[:,0]**2 * g.areaCell[:,0]).item( )
-        self.art1_energy = c.rho_vec[0]/c.rho0 * xp.sum(self.vCell[:,0]**4 * g.areaCell[:,0]).item( )
+        self.vEdge[:,0] = vc.discrete_grad_n(self.zSurface[:,0])
+        self.pot_energy = c.rho_vec[0]/c.rho0 * xp.sum(self.zSurface[:,0]**2 * g.areaCell[:,0]).item( )
+        self.art1_energy = c.rho_vec[0]/c.rho0 * xp.sum(self.zSurface[:,0]**4 * g.areaCell[:,0]).item( )
         self.art2_energy = c.rho_vec[0]/c.rho0 * xp.sum(self.vEdge[:,0]**2 * g.areaEdge[:,0]).item( ) 
         for iLayer in range(1,c.nLayers):
-            self.vCell[:,0] = xp.sum(self.thickness[:,iLayer:], axis=1) + g.bottomTopographyCell[:,0] - self.SS0[iLayer]
-            self.vEdge[:,0] = vc.discrete_grad_n(self.vCell[:,0])
+            self.vEdge[:,0] = vc.discrete_grad_n(self.zSurface[:,iLayer])
             d_rho = c.rho_vec[iLayer] - c.rho_vec[iLayer-1]
-            self.pot_energy += 0.5 * c.gravity * d_rho /c.rho0 * xp.sum(self.vCell[:,0]**2 * g.areaCell[:,0]).item( )
-            self.art1_energy += d_rho /c.rho0 * xp.sum(self.vCell[:,0]**4 * g.areaCell[:,0]).item( )
+            self.pot_energy += d_rho /c.rho0 * xp.sum(self.zSurface[:,iLayer]**2 * g.areaCell[:,0]).item( )
+            self.art1_energy += d_rho /c.rho0 * xp.sum(self.zSurface[:,iLayer]**4 * g.areaCell[:,0]).item( )
             self.art2_energy += d_rho /c.rho0 * xp.sum(self.vEdge[:,0]**2 * g.areaEdge[:,0]).item( )
+        self.pot_energy *= 0.5 * c.gravity
         self.art1_energy *= 0.25 * c.gravity * c.mu 
         self.art2_energy *= c.gravity * c.kappa   # Factor of 1/2 not needed since only 1 component of the vector is used  
 
+        # Compute potential enstrophy
         self.pot_enstrophy = 0.5 * xp.sum(xp.sum(g.areaCell[:] * self.thickness * self.pv_cell[:]**2))
         
 
