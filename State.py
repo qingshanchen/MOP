@@ -570,7 +570,7 @@ class state_data:
 
         # Save some timeless data
         out.variables['quadraticSlopeKappa'][:] = c.kappa[:]
-#        out.variables['deg4layerInterfMu'][:] = c.mu[:]
+        out.variables['deg4layerInterfMu'][:] = c.mu[:]
         if c.use_gpu:
             out.variables['curlWind_cell'][:] = self.curlWind_cell.get()
             out.variables['bottomTopographyCell'][:] = g.bottomTopographyCell.get()
@@ -591,7 +591,7 @@ class state_data:
         out.delVisc = "%e" % (c.delVisc)
         out.bottomDrag = "%e" % (c.bottomDrag)
 #        out.kappa = "%e" % (c.kappa)
-        out.mu = "%e" % (c.mu)
+#        out.mu = "%e" % (c.mu)
         if c.on_a_sphere:
             out.on_a_sphere = "YES"
         else:
@@ -737,12 +737,12 @@ class state_data:
 
         ## Interactive layers (Implementation #3, Boussinesq, average depth subtracted, arti. pot. energy due to surface deformation)
         self.geoPot[:,0]  = c.rho_vec[0] * self.zSurface[:,0]
-        self.geoPot[:,0] += c.mu* c.rho_vec[0] * self.zSurface[:,0]**3 # due to artificial pot energy 1
+        self.geoPot[:,0] += c.mu[0] * c.rho_vec[0] * self.zSurface[:,0]**3 # due to artificial pot energy 1
         self.geoPot[:,0] -= c.kappa[0]* c.rho_vec[0] * vc.discrete_laplace_v(self.zSurface[:,0]) # due to artificial pot energy 2
         
         for k in range(1,c.nLayers):
             self.geoPot[:,k] = self.geoPot[:,k-1] + (c.rho_vec[k]-c.rho_vec[k-1]) * self.zSurface[:,k]
-            self.geoPot[:,k] += c.mu * (c.rho_vec[k]-c.rho_vec[k-1]) * self.zSurface[:,k]**3  # Artificial pot energy 1
+            self.geoPot[:,k] += c.mu[k] * (c.rho_vec[k]-c.rho_vec[k-1]) * self.zSurface[:,k]**3  # Artificial pot energy 1
             self.geoPot[:,k] -= c.kappa[k] * (c.rho_vec[k]-c.rho_vec[k-1]) * vc.discrete_laplace_v(self.zSurface[:,k]) # Artificial pot energy 2
         self.geoPot *= c.gravity / c.rho0
         self.geoPot += self.kenergy
@@ -762,16 +762,16 @@ class state_data:
         # Compute the real and artificial potential energy
         self.vEdge[:,0] = vc.discrete_grad_n(self.zSurface[:,0])
         self.pot_energy = c.rho_vec[0]/c.rho0 * xp.sum(self.zSurface[:,0]**2 * g.areaCell[:,0]).item( )
-        self.art1_energy = c.rho_vec[0]/c.rho0 * xp.sum(self.zSurface[:,0]**4 * g.areaCell[:,0]).item( )
+        self.art1_energy = 0.25 * c.gravity * c.mu[0] * c.rho_vec[0]/c.rho0 * xp.sum(self.zSurface[:,0]**4 * g.areaCell[:,0]).item( )
         self.art2_energy = c.gravity * c.kappa[0] * c.rho_vec[0]/c.rho0 * xp.sum(self.vEdge[:,0]**2 * g.areaEdge[:,0]).item( ) # Factor of 1/2 not needed since only 1 component of the vector is used  
         for iLayer in range(1,c.nLayers):
             self.vEdge[:,0] = vc.discrete_grad_n(self.zSurface[:,iLayer])
             d_rho = c.rho_vec[iLayer] - c.rho_vec[iLayer-1]
             self.pot_energy += d_rho /c.rho0 * xp.sum(self.zSurface[:,iLayer]**2 * g.areaCell[:,0]).item( )
-            self.art1_energy += d_rho /c.rho0 * xp.sum(self.zSurface[:,iLayer]**4 * g.areaCell[:,0]).item( )
+            self.art1_energy += 0.25 * c.mu[iLayer] * c.gravity * d_rho /c.rho0 * xp.sum(self.zSurface[:,iLayer]**4 * g.areaCell[:,0]).item( )
             self.art2_energy += c.kappa[iLayer] * c.gravity * d_rho /c.rho0 * xp.sum(self.vEdge[:,0]**2 * g.areaEdge[:,0]).item( )
         self.pot_energy *= 0.5 * c.gravity
-        self.art1_energy *= 0.25 * c.gravity * c.mu 
+#        self.art1_energy *= 0.25 * c.gravity * c.mu 
 #        self.art2_energy *= c.gravity * c.kappa   
 
         # Compute potential enstrophy
