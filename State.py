@@ -501,6 +501,68 @@ class state_data:
             print('Sea/layer sufrace average height:')
             print(self.SS0)
 
+        elif c.test_case == 24:
+            # One gyre with no forcing on a rectangular domain 
+#            d = xp.sqrt(32*(g.latCell[:,:] - latmid)**2/latwidth**2 + 4*(g.lonCell[:,:]-(-1.1))**2/.3**2)
+            xmid = 0.5*(np.max(g.xCell[:]) + np.min(g.xCell[:]));
+            xlength = np.max(g.xCell[:]) - np.min(g.xCell[:])
+            ymid = 0.5*(np.max(g.yCell[:]) + np.min(g.yCell[:]))
+            ylength = np.max(g.yCell[:]) - np.min(g.yCell[:])
+            d = xp.sqrt(32*(g.xCell[:] - xmid)**2/xlength**2 + 32*(g.yCell[:]-ymid)**2/ylength**2)
+            beta = 2.286e-11
+            g.fCell[:,0] = beta * g.yCell[:]
+            f0 = xp.mean(g.fCell)
+
+            ### DEBUG
+            print("max of d:")
+            print(xp.max(d[:]))
+            
+            if c.nLayers == 1:
+                self.thickness[:] = 4000.
+                self.psi_cell[:,0] = 2*xp.exp(-d**2) * 0.5*(1-xp.tanh(20*(d-1.5)))
+#               self.psi_cell[:] -= np.sum(self.psi_cell * g.areaCell) / np.sum(g.areaCell)
+                self.psi_cell *= c.gravity / f0 * self.thickness
+            elif c.nLayers == 2:
+                self.thickness[:,0] = 1000.
+                self.thickness[:,1] = 3000.
+                self.psi_cell[:,:] = xp.exp(-d**2) * 0.5*(1-xp.tanh(20*(d-1.5)))
+#               self.psi_cell[:] -= np.sum(self.psi_cell * g.areaCell) / np.sum(g.areaCell)
+                self.psi_cell[:,:] *= c.gravity / f0 * self.thickness[:,:]
+
+            else:
+                raise ValueError('This test case only takes nLayers = 1 or 2.')
+                
+                
+            self.phi_cell[:,:] = 0.
+            self.vorticity[:,:] = vc.discrete_laplace_v(self.psi_cell[:,:])
+            self.vorticity[:,:] /= self.thickness[:,:]
+            self.divergence[:,:] = 0.
+
+
+            ### DEBUG
+            print("max of psi:")
+            print(xp.max(self.psi_cell[:,0]))
+            
+            # Initialize wind
+            self.curlWind_cell[:] = 0.
+            self.divWind_cell[:] = 0.
+
+            # Eliminate bottom drag
+            c.bottomDrag = 0.
+
+            # Eliminate lateral diffusion
+            c.delVisc = 0.
+            c.del2Visc = 0.
+            
+            self.SS0[:] = xp.sum(self.thickness * g.areaCell, axis=0) / xp.sum(g.areaCell, axis=0)
+            topo_avg = xp.sum(g.bottomTopographyCell * g.areaCell, axis=0).item()/xp.sum(g.areaCell, axis=0).item()
+            for layer in range(c.nLayers):
+                self.SS0[layer] = xp.sum(self.SS0[layer:]) + topo_avg
+
+            print('Sea/layer sufrace average height:')
+            print(self.SS0)
+
+            
             
         else:
             raise ValueError("Invaid choice for the test case.")
