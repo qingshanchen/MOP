@@ -49,7 +49,6 @@ def main( ):
     print("========== Setting the initial state of the model ================")
     s.initialization(poisson, g, vc, c)
 
-    
     print("========== Making a copy of the state object =====================")
     s_init = deepcopy(s)
 
@@ -120,6 +119,10 @@ def main( ):
     else:
         nc_num = -1
 
+        
+#    raise ValueError('JUST TESTING!')
+    
+        
     # Entering the loop
     t0 = time.process_time( )
     t0a = time.time( )
