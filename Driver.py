@@ -255,6 +255,11 @@ def main( ):
 #        print("Initial and final total vorticity:%.15e, %.15e" % (total_vorticity[0], total_vorticity[-1]))
 
         if c.test_case == 2 or c.test_case == 12:
+            if c.use_gpu:
+                error1 = error1.get()
+                error2 = error2.get()
+                errorInf = errorInf.get()
+            
             plt.figure(2); 
             plt.plot(days, error1[:,0], '--', label=r'$L^1$ norm')
             plt.plot(days, error2[:,0], '-', label=r'$L^2$ norm')
