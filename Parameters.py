@@ -1,7 +1,7 @@
 import numpy as np
 
 ### Parameters essential
-test_case = 25
+test_case = 2
 use_gpu = False
 performing_test = False
 
@@ -19,9 +19,13 @@ vector_order = 'F'
 #rho_vec = xp.array([1000.,1010.]) # index 0 = top layer
 #rho0 = 1000.
 
-nLayers = 20
-rho_vec = xp.linspace(1000., 1002., 20) # index 0 = top layer
+nLayers = 3
+rho_vec = xp.array([1000.,1005., 1010.]) # index 0 = top layer
 rho0 = 1000.
+
+#nLayers = 20
+#rho_vec = xp.linspace(1000., 1002., 20) # index 0 = top layer
+#rho0 = 1000.
 
 do_restart = False
 restart_file = 'output-tc21-2layers-818-day2610_3070.nc'
@@ -35,9 +39,9 @@ timestepping = 'RK4'
 conserve_enstrophy = True     # False for energy-conserving only; True for both energy and enstrophy conserving 
 
 # Duration, time stepping size, saving interval
-dt = 50.   #1440 for 480km
+dt = 720.   #1440 for 480km
 #dt = 30.   #360 for NA818
-nYears = 200./360
+nYears = 5./360
 save_inter_days = 1.
 
 # Model configuraitons, boundary conditions
@@ -45,7 +49,7 @@ delVisc = 0.  # 80 for NA818
 bottomDrag =  0.
 GM_kappa = 0.
 kappa = xp.zeros(nLayers) #1e12, 2.e11 for 120km #2.e12
-#kappa[:] = 2e7; kappa[0] = 0.
+kappa[:] = 1e13; kappa[0] = 0.
 mu = xp.zeros(nLayers)  # 2e-3, 4e-5
 #kappa = [0., 0.] #1e12, 2.e11 for 120km #2.e12
 #mu = [0., 0.]  # 2e-3, 4e-5
