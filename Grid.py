@@ -29,8 +29,6 @@ class grid_data:
         #
 
         # Local variables that are only read and written here
-        xCell = grid.variables['xCell'][:]
-        yCell = grid.variables['yCell'][:]
         zCell = grid.variables['zCell'][:]
         xEdge = grid.variables['xEdge'][:]
         yEdge = grid.variables['yEdge'][:]
@@ -55,6 +53,8 @@ class grid_data:
         self.boundaryCellMark = grid.variables['boundaryCellMark'][:]
 
         # Variables that are lightly used in a simulation run
+        self.xCell = xp.array(grid.variables['xCell'][:])
+        self.yCell = xp.array(grid.variables['yCell'][:])
         self.latCell = xp.array(grid.variables['latCell'][:], ndmin=2).T
         self.lonCell = xp.array(grid.variables['lonCell'][:], ndmin=2).T
         self.latEdge = xp.array(grid.variables['latEdge'][:], ndmin=2).T
@@ -71,7 +71,7 @@ class grid_data:
         #self.fCell = grid.variables['fCell'][:]
 
         # To decide whether the domain is on a sphere
-        rad2 = xCell**2 + yCell**2 + zCell**2
+        rad2 = self.xCell**2 + self.yCell**2 + zCell**2
         rad_mean = np.sqrt(np.mean(rad2))
         mean_dev = np.sqrt(np.mean((np.sqrt(rad2) - rad_mean)**2))
         if mean_dev / rad_mean < 0.1:
@@ -83,11 +83,11 @@ class grid_data:
             c.on_a_global_sphere = False
 
 
-        radius = np.sqrt(xCell**2 + yCell**2 + zCell**2)
-        if np.max(np.abs(radius - 1.)/1.) < 0.01:
+        radius = np.sqrt(self.xCell**2 + self.yCell**2 + zCell**2)
+        if np.max(np.abs(radius - 1.)/1.) < 0.01:   # Scale unit sphere to earth
             # To scale the coordinates
-            xCell *= c.sphere_radius
-            yCell *= c.sphere_radius
+            self.xCell *= c.sphere_radius
+            self.yCell *= c.sphere_radius
             zCell *= c.sphere_radius
             xEdge *= c.sphere_radius
             yEdge *= c.sphere_radius
@@ -100,8 +100,17 @@ class grid_data:
             self.areaCell *= c.sphere_radius**2
             self.areaTriangle *= c.sphere_radius**2
             self.kiteAreasOnVertex *= c.sphere_radius**2
-        elif np.max(np.abs(radius-c.sphere_radius)/c.sphere_radius) < 0.01:
+        elif np.max(np.abs(radius-c.sphere_radius)/c.sphere_radius) < 0.01:  # Already at earth scale; nothing to do
             pass
+        elif np.min(zCell)  > 0.9 * np.finfo('float64').max:   # Flat plane; do nothing
+            # Calculate lat and lon for visualizaiton purpose
+            self.latCell[:,0] = self.xCell / c.sphere_radius
+            self.lonCell[:,0] = self.yCell / c.sphere_radius
+            self.latVertex[:,0] = xVertex / c.sphere_radius
+            self.lonVertex[:,0] = yVertex / c.sphere_radius
+            zCell[:] = 0.
+            zEdge[:] = 0.
+            zVertex[:] = 0.
         else:
             raise ValueError("Unknown domain raius.")
             
@@ -117,8 +126,6 @@ class grid_data:
 
         # Open the output file to save scaled grid data
         out = nc.Dataset(c.output_file, 'a', format='NETCDF4_CLASSIC')
-        out.variables['xCell'][:] = xCell[:]
-        out.variables['yCell'][:] = yCell[:]
         out.variables['zCell'][:] = zCell[:]
         out.variables['xEdge'][:] = xEdge[:]
         out.variables['yEdge'][:] = yEdge[:]
@@ -129,9 +136,13 @@ class grid_data:
         out.variables['dvEdge'][:] = self.dvEdge[:]
         out.variables['dcEdge'][:] = self.dcEdge[:]
         if c.use_gpu:
+            out.variables['xCell'][:] = self.xCell.get()
+            out.variables['yCell'][:] = self.yCell.get()
             out.variables['areaCell'][:] = self.areaCell.get()
             out.variables['areaTriangle'][:] = self.areaTriangle.get()
         else:        
+            out.variables['xCell'][:] = self.xCell[:]
+            out.variables['yCell'][:] = self.yCell[:]
             out.variables['areaCell'][:] = self.areaCell[:]
             out.variables['areaTriangle'][:] = self.areaTriangle[:]
         out.variables['kiteAreasOnVertex'][:] = self.kiteAreasOnVertex[:]

@@ -311,7 +311,7 @@ class state_data:
             # Interactive case: top layer variable thickness, others constant thickness
             self.thickness[:,1:] = constant_layer_thickness
             self.thickness[:,0] = total_thickness[:,0] - xp.sum(self.thickness[:,1:], axis=1)
-            if xp.any(self.thickness[:,0] < 0.):
+            if xp.any(self.thickness[:,:] < 0.):
                 raise ValueError('Negative layer thickness detected during the initialization phase. Aborting.')
 
 
@@ -482,6 +482,137 @@ class state_data:
             self.vorticity[:,:] /= self.thickness[:,:]
             self.divergence[:,:] = 0.
             
+            # Initialize wind
+            self.curlWind_cell[:] = 0.
+            self.divWind_cell[:] = 0.
+
+            # Eliminate bottom drag
+            c.bottomDrag = 0.
+
+            # Eliminate lateral diffusion
+            c.delVisc = 0.
+            c.del2Visc = 0.
+            
+            self.SS0[:] = xp.sum(self.thickness * g.areaCell, axis=0) / xp.sum(g.areaCell, axis=0)
+            topo_avg = xp.sum(g.bottomTopographyCell * g.areaCell, axis=0).item()/xp.sum(g.areaCell, axis=0).item()
+            for layer in range(c.nLayers):
+                self.SS0[layer] = xp.sum(self.SS0[layer:]) + topo_avg
+
+            print('Sea/layer sufrace average height:')
+            print(self.SS0)
+
+        elif c.test_case == 24:
+            # One gyre with no forcing on a rectangular domain 
+#            d = xp.sqrt(32*(g.latCell[:,:] - latmid)**2/latwidth**2 + 4*(g.lonCell[:,:]-(-1.1))**2/.3**2)
+            xmid = 0.5*(np.max(g.xCell[:]) + np.min(g.xCell[:]));
+            xlength = np.max(g.xCell[:]) - np.min(g.xCell[:])
+            ymid = 0.5*(np.max(g.yCell[:]) + np.min(g.yCell[:]))
+            ylength = np.max(g.yCell[:]) - np.min(g.yCell[:])
+            d = xp.sqrt(32*(g.xCell[:] - xmid)**2/xlength**2 + 32*(g.yCell[:]-ymid)**2/ylength**2)
+            beta = 2.286e-11
+            g.fCell[:,0] = beta * g.yCell[:]
+            f0 = xp.mean(g.fCell)
+
+            ### DEBUG
+            print("max of d:")
+            print(xp.max(d[:]))
+            
+            if c.nLayers == 1:
+                self.thickness[:] = 4000.
+                self.psi_cell[:,0] = 2*xp.exp(-d**2) * 0.5*(1-xp.tanh(20*(d-1.5)))
+#               self.psi_cell[:] -= np.sum(self.psi_cell * g.areaCell) / np.sum(g.areaCell)
+                self.psi_cell *= c.gravity / f0 * self.thickness
+            elif c.nLayers == 2:
+                self.thickness[:,0] = 1000.
+                self.thickness[:,1] = 3000.
+                self.psi_cell[:,:] = xp.exp(-d**2) * 0.5*(1-xp.tanh(20*(d-1.5)))
+#               self.psi_cell[:] -= np.sum(self.psi_cell * g.areaCell) / np.sum(g.areaCell)
+                self.psi_cell[:,:] *= c.gravity / f0 * self.thickness[:,:]
+
+            else:
+                raise ValueError('This test case only takes nLayers = 1 or 2.')
+                
+                
+            self.phi_cell[:,:] = 0.
+            self.vorticity[:,:] = vc.discrete_laplace_v(self.psi_cell[:,:])
+            self.vorticity[:,:] /= self.thickness[:,:]
+            self.divergence[:,:] = 0.
+
+
+            ### DEBUG
+            print("max of psi:")
+            print(xp.max(self.psi_cell[:,0]))
+            
+            # Initialize wind
+            self.curlWind_cell[:] = 0.
+            self.divWind_cell[:] = 0.
+
+            # Eliminate bottom drag
+            c.bottomDrag = 0.
+
+            # Eliminate lateral diffusion
+            c.delVisc = 0.
+            c.del2Visc = 0.
+            
+            self.SS0[:] = xp.sum(self.thickness * g.areaCell, axis=0) / xp.sum(g.areaCell, axis=0)
+            topo_avg = xp.sum(g.bottomTopographyCell * g.areaCell, axis=0).item()/xp.sum(g.areaCell, axis=0).item()
+            for layer in range(c.nLayers):
+                self.SS0[layer] = xp.sum(self.SS0[layer:]) + topo_avg
+
+            print('Sea/layer sufrace average height:')
+            print(self.SS0)
+
+        elif c.test_case == 25:
+            # Internal wave testing case on a rectangular domain.
+            # Reference: Ilicak et al 2012; Petersen et al, 2015.
+            
+#            d = xp.sqrt(32*(g.latCell[:,:] - latmid)**2/latwidth**2 + 4*(g.lonCell[:,:]-(-1.1))**2/.3**2)
+            # The horizontal domain should be 250km in x
+            if np.abs((xp.max(g.xCell) - xp.min(g.xCell))/250000. - 1) > 1e-4:
+                raise ValueError('Wrong mesh for the test chosen test case!')
+
+            xmid = 0.5*(xp.max(g.xCell) + xp.min(g.xCell))
+            L = 50000.
+            
+            if c.nLayers != 20:
+                raise ValueError('Test case requiers 20 layers!')
+
+            if xp.abs((c.rho_vec[-1] - c.rho_vec[0] )/2. - 1) > 1e-10:
+                raise ValueError('Test case requires a density difference of 2 from top to bottom. Got %f instead' % (c.rho_vec[-1] - c.rho_vec[0]))
+
+            A = 75.
+            drho = c.rho_vec[2] - c.rho_vec[1]
+            zb = -500
+            rho_t = c.rho_vec[0]
+            rho_b = c.rho_vec[-1] + drho
+            
+            z = xp.zeros((g.nCells, c.nLayers))
+            z_perturb = z.copy()
+            xx, rrho = xp.meshgrid(g.xCell, c.rho_vec, indexing='ij')
+            z[:,:] = zb * (c.rho_vec - rho_t) / (rho_b - rho_t)
+            z_perturb[:,:] = A*xp.cos(xp.pi/(2*L)*(xx - xmid))
+            z_perturb[:,:] *= xp.sin(xp.pi*(rrho - rho_t - 0.5*drho)/(rho_b - rho_t - drho))
+            z_perturb *= (xx < xmid+L)
+            z_perturb *= (xx > xmid-L)
+            z_perturb *= (rrho > rho_t + 0.5*drho)
+            z_perturb *= (rrho < rho_b - 0.5*drho)
+            z += z_perturb
+
+            
+            g.fCell[:,0] = 0.
+            f0 = xp.mean(g.fCell)
+
+            # Compute thickness of each layer
+            self.thickness[:,-1] = z[:,-1] - zb
+            self.thickness[:,0:-1] = z[:,:-1] - z[:,1:]
+
+            # Set psi and phi
+            self.psi_cell[:,:] = 0.
+            self.phi_cell[:,:] = 0.
+            self.vorticity[:,:] = 0.
+            self.divergence[:,:] = 0.
+
+
             # Initialize wind
             self.curlWind_cell[:] = 0.
             self.divWind_cell[:] = 0.
@@ -694,7 +825,7 @@ class state_data:
             self.vorticity[:] = 2*u0/a * xp.sin(g.latCell[:])
             self.divergence[:] = 0.
 
-        if xp.any(self.thickness[:,0] < 0.):
+        if xp.any(self.thickness[:,:] < 0.):
             raise ValueError('Negative layer thickness detected. Aborting.')
             
         self.thickness_edge[:] = vc.cell2edge(self.thickness)
