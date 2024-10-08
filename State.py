@@ -700,12 +700,14 @@ class state_data:
         out.createVariable('deg4layerInterfMu', 'f8', ('nVertLevels'))
 
         # Save some timeless data
-        out.variables['quadraticSlopeKappa'][:] = c.kappa[:]
-        out.variables['deg4layerInterfMu'][:] = c.mu[:]
         if c.use_gpu:
             out.variables['curlWind_cell'][:] = self.curlWind_cell.get()
             out.variables['bottomTopographyCell'][:] = g.bottomTopographyCell.get()
+            out.variables['quadraticSlopeKappa'][:] = c.kappa.get()
+            out.variables['deg4layerInterfMu'][:] = c.mu.get()
         else:
+            out.variables['quadraticSlopeKappa'][:] = c.kappa[:]
+            out.variables['deg4layerInterfMu'][:] = c.mu[:]
             out.variables['curlWind_cell'][:] = self.curlWind_cell[:]
             out.variables['bottomTopographyCell'][:] = g.bottomTopographyCell[:]
         

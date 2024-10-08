@@ -71,7 +71,10 @@ class grid_data:
         #self.fCell = grid.variables['fCell'][:]
 
         # To decide whether the domain is on a sphere
-        rad2 = self.xCell**2 + self.yCell**2 + zCell**2
+        if c.use_gpu:
+            rad2 = self.xCell.get()**2 + self.yCell.get()**2 + zCell**2
+        else:
+            rad2 = self.xCell**2 + self.yCell**2 + zCell**2
         rad_mean = np.sqrt(np.mean(rad2))
         mean_dev = np.sqrt(np.mean((np.sqrt(rad2) - rad_mean)**2))
         if mean_dev / rad_mean < 0.1:
@@ -83,7 +86,8 @@ class grid_data:
             c.on_a_global_sphere = False
 
 
-        radius = np.sqrt(self.xCell**2 + self.yCell**2 + zCell**2)
+#        radius = np.sqrt(self.xCell**2 + self.yCell**2 + zCell**2)
+        radius = np.sqrt(rad2)
         if np.max(np.abs(radius - 1.)/1.) < 0.01:   # Scale unit sphere to earth
             # To scale the coordinates
             self.xCell *= c.sphere_radius
